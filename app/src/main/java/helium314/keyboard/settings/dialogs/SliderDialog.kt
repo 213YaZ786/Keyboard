@@ -4,7 +4,7 @@ package helium314.keyboard.settings.dialogs
 import androidx.compose.foundation.layout.Column
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Slider
+import helium314.keyboard.latin.ui.component.GlassSlider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -48,14 +48,14 @@ fun SliderDialog(
             ) {
                 Column {
                     if (intermediateSteps == null)
-                        Slider(
+                        GlassSlider( // Keyboard: the glass slider of Modules
                             value = sliderPosition,
                             onValueChange = { sliderPosition = it },
                             onValueChangeFinished = { onValueChanged(sliderPosition) },
                             valueRange = range,
                         )
                     else
-                        Slider(
+                        GlassSlider( // Keyboard: the glass slider of Modules
                             value = sliderPosition,
                             onValueChange = { sliderPosition = it },
                             onValueChangeFinished = { onValueChanged(sliderPosition) },

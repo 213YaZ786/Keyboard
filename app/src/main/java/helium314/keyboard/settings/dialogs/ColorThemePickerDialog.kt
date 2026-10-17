@@ -16,7 +16,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.RadioButton
+import helium314.keyboard.latin.ui.component.GlassRadio
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
@@ -214,7 +214,7 @@ private fun ColorItemRow(onDismissRequest: () -> Unit, item: String, isSelected:
             .padding(start = 6.dp)
             .heightIn(min = 40.dp)
     ) {
-        RadioButton(
+        GlassRadio( // Keyboard: the glass radio of Modules
             selected = isSelected,
             onClick = {
                 onDismissRequest()

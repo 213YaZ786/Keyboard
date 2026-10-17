@@ -27,7 +27,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.BottomAppBar
-import androidx.compose.material3.Button
+import helium314.keyboard.latin.ui.component.BoldButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.HorizontalDivider
@@ -38,7 +38,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import helium314.keyboard.latin.ui.component.QuietButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -295,7 +295,7 @@ fun GestureDataScreen(
             @Composable fun PleaseType() {
                 if (isThisKeyboardSelected)
                     Text(stringResource(R.string.gesture_data_please_type))
-                else TextButton({
+                else QuietButton({ // Keyboard: glass button
                     imm.showInputMethodPicker()
                     scope.launch {
                         while (!UncachedInputMethodManagerUtils.isThisImeCurrent(ctx, imm)) {
@@ -640,7 +640,7 @@ private fun BottomBar(hasWords: Boolean, onDeleted: () -> Unit) {
 // the text buttons look ugly, try something different
 @Composable
 fun ButtonWithText(text: String, modifier: Modifier = Modifier, enabled: Boolean = true, onClick: () -> Unit) {
-    Button(onClick, modifier, enabled) {
+    BoldButton(onClick, modifier, enabled) { // Keyboard: glass button
         Text(text)
     }
 }

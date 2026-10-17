@@ -10,7 +10,8 @@ import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DateRangePicker
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import helium314.keyboard.latin.ui.component.BoldButton
+import helium314.keyboard.latin.ui.component.QuietButton
 import androidx.compose.material3.rememberDateRangePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -30,7 +31,8 @@ fun DateRangePickerModal(
     DatePickerDialog(
         onDismissRequest = onDismiss,
         confirmButton = {
-            TextButton(
+            BoldButton( // Keyboard: glass button
+                filled = true,
                 onClick = {
                     onDateRangeSelected(pickerState.selectedStartDateMillis to pickerState.selectedEndDateMillis)
                     onDismiss()
@@ -41,10 +43,10 @@ fun DateRangePickerModal(
         },
         dismissButton = {
             Row(horizontalArrangement = Arrangement.Start, modifier = Modifier.fillMaxWidth(0.7f)) {
-                TextButton(onClick = { onDateRangeSelected(null to null); onDismiss() }) {
+                QuietButton(onClick = { onDateRangeSelected(null to null); onDismiss() }) { // Keyboard: glass button
                     Text(stringResource(R.string.delete))
                 }
-                TextButton(onClick = onDismiss) {
+                QuietButton(onClick = onDismiss) { // Keyboard: glass button
                     Text(stringResource(android.R.string.cancel))
                 }
             }

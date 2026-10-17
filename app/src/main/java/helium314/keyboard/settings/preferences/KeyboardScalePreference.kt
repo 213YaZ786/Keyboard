@@ -13,12 +13,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Checkbox
+import helium314.keyboard.latin.ui.component.GlassCheck
+import helium314.keyboard.latin.ui.component.GlassSlider
+import helium314.keyboard.latin.ui.component.QuietButton
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
@@ -131,7 +131,7 @@ private fun KeyboardScaleDialog(
                         // default animations make the dialog flash (see also DictionaryDialog)
                         AnimatedVisibility(visible, exit = fadeOut(), enter = fadeIn()) {
                             WithSmallTitle(variant.ifEmpty { stringResource(R.string.button_default) }) {
-                                Slider(
+                                GlassSlider( // Keyboard: the glass slider of Modules
                                     value = sliderPosition,
                                     onValueChange = { sliderPosition = it },
                                     valueRange = range,
@@ -142,7 +142,7 @@ private fun KeyboardScaleDialog(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text(positionString(sliderPosition))
-                                    TextButton({ sliderPosition = defaultValues[i] }) { Text(stringResource(R.string.button_default)) }
+                                    QuietButton({ sliderPosition = defaultValues[i] }) { Text(stringResource(R.string.button_default)) } // Keyboard: glass button
                                 }
                                 Spacer(Modifier.height(6.dp))
                             }
@@ -160,7 +160,7 @@ private fun DimensionCheckbox(checked: Boolean, dimension: String, onCheckedChan
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.fillMaxWidth().clickable { onCheckedChange(!checked) }
     ) {
-        Checkbox(
+        GlassCheck( // Keyboard: the glass check of Modules
             checked = checked,
             onCheckedChange = { onCheckedChange(it) }
         )

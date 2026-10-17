@@ -12,7 +12,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import helium314.keyboard.latin.ui.component.BoldButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -139,7 +139,7 @@ fun createAboutSettings(context: Context) = listOf(
                         modifier = Modifier.verticalScroll(rememberScrollState())
                     )
                 },
-                confirmButton = { TextButton(onClick = { showDialog = false }) { Text(stringResource(R.string.dialog_close)) } }
+                confirmButton = { BoldButton(filled = true, onClick = { showDialog = false }) { Text(stringResource(R.string.dialog_close)) } } // Keyboard: glass button
             )
         }
     },

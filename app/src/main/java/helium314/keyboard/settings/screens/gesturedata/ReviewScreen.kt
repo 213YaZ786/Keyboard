@@ -23,7 +23,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonColors
-import androidx.compose.material3.Checkbox
+import helium314.keyboard.latin.ui.component.GlassCheck
+import helium314.keyboard.latin.ui.component.QuietButton
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -37,7 +38,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberSwipeToDismissBoxState
@@ -188,7 +188,7 @@ fun ReviewScreen(
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(painterResource(R.drawable.ic_bin), stringResource(R.string.delete))
                                 val undoVisible = dismissState.progress == 1f && dismissState.settledValue == SwipeToDismissBoxValue.StartToEnd
-                                TextButton(
+                                QuietButton( // Keyboard: glass button
                                     onClick = {
                                         deleteJobs.remove(item.id)?.cancel()
                                         scope.launch { dismissState.reset() }
@@ -483,28 +483,28 @@ private fun TopBar(
                 ) {
                     DropdownMenuItem(
                         text = { Row(verticalAlignment = Alignment.CenterVertically) {
-                            Checkbox(includeActive, setIncludeActive)
+                            GlassCheck(includeActive, setIncludeActive) // Keyboard: the glass check of Modules
                             Text(stringResource(R.string.gesture_data_show_active))
                         } },
                         onClick = { showMenu = false; setIncludeActive(!includeActive) }
                     )
                     DropdownMenuItem(
                         text = { Row(verticalAlignment = Alignment.CenterVertically) {
-                            Checkbox(includeBackground, setIncludeBackground)
+                            GlassCheck(includeBackground, setIncludeBackground) // Keyboard: the glass check of Modules
                             Text(stringResource(R.string.gesture_data_show_background))
                         } },
                         onClick = { showMenu = false; setIncludeBackground(!includeBackground) }
                     )
                     DropdownMenuItem(
                         text = { Row(verticalAlignment = Alignment.CenterVertically) {
-                            Checkbox(includeExported, setIncludeExported)
+                            GlassCheck(includeExported, setIncludeExported) // Keyboard: the glass check of Modules
                             Text(stringResource(R.string.gesture_data_include_shared))
                         } },
                         onClick = { showMenu = false; setIncludeExported(!includeExported) }
                     )
                     DropdownMenuItem(
                         text = { Row(verticalAlignment = Alignment.CenterVertically) {
-                            Checkbox(false, { showMenu = false; infoDialog = true }, Modifier.alpha(0f)) // just for alignment
+                            GlassCheck(false, { showMenu = false; infoDialog = true }, Modifier.alpha(0f)) // just for alignment // Keyboard: the glass check of Modules
                             Text(stringResource(R.string.gesture_data_background_gathering_info))
                         } },
                         onClick = { showMenu = false; infoDialog = true }

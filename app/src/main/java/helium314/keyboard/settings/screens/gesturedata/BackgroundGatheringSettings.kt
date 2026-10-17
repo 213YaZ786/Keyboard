@@ -26,12 +26,12 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import helium314.keyboard.latin.ui.component.BoldIconButton
+import helium314.keyboard.latin.ui.component.GlassSwitch
+import helium314.keyboard.latin.ui.component.QuietButton
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -120,7 +120,7 @@ fun BackgroundGatheringSettings() {
             val allowedCountText = if (packageInfos.isEmpty()) "" else allowedCount.toString()
             Text(stringResource(R.string.gesture_data_background_gathering_allowed_apps, allowedCountText), style = MaterialTheme.typography.bodySmall)
         }
-        Switch(
+        GlassSwitch( // Keyboard: the glass switch of Modules
             checked = backgroundGathering,
             onCheckedChange = {
                 if (!GestureDataGatheringSettings.hasBackgroundGatheringPref(ctx.prefs()))
@@ -147,7 +147,7 @@ fun BackgroundGatheringSettings() {
             Text(stringResource(R.string.gesture_data_background_gathering_manual_save))
             Text(stringResource(R.string.gesture_data_background_gathering_manual_save_summary), style = MaterialTheme.typography.bodySmall)
         }
-        Switch(backgroundGatheringManuelSave, { backgroundGatheringManuelSave = it; GestureDataGatheringSettings.setDiscardByDefault(ctx, it) })
+        GlassSwitch(backgroundGatheringManuelSave, { backgroundGatheringManuelSave = it; GestureDataGatheringSettings.setDiscardByDefault(ctx, it) }) // Keyboard: the glass switch of Modules
     }
     ButtonWithText(stringResource(R.string.gesture_data_background_gathering_info), Modifier.fillMaxWidth()) { showInfoDialog = true }
     ButtonWithText(stringResource(R.string.gesture_data_background_excluded_words_button), Modifier.fillMaxWidth()) { showExcludedWordsDialog = true }
@@ -162,7 +162,7 @@ fun BackgroundGatheringSettings() {
             content = {
                 Column {
                     Text(stringResource(R.string.gesture_data_background_gathering_info_message))
-                    TextButton({ indicatorInfo = !indicatorInfo }) {
+                    QuietButton({ indicatorInfo = !indicatorInfo }) { // Keyboard: glass button
                         Text(stringResource(R.string.gesture_data_background_gathering_indicator))
                     }
                     AnimatedVisibility(indicatorInfo) {
@@ -180,7 +180,7 @@ fun BackgroundGatheringSettings() {
                             Text(AnnotatedString.fromHtml(text))
                         }
                     }
-                    TextButton({ controlInfo = !controlInfo }) {
+                    QuietButton({ controlInfo = !controlInfo }) { // Keyboard: glass button
                         Text(stringResource(R.string.gesture_data_background_gathering_control))
                     }
                     AnimatedVisibility(controlInfo) {
@@ -193,7 +193,7 @@ fun BackgroundGatheringSettings() {
                         )
                         Text(AnnotatedString.fromHtml(text))
                     }
-                    TextButton({ reviewInfo = !reviewInfo }) {
+                    QuietButton({ reviewInfo = !reviewInfo }) { // Keyboard: glass button
                         val text = stringResource(R.string.gesture_data_review_screen_title,
                             stringResource(R.string.gesture_data_background_apps_button),
                             stringResource(R.string.gesture_data_background_excluded_words_button)
@@ -246,7 +246,7 @@ fun BackgroundGatheringSettings() {
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(stringResource(R.string.gesture_data_background_apps_include_default))
-                    Switch(checked = defaultInclude, onCheckedChange = { defaultInclude = it; GestureDataGatheringSettings.setAppIncludeByDefault(ctx, it) })
+                    GlassSwitch(checked = defaultInclude, onCheckedChange = { defaultInclude = it; GestureDataGatheringSettings.setAppIncludeByDefault(ctx, it) }) // Keyboard: the glass switch of Modules
                 }
                 TextField(
                     value = filter,
@@ -386,7 +386,7 @@ fun BackgroundGatheringSettings() {
                     label = { Text(stringResource(R.string.user_dict_add_word_button)) },
                     keyboardActions = KeyboardActions { addWord() }
                 )
-                IconButton(
+                BoldIconButton( // Keyboard: glass button
                     { if (!error) addWord() },
                     Modifier.weight(0.2f)
                 ) {

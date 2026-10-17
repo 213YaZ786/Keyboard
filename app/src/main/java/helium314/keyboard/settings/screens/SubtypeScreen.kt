@@ -19,7 +19,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
+import helium314.keyboard.latin.ui.component.GlassSwitch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -212,7 +212,7 @@ fun SubtypeScreen(
                                     .weight(1f)
                                     .padding(start = 10.dp)
                             )
-                            Switch(
+                            GlassSwitch( // Keyboard: the glass switch of Modules
                                 checked = checked ?: prefs.getBoolean(
                                     Settings.PREF_LOCALIZED_NUMBER_ROW,
                                     Defaults.PREF_LOCALIZED_NUMBER_ROW
@@ -377,7 +377,7 @@ private fun PopupOrderDialog(
                 KeyboardIconsSet.instance.GetIconOrEmpty(item.name)
                 val text = item.name.lowercase().getStringResourceOrName("popup_keys_", ctx)
                 Text(text, Modifier.weight(1f))
-                Switch(
+                GlassSwitch( // Keyboard: the glass switch of Modules
                     checked = checked,
                     onCheckedChange = { item.state = it; checked = it }
                 )

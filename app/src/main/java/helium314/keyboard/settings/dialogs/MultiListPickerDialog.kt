@@ -11,7 +11,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Switch
+import helium314.keyboard.latin.ui.component.GlassSwitch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -67,7 +67,7 @@ fun <T: Any> MultiListPickerDialog(
                                 text = getItemName(item),
                                 modifier = Modifier.weight(1f),
                             )
-                            Switch(
+                            GlassSwitch( // Keyboard: the glass switch of Modules
                                 checked = item in selected,
                                 onCheckedChange = {
                                     selected = if (it) selected + item else selected - item

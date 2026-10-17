@@ -19,7 +19,7 @@ import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
+import helium314.keyboard.latin.ui.component.GlassSwitch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -155,7 +155,7 @@ private fun PreferencePreview() {
                     name = "Preference with switch",
                     onClick = {}
                 ) {
-                    Switch(checked = true, onCheckedChange = {})
+                    GlassSwitch(checked = true, onCheckedChange = {}) // Keyboard: the glass switch of Modules
                 }
                 SwitchPreference(
                     name = "SwitchPreference",
