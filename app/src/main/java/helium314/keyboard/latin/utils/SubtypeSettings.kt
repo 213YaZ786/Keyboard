@@ -50,6 +50,7 @@ object SubtypeSettings {
             ScriptUtils.SCRIPT_HEBREW -> "hebrew"
             ScriptUtils.SCRIPT_GEORGIAN -> "georgian"
             ScriptUtils.SCRIPT_BENGALI -> "bengali_unijoy"
+            ScriptUtils.SCRIPT_TIFINAGH -> "tifinagh" // Keyboard
             else -> throw RuntimeException("Wrong script supplied: ${locale.script()}")
         }
     }

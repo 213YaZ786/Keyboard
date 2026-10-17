@@ -100,6 +100,7 @@
    <locale android:name="ur"/>
    <locale android:name="uz"/>
    <locale android:name="vi"/>
+   <locale android:name="zgh"/>
    <locale android:name="zh-CN"/>
    <locale android:name="zh-HK"/>
    <locale android:name="zh-TW"/>

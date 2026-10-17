@@ -1,0 +1,14 @@
+[popup_keys]
+ⵣ ⵥ
+ⵔ ⵕ
+ⵜ ⵟ
+ⵙ ⵚ
+ⴷ ⴹ
+ⴳ ⴳⵯ ⵯ
+ⴽ ⴽⵯ ⵯ
+
+[labels]
+alphabet: ⴰⴱⴳ
+
+[tlds]
+ma dz

@@ -1188,6 +1188,16 @@
         android:imeSubtypeExtraValue="KeyboardLayoutSet=MAIN:yoruba,AsciiCapable,EmojiCapable"
         android:isAsciiCapable="true"
     />
+    <!-- Keyboard: Tifinagh layout from xkeyboard-config symbols/ma, variant "tifinagh" -->
+    <subtype android:icon="@drawable/ic_ime_switcher"
+        android:label="@string/subtype_generic"
+        android:subtypeId="0x5f2a8c31"
+        android:imeSubtypeLocale="zgh"
+        android:languageTag="zgh"
+        android:imeSubtypeMode="keyboard"
+        android:imeSubtypeExtraValue="KeyboardLayoutSet=MAIN:tifinagh,SupportTouchPositionCorrection,EmojiCapable"
+        android:isAsciiCapable="false"
+    />
     <subtype android:icon="@drawable/ic_ime_switcher"
         android:label="@string/subtype_generic"
         android:subtypeId="0x9b13ab76"

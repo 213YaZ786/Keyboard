@@ -33,6 +33,7 @@ object ScriptUtils {
     const val SCRIPT_THAI = "Thai"
     const val SCRIPT_HANGUL = "Hang"
     const val SCRIPT_GUJARATI = "Gujr"
+    const val SCRIPT_TIFINAGH = "Tfng" // Keyboard: ISO 15924 code of Tifinagh
 
     @JvmStatic
     fun scriptSupportsUppercase(locale: Locale): Boolean {
@@ -146,6 +147,10 @@ object ScriptUtils {
             SCRIPT_GUJARATI ->
                 // Gujarati unicode block is U+0A80..U+0AFF
                 codePoint in 0xA80..0xAFF
+            SCRIPT_TIFINAGH ->
+                // Keyboard: the Tifinagh unicode block is U+2D30..U+2D7F (https://www.unicode.org/charts/PDF/U2D30.pdf),
+                // it includes U+2D7F, the Tifinagh consonant joiner
+                codePoint in 0x2D30..0x2D7F
             SCRIPT_UNKNOWN -> true
             else -> throw RuntimeException("Unknown value of script: $script")
         }
@@ -181,6 +186,7 @@ object ScriptUtils {
             "hi", "mr", "ne" -> SCRIPT_DEVANAGARI
             "kn" -> SCRIPT_KANNADA
             "gu" -> SCRIPT_GUJARATI
+            "zgh" -> SCRIPT_TIFINAGH // Keyboard
             // "no language" is a latin keyboard.
             // setting to different script breaks editing existing keyboards, and hides the shift key on new custom layouts
             //"zz" -> SCRIPT_UNKNOWN
