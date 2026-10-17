@@ -21,13 +21,21 @@ object LinkCleaner {
 
     /** The address behind [url], unwrapped and without tracking; [url] itself when it is not a link. */
     fun clean(url: String): String {
-        var current = url.trim()
+        // The ClearURLs catalog first (ClearUrls), then this object's own rules for what it does not know.
+        var current = catalog(url.trim())
         repeat(MAX_WRAPPERS) {
             val inner = unwrap(current) ?: return stripTracking(current)
-            current = inner
+            current = catalog(inner)
         }
         return stripTracking(current)
     }
+
+    /**
+     * What the ClearURLs catalog makes of [url] (URLCheck's ClearUrlModule, see ClearUrls,
+     * https://github.com/TrianguloY/URLCheck). A link whose address Google keeps to itself goes
+     * on untouched: the resolver asks Google with it as it came, tokens (usg) included.
+     */
+    private fun catalog(url: String): String = if (needsResolving(url)) url else ClearUrls.clean(url)
 
     /** Whether [url] is a detour whose target cannot be read without asking its site. */
     fun needsResolving(url: String): Boolean {

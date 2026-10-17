@@ -14,6 +14,10 @@ Keyboard for Android, a fork of [HeliBoard](https://github.com/HeliBorg/HeliBoar
   clipboard layout and the glide typing classifier.
 - [Scribe-Android](https://github.com/scribe-org/Scribe-Android) (GPL-3.0): the
   CMake build of the dictionary engine.
+- [URLCheck](https://github.com/TrianguloY/URLCheck) (CC BY 4.0): the
+  cleaning of pasted links, with the tracking rules of
+  [ClearURLs](https://github.com/ClearURLs/Rules) (LGPL-3.0) and the
+  [Public Suffix List](https://publicsuffix.org) (MPL-2.0).
 - Dictionaries from [aosp-dictionaries](https://codeberg.org/Helium314/aosp-dictionaries):
   Arabic from [aosp-dictionary-tools](https://github.com/remi0s/aosp-dictionary-tools)
   (Apache-2.0); Kabyle from word lists of [OPUS](https://opus.nlpl.eu/)
