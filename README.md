@@ -11,7 +11,7 @@ Keyboard for Android, a fork of [HeliBoard](https://github.com/HeliBorg/HeliBoar
 - [KeyboardKit](https://github.com/KeyboardKit/KeyboardKit) 9.9.1 (MIT): the
   callouts and the suggestion bar.
 - [FlorisBoard](https://github.com/florisboard/florisboard) (Apache-2.0): the
-  clipboard layout.
+  clipboard layout and the glide typing classifier.
 - [Scribe-Android](https://github.com/scribe-org/Scribe-Android) (GPL-3.0): the
   CMake build of the dictionary engine.
 - Dictionaries from [aosp-dictionaries](https://codeberg.org/Helium314/aosp-dictionaries):

@@ -94,6 +94,15 @@ public final class DictionaryCollection extends Dictionary {
         return !mDictionaries.isEmpty();
     }
 
+    // Keyboard: every dictionary of the collection, for free glide typing. Source: same delegation as
+    // isInDictionary and getFrequency above (AOSP DictionaryCollection,
+    // https://android.googlesource.com/platform/packages/inputmethods/LatinIME/+/refs/heads/main/java/src/com/android/inputmethod/latin/DictionaryCollection.java)
+    @Override
+    public void forEachWord(final boolean skipOffensive, final java.util.function.BiConsumer<String, Integer> consumer) {
+        for (final Dictionary dict : mDictionaries)
+            dict.forEachWord(skipOffensive, consumer);
+    }
+
     @Override
     public void close() {
         for (final Dictionary dict : mDictionaries)

@@ -184,6 +184,13 @@ public abstract class Dictionary {
         return null;
     }
 
+    // Keyboard: gives every word of the dictionary with its probability (0 to 255) to the consumer,
+    // for the free glide typing word list (helium314.keyboard.latin.gesture.GlideWords). Does nothing by default.
+    // Source: the word iteration of AOSP LatinIME, see ReadOnlyBinaryDictionary.forEachWord
+    // https://android.googlesource.com/platform/packages/inputmethods/LatinIME/+/refs/heads/main/java/src/com/android/inputmethod/latin/makedict/Ver4DictDecoder.java
+    public void forEachWord(final boolean skipOffensive, final java.util.function.BiConsumer<String, Integer> consumer) {
+    }
+
     /**
      * Not a true dictionary. A placeholder used to indicate suggestions that don't come from any
      * real dictionary.

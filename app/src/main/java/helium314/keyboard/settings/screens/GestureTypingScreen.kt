@@ -44,7 +44,8 @@ fun GestureTypingScreen(
             Settings.PREF_GESTURE_FLOATING_PREVIEW_TEXT else null,
         if (gestureEnabled && gestureFloatingPreviewEnabled)
             Settings.PREF_GESTURE_FLOATING_PREVIEW_DYNAMIC else null,
-        if (gestureEnabled)
+        // Keyboard: only the native engine finds several words in one gesture
+        if (gestureEnabled && JniUtils.sHaveGestureLib)
             Settings.PREF_GESTURE_SPACE_AWARE else null,
         if (gestureEnabled)
             Settings.PREF_GESTURE_FAST_TYPING_COOLDOWN else null,
@@ -110,7 +111,7 @@ fun createGestureTypingSettings(context: Context) = listOf(
             stepSize = 10,
         ) { KeyboardSwitcher.getInstance().setThemeNeedsReload() }
     },
-)
+).filter { JniUtils.sHaveGestureLib || it.key != Settings.PREF_GESTURE_SPACE_AWARE } // Keyboard: see above
 
 @Preview
 @Composable

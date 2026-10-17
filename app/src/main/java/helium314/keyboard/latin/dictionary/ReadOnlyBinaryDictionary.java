@@ -121,6 +121,38 @@ public final class ReadOnlyBinaryDictionary extends Dictionary {
         return null;
     }
 
+    // Keyboard: reads the words one by one for free glide typing. Source: the token loop of
+    // ExpandableBinaryDictionary.dumpAllWordsForDebug and Ver4DictDecoder (getNextWordProperty until the
+    // token is 0), https://android.googlesource.com/platform/packages/inputmethods/LatinIME/+/refs/heads/main/java/src/com/android/inputmethod/latin/makedict/Ver4DictDecoder.java
+    // The lock is taken for each word only, so close() is never kept waiting for the whole list.
+    @Override
+    public void forEachWord(final boolean skipOffensive, final java.util.function.BiConsumer<String, Integer> consumer) {
+        if (TYPE_EMOJI.equals(mDictType)) return;
+        int token = 0;
+        int count = 0;
+        do {
+            final BinaryDictionary.GetNextWordPropertyResult result;
+            if (!mLock.readLock().tryLock()) return;
+            try {
+                if (!mBinaryDictionary.isValidDictionary()) return;
+                result = mBinaryDictionary.getNextWordProperty(token);
+            } finally {
+                mLock.readLock().unlock();
+            }
+            final WordProperty property = result.mWordProperty;
+            if (property == null) return;
+            if (!property.mIsNotAWord && !property.mIsBeginningOfSentence
+                    && !(skipOffensive && property.mIsPossiblyOffensive)) {
+                consumer.accept(property.mWord, property.mProbabilityInfo.mProbability);
+            }
+            token = result.mNextToken;
+            ++count;
+        } while (token != 0 && count < MAX_WORDS_TO_READ);
+    }
+
+    // a stop for a dictionary whose token would never come back to 0
+    private static final int MAX_WORDS_TO_READ = 2_000_000;
+
     @Override
     public void close() {
         mLock.writeLock().lock();

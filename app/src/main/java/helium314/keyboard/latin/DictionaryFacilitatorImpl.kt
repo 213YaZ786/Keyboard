@@ -20,6 +20,7 @@ import helium314.keyboard.latin.common.StringUtils
 import helium314.keyboard.latin.common.decapitalize
 import helium314.keyboard.latin.common.mightBeEmoji
 import helium314.keyboard.latin.common.splitOnWhitespace
+import helium314.keyboard.latin.gesture.FreeGlide
 import helium314.keyboard.latin.dictionary.AppsBinaryDictionary
 import helium314.keyboard.latin.dictionary.ContactsBinaryDictionary
 import helium314.keyboard.latin.dictionary.Dictionary
@@ -31,6 +32,7 @@ import helium314.keyboard.latin.permissions.PermissionsUtil
 import helium314.keyboard.latin.personalization.UserHistoryDictionary
 import helium314.keyboard.latin.settings.Settings
 import helium314.keyboard.latin.settings.SettingsValuesForSuggestion
+import helium314.keyboard.latin.utils.JniUtils
 import helium314.keyboard.latin.utils.Log
 import helium314.keyboard.latin.utils.SubtypeSettings
 import helium314.keyboard.latin.utils.SuggestionResults
@@ -255,6 +257,12 @@ class DictionaryFacilitatorImpl : DictionaryFacilitator {
 
                 listener?.onUpdateMainDictionaryAvailability(hasAtLeastOneInitializedMainDictionary())
                 latchForWaitingLoadingMainDictionary.countDown()
+
+                // Keyboard: read the words for free glide typing now, so the first gesture finds them ready.
+                // Source: Floris' setWordData, called ahead (gesture/FreeGlide.kt)
+                val settings = Settings.getValues()
+                if (!JniUtils.sHaveGestureLib && settings.mGestureInputEnabled)
+                    dictGroupsWithNewMainDict.forEach { (_, mainDict) -> FreeGlide.prepare(mainDict, settings.mBlockPotentiallyOffensive) }
             } catch (e: Throwable) {
                 Log.e(TAG, "could not initialize main dictionaries for $locales", e)
             }
@@ -486,6 +494,10 @@ class DictionaryFacilitatorImpl : DictionaryFacilitator {
         composedData: ComposedData, ngramContext: NgramContext, keyboard: Keyboard,
         settingsValuesForSuggestion: SettingsValuesForSuggestion, sessionId: Int, inputStyle: Int
     ): SuggestionResults {
+        // Keyboard: no Google library, so gestures go to the free glide typing engine (gesture/FreeGlide.kt)
+        if (composedData.mIsBatchMode && !JniUtils.sHaveGestureLib)
+            return getFreeGlideSuggestionResults(composedData, keyboard, settingsValuesForSuggestion)
+
         val proximityInfoHandle = keyboard.proximityInfo.nativeProximityInfo
         val weightOfLangModelVsSpatialModel = floatArrayOf(Dictionary.NOT_A_WEIGHT_OF_LANG_MODEL_VS_SPATIAL_MODEL)
 
@@ -513,6 +525,30 @@ class DictionaryFacilitatorImpl : DictionaryFacilitator {
 
         includeAtLeastTwoWordSuggestions(suggestionResults, suggestionsArray, composedData.mTypedWord)
 
+        return suggestionResults
+    }
+
+    // Keyboard: the suggestions of a gesture from the free glide typing engine, in the shape the native
+    // engine gives them (best word first by score). Source: Floris' GlideTypingManager.updateSuggestionsAsync
+    // https://github.com/florisboard/florisboard/blob/main/app/src/main/kotlin/dev/patrickgold/florisboard/ime/text/gestures/GlideTypingManager.kt
+    private fun getFreeGlideSuggestionResults(
+        composedData: ComposedData, keyboard: Keyboard, settingsValuesForSuggestion: SettingsValuesForSuggestion
+    ): SuggestionResults {
+        val groups = dictionaryGroups
+        val sources = groups.mapNotNull { group ->
+            val mainDict = group.getDict(Dictionary.TYPE_MAIN) ?: return@mapNotNull null
+            if (!mainDict.isInitialized) return@mapNotNull null
+            FreeGlide.Source(mainDict) { group.isBlacklisted(it) }
+        }
+        val suggestions = FreeGlide.suggest(sources, keyboard, composedData.mInputPointers,
+            settingsValuesForSuggestion.mBlockPotentiallyOffensive)
+        val suggestionResults = SuggestionResults(SuggestedWords.MAX_SUGGESTIONS, false, false)
+        val infos = suggestions.mapIndexed { index, suggestion ->
+            SuggestedWordInfo(suggestion.word, "", FREE_GLIDE_BEST_SCORE - index, SuggestedWordInfo.KIND_CORRECTION,
+                suggestion.source, SuggestedWordInfo.NOT_AN_INDEX, SuggestedWordInfo.NOT_A_CONFIDENCE)
+        }
+        suggestionResults.addAll(infos)
+        suggestionResults.mRawSuggestions?.addAll(infos)
         return suggestionResults
     }
 
@@ -620,6 +656,8 @@ class DictionaryFacilitatorImpl : DictionaryFacilitator {
 
         // HACK: This threshold is being used when adding a capitalized entry in the User History dictionary.
         private const val CAPITALIZED_FORM_MAX_PROBABILITY_FOR_INSERT = 140
+        // Keyboard: score of the best free glide word, the next ones are one lower each
+        private const val FREE_GLIDE_BEST_SCORE = 100_000_000
 
         private fun createSubDict(
             dictType: String, context: Context, locale: Locale, dictFile: File?, dictNamePrefix: String
