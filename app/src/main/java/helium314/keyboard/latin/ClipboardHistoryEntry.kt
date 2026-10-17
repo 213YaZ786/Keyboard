@@ -23,7 +23,10 @@ class ClipboardHistoryEntry(
     var isPinned: Boolean,
     val text: String?,
     val filename: String?,
-    val mimeTypes: List<String>?
+    val mimeTypes: List<String>?,
+    // Keyboard: ClipDescription.EXTRA_IS_SENSITIVE, kept with the entry as FlorisBoard's ClipboardItem.isSensitive
+    // (https://github.com/florisboard/florisboard/blob/main/app/src/main/kotlin/dev/patrickgold/florisboard/ime/clipboard/provider/ClipboardDatabase.kt)
+    val isSensitive: Boolean = false
 ) : Comparable<ClipboardHistoryEntry> {
     // for display order
     override fun compareTo(other: ClipboardHistoryEntry): Int {

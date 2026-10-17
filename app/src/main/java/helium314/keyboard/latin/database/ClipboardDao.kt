@@ -11,6 +11,7 @@ import android.webkit.MimeTypeMap
 import androidx.core.content.FileProvider
 import androidx.core.database.getStringOrNull
 import helium314.keyboard.latin.ClipboardHistoryEntry
+import helium314.keyboard.latin.ClipboardPrivacy
 import helium314.keyboard.latin.common.FileUtils
 import helium314.keyboard.latin.settings.Defaults
 import helium314.keyboard.latin.settings.Settings
@@ -38,7 +39,7 @@ class ClipboardDao private constructor(private val db: Database) {
     private val cache = mutableListOf<ClipboardHistoryEntry>().apply {
         db.readableDatabase.query(
             TABLE,
-            arrayOf(COLUMN_ID, COLUMN_TIMESTAMP, COLUMN_PINNED, COLUMN_TEXT, COLUMN_FILE, COLUMN_MIME_TYPE),
+            arrayOf(COLUMN_ID, COLUMN_TIMESTAMP, COLUMN_PINNED, COLUMN_TEXT, COLUMN_FILE, COLUMN_MIME_TYPE, COLUMN_SENSITIVE), // Keyboard: + sensitive
             null,
             null,
             null,
@@ -53,25 +54,27 @@ class ClipboardDao private constructor(private val db: Database) {
                     it.getStringOrNull(3),
                     it.getStringOrNull(4),
                     it.getStringOrNull(5)?.split('§')?.filter { it.isNotEmpty() },
+                    it.getInt(6) != 0, // Keyboard: sensitive
                 ))
             }
         }
         sort()
     }
 
-    fun addClip(timestamp: Long, pinned: Boolean, text: String) = synchronized(this) {
+    fun addClip(timestamp: Long, pinned: Boolean, text: String, sensitive: Boolean = false) = synchronized(this) {
         clearOldClips()
-        val existingIndex = cache.indexOfFirst { it.text == text }
+        // Keyboard: an item is the same only with the same sensitivity (FlorisBoard's ClipboardManager.insertOrMoveBeginning)
+        val existingIndex = cache.indexOfFirst { it.text == text && it.isSensitive == sensitive }
         if (existingIndex >= 0 && cache[existingIndex].timeStamp == timestamp)
             return@synchronized // nothing to do
         if (existingIndex >= 0) {
             updateTimestampAt(existingIndex, timestamp)
             return@synchronized
         }
-        insertNewEntry(timestamp, pinned, text, null, null, null)
+        insertNewEntry(timestamp, pinned, text, null, null, null, sensitive)
     }
 
-    fun addClipUri(timestamp: Long, pinned: Boolean, uri: Uri, description: ClipDescription, context: Context) = synchronized(this) {
+    fun addClipUri(timestamp: Long, pinned: Boolean, uri: Uri, description: ClipDescription, context: Context, sensitive: Boolean = false) = synchronized(this) {
         clearOldClips()
         val extension = if (description.mimeTypeCount == 0) ""
             else ".${MimeTypeMap.getSingleton().getExtensionFromMimeType(description.getMimeType(0))}"
@@ -93,7 +96,7 @@ class ClipboardDao private constructor(private val db: Database) {
         tempFile.renameTo(file)
         // we could try getting a thumbnail using context.contentResolver.loadThumbnail(uri, Size(a, b), null)
         // but currently we don't cache them anyway, so no use for that
-        insertNewEntry(timestamp, pinned, description.label?.toString(), file.name, description.getMimeTypes(), context)
+        insertNewEntry(timestamp, pinned, description.label?.toString(), file.name, description.getMimeTypes(), context, sensitive)
     }
 
     // keep pinned and the first non-pinned, others can be deleted
@@ -117,17 +120,18 @@ class ClipboardDao private constructor(private val db: Database) {
     }
 
     /** only public for restoring backups */
-    fun insertNewEntry(timestamp: Long, pinned: Boolean, text: String?, filename: String?, mimeTypes: List<String>?, context: Context?) {
-        val cv = ContentValues(5)
+    fun insertNewEntry(timestamp: Long, pinned: Boolean, text: String?, filename: String?, mimeTypes: List<String>?, context: Context?, sensitive: Boolean = false) {
+        val cv = ContentValues(6)
         cv.put(COLUMN_TIMESTAMP, timestamp)
         cv.put(COLUMN_PINNED, pinned)
         cv.put(COLUMN_TEXT, text)
         cv.put(COLUMN_FILE, filename)
         // § should be a safe separator, not allowed in mime types: https://datatracker.ietf.org/doc/html/rfc6838#section-4.2
         cv.put(COLUMN_MIME_TYPE, mimeTypes?.joinToString("§"))
+        cv.put(COLUMN_SENSITIVE, sensitive)
         val rowId = db.writableDatabase.insert(TABLE, null, cv)
 
-        val entry = ClipboardHistoryEntry(rowId, timestamp, pinned, text, filename, mimeTypes)
+        val entry = ClipboardHistoryEntry(rowId, timestamp, pinned, text, filename, mimeTypes, sensitive)
         if (filename != null && context != null)
             deleteIfSizeExceeded(context.prefs())
         cache.add(entry)
@@ -201,6 +205,26 @@ class ClipboardDao private constructor(private val db: Database) {
         delete(toRemove)
     }
 
+    /**
+     * Keyboard: removes the sensitive entries copied more than [ClipboardPrivacy.SENSITIVE_LIFETIME_MILLIS] ago, pinned
+     * or not, even while the clipboard is shown: FlorisBoard's ClipboardManager.enforceExpiryDate
+     * (https://github.com/florisboard/florisboard/blob/main/app/src/main/kotlin/dev/patrickgold/florisboard/ime/clipboard/ClipboardManager.kt).
+     * Returns the wait until the next one expires, null when no sensitive entry is left or the switch is off.
+     */
+    fun removeExpiredSensitive(
+        now: Long = System.currentTimeMillis(),
+        enabled: Boolean = Settings.getValues()?.mClipboardSensitiveExpiry != false // the settings screen passes the new value, read before the settings reload
+    ): Long? = synchronized(this) {
+        if (!enabled) return@synchronized null
+        val expired = cache.filter { ClipboardPrivacy.isExpired(it.isSensitive, it.timeStamp, now) }
+        if (expired.isNotEmpty()) {
+            val positions = expired.map { cache.indexOf(it) }.sortedDescending()
+            delete(expired)
+            positions.forEach { listener?.onClipsRemoved(it, 1) }
+        }
+        cache.filter { it.isSensitive }.minOfOrNull { ClipboardPrivacy.delayUntilExpiry(it.timeStamp, now) }
+    }
+
     fun clearNonPinned() {
         val indicesToRemove = mutableListOf<Int>()
         cache.forEachIndexed { idx, clip ->
@@ -257,6 +281,7 @@ class ClipboardDao private constructor(private val db: Database) {
         private const val COLUMN_TEXT = "TEXT" // we could enforce unique text, but that's only necessary if we can drop the cache (later)
         private const val COLUMN_FILE = "FILE" // path relative to files dir
         private const val COLUMN_MIME_TYPE = "MIME_TYPE" // for files, actually a list of mime types according to clipboard description
+        private const val COLUMN_SENSITIVE = "SENSITIVE" // Keyboard: ClipDescription.EXTRA_IS_SENSITIVE, 0 or 1
         const val CREATE_TABLE = """
             CREATE TABLE $TABLE (
                 $COLUMN_ID INTEGER PRIMARY KEY,
@@ -268,6 +293,7 @@ class ClipboardDao private constructor(private val db: Database) {
 
         const val ADD_FILE_COLUMN = "ALTER TABLE $TABLE ADD COLUMN $COLUMN_FILE TEXT"
         const val ADD_MIME_TYPE_COLUMN = "ALTER TABLE $TABLE ADD COLUMN $COLUMN_MIME_TYPE TEXT"
+        const val ADD_SENSITIVE_COLUMN = "ALTER TABLE $TABLE ADD COLUMN $COLUMN_SENSITIVE TINYINT NOT NULL DEFAULT 0" // Keyboard
 
         private var instance: ClipboardDao? = null
         lateinit var clipFilesDir: File

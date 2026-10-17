@@ -241,7 +241,7 @@ class ClipboardHistoryView @JvmOverloads constructor(
     override fun onKeyUp(clipId: Long) {
         val clipContent = clipboardHistoryManager.getHistoryEntryContent(clipId)
         if (clipContent?.filename != null) keyboardActionListener.onContent(clipContent.getContentInfo(context))
-        else keyboardActionListener.onTextInput(clipContent?.text)
+        else keyboardActionListener.onTextInput(clipContent?.text?.let { clipboardHistoryManager.textForPaste(it) }) // Keyboard: links cleaned
         keyboardActionListener.onReleaseKey(KeyCode.NOT_SPECIFIED, false)
         if (Settings.getValues().mAlphaAfterClipHistoryEntry)
             keyboardActionListener.onCodeInput(KeyCode.ALPHA, Constants.NOT_A_COORDINATE, Constants.NOT_A_COORDINATE, false)

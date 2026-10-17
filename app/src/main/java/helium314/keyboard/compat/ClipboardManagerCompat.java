@@ -32,8 +32,10 @@ public class ClipboardManagerCompat {
     }
 
     public static Boolean getClipSensitivity(final ClipDescription cd) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            return cd != null && cd.getExtras() != null && cd.getExtras().getBoolean("android.content.extra.IS_SENSITIVE");
+        // Keyboard: ClipDescription.EXTRA_IS_SENSITIVE exists from API 33, as FlorisBoard's ClipboardItem.fromClipData
+        // (https://github.com/florisboard/florisboard/blob/main/app/src/main/kotlin/dev/patrickgold/florisboard/ime/clipboard/provider/ClipboardDatabase.kt)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            return cd != null && cd.getExtras() != null && cd.getExtras().getBoolean(ClipDescription.EXTRA_IS_SENSITIVE);
         }
         return null; // can't determine
     }

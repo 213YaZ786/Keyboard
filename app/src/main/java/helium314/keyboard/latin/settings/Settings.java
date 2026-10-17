@@ -173,6 +173,9 @@ public final class Settings implements SharedPreferences.OnSharedPreferenceChang
     public static final String PREF_CLIPBOARD_HISTORY_RETENTION_TIME = "clipboard_history_retention_time";
     public static final String PREF_CLIPBOARD_HISTORY_PINNED_FIRST = "clipboard_history_pinned_first";
     public static final String PREF_CLIPBOARD_USE_FILES = "clipboard_histor_usey_files";
+    // Keyboard: sensitive clips leave the history after 20 s, links are cleaned when pasted
+    public static final String PREF_CLIPBOARD_SENSITIVE_EXPIRY = "clipboard_sensitive_expiry";
+    public static final String PREF_CLIPBOARD_CLEAN_LINKS = "clipboard_clean_links";
     public static final String PREF_CLIPBOARD_FILES_SIZE_LIMIT = "clipboard_history_files_size_limit";
 
     public static final String PREF_ADD_TO_PERSONAL_DICTIONARY = "add_to_personal_dictionary";

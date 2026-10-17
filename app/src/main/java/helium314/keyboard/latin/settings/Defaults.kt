@@ -164,6 +164,8 @@ object Defaults {
     const val PREF_CLIPBOARD_HISTORY_RETENTION_TIME = 10 // minutes
     const val PREF_CLIPBOARD_HISTORY_PINNED_FIRST = true
     const val PREF_CLIPBOARD_USE_FILES = true
+    const val PREF_CLIPBOARD_SENSITIVE_EXPIRY = true // Keyboard
+    const val PREF_CLIPBOARD_CLEAN_LINKS = true // Keyboard
     const val PREF_CLIPBOARD_FILES_SIZE_LIMIT = 20 // megabytes
     const val PREF_ADD_TO_PERSONAL_DICTIONARY = false
     @JvmField

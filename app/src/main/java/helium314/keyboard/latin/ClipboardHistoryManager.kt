@@ -7,6 +7,8 @@ import android.content.ClipDescription
 import android.content.ClipboardManager
 import android.content.Context
 import android.net.Uri
+import android.os.Handler
+import android.os.Looper
 import android.provider.OpenableColumns
 import android.text.InputType
 import android.text.TextUtils
@@ -47,17 +49,41 @@ class ClipboardHistoryManager(
     private var clipboardDao: ClipboardDao? = null
     private var tempPrimaryClip = false
 
+    // Keyboard: the sensitive items leave the history 20 s after they were copied, FlorisBoard's
+    // ClipboardManager.enforceExpiryDate (https://github.com/florisboard/florisboard/blob/main/app/src/main/kotlin/dev/patrickgold/florisboard/ime/clipboard/ClipboardManager.kt);
+    // a Handler message of the running keyboard, no alarm and no service
+    private val expiryHandler = Handler(Looper.getMainLooper())
+    private val expireSensitive = Runnable { scheduleSensitiveExpiry() }
+
+    private fun scheduleSensitiveExpiry() {
+        expiryHandler.removeCallbacks(expireSensitive)
+        // the chip of a sensitive clip goes with it, as FlorisBoard's suggestion leaves with the item
+        // (ClipboardSuggestionProvider in ime/nlp/NlpManager.kt, https://github.com/florisboard/florisboard)
+        val clip = clipboardManager.primaryClip
+        if (clip != null && latinIME.mSettings.current.mClipboardSensitiveExpiry
+            && ClipboardPrivacy.isExpired(ClipboardManagerCompat.getClipSensitivity(clip.description) == true,
+                ClipboardManagerCompat.getClipTimestamp(clip), System.currentTimeMillis()))
+            removeClipboardSuggestion()
+        val wait = clipboardDao?.removeExpiredSensitive() ?: return
+        expiryHandler.postDelayed(expireSensitive, wait)
+    }
+
     fun onCreate() {
         clipboardManager = latinIME.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         clipboardManager.addPrimaryClipChangedListener(this)
         clipboardDao = ClipboardDao.getInstance(latinIME)
+        scheduleSensitiveExpiry() // Keyboard: items left by an earlier run
         if (latinIME.mSettings.current.mClipboardHistoryEnabled)
             fetchPrimaryClip()
     }
 
     fun onDestroy() {
         clipboardManager.removePrimaryClipChangedListener(this)
+        expiryHandler.removeCallbacks(expireSensitive)
     }
+
+    // Keyboard: what is pasted for a copied text, its links cleaned when the switch is on (ClipboardPrivacy.textForPaste)
+    fun textForPaste(text: String) = ClipboardPrivacy.textForPaste(text, latinIME.mSettings.current.mClipboardCleanLinks)
 
     override fun onPrimaryClipChanged() {
         // Make sure we read clipboard content only if history settings is set
@@ -77,14 +103,19 @@ class ClipboardHistoryManager(
         val clipItem = clipData.getItemAt(0) ?: return
         val description = clipData.description ?: return
         val timeStamp = ClipboardManagerCompat.getClipTimestamp(clipData)
+        // Keyboard: ClipDescription.EXTRA_IS_SENSITIVE (FlorisBoard's ClipboardItem.fromClipData); one already past its 20 s is not stored
+        val sensitive = ClipboardManagerCompat.getClipSensitivity(description) == true
+        if (sensitive && latinIME.mSettings.current.mClipboardSensitiveExpiry
+            && ClipboardPrivacy.isExpired(true, timeStamp, System.currentTimeMillis())) return
 
         if (description.hasMimeType("text/*")) {
             val content = clipItem.coerceToText(latinIME)
             if (TextUtils.isEmpty(content)) return
-            clipboardDao?.addClip(timeStamp, false, content.toString())
+            clipboardDao?.addClip(timeStamp, false, content.toString(), sensitive)
         } else if (maySaveFromUri(clipItem.uri, latinIME)) {
-            clipboardDao?.addClipUri(timeStamp, false, clipItem.uri, description, latinIME)
+            clipboardDao?.addClipUri(timeStamp, false, clipItem.uri, description, latinIME, sensitive)
         }
+        if (sensitive) scheduleSensitiveExpiry()
     }
 
     fun getPrimaryClipIfText(): String? {
@@ -93,7 +124,7 @@ class ClipboardHistoryManager(
         if (clipData.itemCount == 0) return null
         val clipItem = clipData.getItemAt(0) ?: return null
         return if (clipData.description?.hasMimeType("text/*") == true)
-            clipItem.coerceToText(latinIME).toString().takeIf { it.isNotEmpty() }
+            clipItem.coerceToText(latinIME).toString().takeIf { it.isNotEmpty() }?.let { textForPaste(it) } // Keyboard: links cleaned
         else null
     }
 
@@ -195,6 +226,9 @@ class ClipboardHistoryManager(
         if (!hasText && !hasImage) return null
         val timeStamp = ClipboardManagerCompat.getClipTimestamp(clipData)
         if (System.currentTimeMillis() - timeStamp > RECENT_TIME_MILLIS) return null
+        // Keyboard: a sensitive clip is offered only for its 20 s, as it stays in the history
+        if (latinIME.mSettings.current.mClipboardSensitiveExpiry
+            && ClipboardPrivacy.isExpired(ClipboardManagerCompat.getClipSensitivity(clipData.description) == true, timeStamp, System.currentTimeMillis())) return null
         val content = clipItem.coerceToText(latinIME)
 
         // create the view
@@ -209,11 +243,15 @@ class ClipboardHistoryManager(
             if (InputTypeUtils.isNumberInputType(inputType) && !content.isValidNumber()) return null
             val shortenedContent = content.take(200) // for display only
             KeyboardTypeface.applyToTextView(textView)
-            textView.text = (if (isClipSensitive(inputType)) "*".repeat(shortenedContent.length) else shortenedContent)
+            // Keyboard: a sensitive clip shows the words "Sensitive content" in place of one star per character, as
+            // FlorisBoard's ClipboardItem.displayText; its chip holds the item only, with no address, e-mail or number cut out of it
+            // (NlpManager.ClipboardSuggestionProvider); HeliBoard cuts none out either
+            textView.text = ClipboardPrivacy.shown(shortenedContent.toString(), isClipSensitive(inputType),
+                latinIME.getString(R.string.clipboard_sensitive_content))
         }
         val onClickListener = View.OnClickListener {
             dontShowCurrentSuggestion = true
-            if (hasText) latinIME.onTextInput(content.toString())
+            if (hasText) latinIME.onTextInput(textForPaste(content.toString())) // Keyboard: links cleaned
             else latinIME.onEvent(Event.createSoftwareKeypressEvent(KeyCode.CLIPBOARD_PASTE, 0,
                 Constants.NOT_A_COORDINATE, Constants.NOT_A_COORDINATE, false))
             AudioAndHapticFeedbackManager.getInstance().performHapticAndAudioFeedback(KeyCode.NOT_SPECIFIED, it, HapticEvent.KEY_PRESS)

@@ -16,6 +16,7 @@ import androidx.recyclerview.widget.StaggeredGridLayoutManager
 import helium314.keyboard.keyboard.KeyboardTheme
 import helium314.keyboard.keyboard.internal.GlassKeyDrawable
 import helium314.keyboard.latin.ClipboardHistoryEntry
+import helium314.keyboard.latin.ClipboardPrivacy
 import helium314.keyboard.latin.common.Colors
 import helium314.keyboard.latin.ClipboardHistoryManager
 import helium314.keyboard.latin.R
@@ -168,13 +169,19 @@ class ClipboardAdapter(
         fun setContent(historyEntry: ClipboardHistoryEntry?) {
             if (historyEntry == null) return
             itemView.tag = historyEntry.id
-            if (historyEntry.filename != null) {
+            // Keyboard: a sensitive item shows "Sensitive content", never its text or picture; a tap still pastes it
+            // (FlorisBoard's ClipboardItem.displayText, ClipboardPrivacy.shown)
+            val masked = historyEntry.isSensitive
+            if (masked) {
+                contentTextView.text = ClipboardPrivacy.shown(null, true, itemView.context.getString(R.string.clipboard_sensitive_content))
+            } else if (historyEntry.filename != null) {
                 historyEntry.setImageAndDescription(contentImageView, contentTextView)
             } else {
                 contentTextView.text = historyEntry.text?.take(1000) // truncate displayed text for performance reasons
             }
             pinnedIconView.visibility = if (historyEntry.isPinned) View.VISIBLE else View.GONE
-            contentImageView.visibility = if (historyEntry.filename != null) View.VISIBLE else View.GONE
+            contentImageView.visibility = if (historyEntry.filename != null && !masked) View.VISIBLE else View.GONE
+            if (masked) contentImageView.setImageDrawable(null)
             contentTextView.visibility = if (contentTextView.text.isNullOrEmpty()) View.GONE else View.VISIBLE
         }
 

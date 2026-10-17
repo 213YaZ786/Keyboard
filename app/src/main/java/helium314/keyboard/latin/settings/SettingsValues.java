@@ -96,6 +96,8 @@ public class SettingsValues {
     public final boolean mClipboardHistoryEnabled;
     public final long mClipboardHistoryRetentionTime;
     public final boolean mClipboardHistoryPinnedFirst;
+    public final boolean mClipboardSensitiveExpiry; // Keyboard
+    public final boolean mClipboardCleanLinks; // Keyboard
     public final boolean mOneHandedModeEnabled;
     public final int mOneHandedModeGravity;
     public final float mOneHandedModeScale;
@@ -289,6 +291,8 @@ public class SettingsValues {
         mClipboardHistoryEnabled = prefs.getBoolean(Settings.PREF_ENABLE_CLIPBOARD_HISTORY, Defaults.PREF_ENABLE_CLIPBOARD_HISTORY);
         mClipboardHistoryRetentionTime = prefs.getInt(Settings.PREF_CLIPBOARD_HISTORY_RETENTION_TIME, Defaults.PREF_CLIPBOARD_HISTORY_RETENTION_TIME);
         mClipboardHistoryPinnedFirst = prefs.getBoolean(Settings.PREF_CLIPBOARD_HISTORY_PINNED_FIRST, Defaults.PREF_CLIPBOARD_HISTORY_PINNED_FIRST);
+        mClipboardSensitiveExpiry = prefs.getBoolean(Settings.PREF_CLIPBOARD_SENSITIVE_EXPIRY, Defaults.PREF_CLIPBOARD_SENSITIVE_EXPIRY); // Keyboard
+        mClipboardCleanLinks = prefs.getBoolean(Settings.PREF_CLIPBOARD_CLEAN_LINKS, Defaults.PREF_CLIPBOARD_CLEAN_LINKS); // Keyboard
 
         mIsFloatingKeyboard = !mIsLocked && SettingsKt.isFloatingKeyboardEnabled(context);
         mFloatingWidth = SettingsKt.readFloatingWidth(context);

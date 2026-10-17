@@ -83,6 +83,8 @@ fun PreferencesScreen(
         if (clipboardHistoryEnabled) Settings.PREF_CLIPBOARD_USE_FILES else null,
         if (clipboardHistoryEnabled && prefs.getBoolean(Settings.PREF_CLIPBOARD_USE_FILES, Defaults.PREF_CLIPBOARD_USE_FILES))
             Settings.PREF_CLIPBOARD_FILES_SIZE_LIMIT else null,
+        if (clipboardHistoryEnabled) Settings.PREF_CLIPBOARD_SENSITIVE_EXPIRY else null, // Keyboard
+        Settings.PREF_CLIPBOARD_CLEAN_LINKS, // Keyboard
     )
     SearchSettingsScreen(
         onClickBack = onClickBack,
@@ -208,6 +210,16 @@ fun createPreferencesSettings(context: Context) = listOf(
             },
             range = 1f..1001f,
         ) { ClipboardDao.getInstance(ctx)?.cleanupFiles(ctx.prefs()) }
+    },
+    // Keyboard: the same GlassSwitch preference as the others; turned on, it clears what is already past its 20 s
+    Setting(context, Settings.PREF_CLIPBOARD_SENSITIVE_EXPIRY, R.string.clipboard_sensitive_expiry) {
+        val ctx = LocalContext.current
+        SwitchPreference(it, Defaults.PREF_CLIPBOARD_SENSITIVE_EXPIRY) { on ->
+            if (on) ClipboardDao.getInstance(ctx)?.removeExpiredSensitive(enabled = true)
+        }
+    },
+    Setting(context, Settings.PREF_CLIPBOARD_CLEAN_LINKS, R.string.clipboard_clean_links, R.string.clipboard_clean_links_summary) {
+        SwitchPreference(it, Defaults.PREF_CLIPBOARD_CLEAN_LINKS)
     },
     Setting(context, Settings.PREF_VIBRATION_DURATION_SETTINGS, R.string.prefs_keypress_vibration_duration_settings) { setting ->
         SliderPreference(
