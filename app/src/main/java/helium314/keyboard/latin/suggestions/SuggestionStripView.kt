@@ -24,6 +24,7 @@ import android.view.View.OnLongClickListener
 import android.view.ViewGroup
 import android.view.accessibility.AccessibilityEvent
 import android.widget.ImageButton
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.RelativeLayout
 import android.widget.TextView
@@ -31,6 +32,8 @@ import androidx.core.view.doOnNextLayout
 import androidx.core.view.isVisible
 import helium314.keyboard.event.HapticEvent
 import helium314.keyboard.keyboard.KeyboardSwitcher
+import helium314.keyboard.keyboard.KeyboardTheme.Companion.STYLE_GLASS
+import helium314.keyboard.keyboard.internal.GlassKeyDrawable
 import helium314.keyboard.keyboard.internal.KeyboardIconsSet
 import helium314.keyboard.keyboard.internal.keyboard_parser.floris.KeyCode
 import helium314.keyboard.latin.AudioAndHapticFeedbackManager
@@ -45,6 +48,7 @@ import helium314.keyboard.latin.define.DebugFlags
 import helium314.keyboard.latin.settings.DebugSettings
 import helium314.keyboard.latin.settings.Defaults
 import helium314.keyboard.latin.settings.Settings
+import helium314.keyboard.latin.utils.ResourceUtils
 import helium314.keyboard.latin.utils.ToolbarKey
 import helium314.keyboard.latin.utils.ToolbarMode
 import helium314.keyboard.latin.utils.addPinnedKey
@@ -101,8 +105,15 @@ class SuggestionStripView(context: Context, attrs: AttributeSet?, defStyle: Int)
             word.setOnClickListener(this)
             word.setOnLongClickListener(this)
             colors.setBackground(word, ColorType.STRIP_BACKGROUND)
+            // Keyboard: ToolbarItemStyle of KeyboardKit 9.9.1 (Autocomplete+ToolbarItem.swift): padding 2 across; the
+            // text is centred in the 48 dp slot, which leaves the 10 dp above and below it
+            if (colors.themeStyle == STYLE_GLASS) word.setPadding(2.dpToPx(resources), 0, 2.dpToPx(resources), 0)
             wordViews.add(word)
             val divider = inflater.inflate(R.layout.suggestion_divider, null)
+            if (colors.themeStyle == STYLE_GLASS) { // Keyboard: the toolbar's separator, 1 x 30 in onSurface at 50 %
+                (divider as ImageView).setImageDrawable(GlassKeyDrawable.separator(context, colors))
+                divider.scaleType = ImageView.ScaleType.CENTER
+            }
             dividerViews.add(divider)
             val info = TextView(context, null, R.attr.suggestionWordStyle)
             info.setTextColor(colors.get(ColorType.KEY_TEXT))
@@ -126,7 +137,8 @@ class SuggestionStripView(context: Context, attrs: AttributeSet?, defStyle: Int)
     private var direction = 1 // 1 if LTR, -1 if RTL
 
     private val toolbarKeyLayoutParams = LinearLayout.LayoutParams(
-        resources.getDimensionPixelSize(R.dimen.config_suggestions_strip_edge_key_width),
+        if (Settings.getValues().mColors.themeStyle == STYLE_GLASS) ResourceUtils.getStripButtonSize(resources) // Keyboard: the round button's size
+        else resources.getDimensionPixelSize(R.dimen.config_suggestions_strip_edge_key_width),
         LinearLayout.LayoutParams.MATCH_PARENT
     )
 
@@ -139,6 +151,10 @@ class SuggestionStripView(context: Context, attrs: AttributeSet?, defStyle: Int)
         val toolbarHeight = min(toolbarExpandKey.layoutParams.height, resources.getDimension(R.dimen.config_suggestions_strip_height).toInt())
         toolbarExpandKey.layoutParams.height = toolbarHeight
         toolbarExpandKey.layoutParams.width = toolbarHeight // we want it square
+        if (colors.themeStyle == STYLE_GLASS) { // Keyboard: as big as the other tools, so its glass circle is
+            toolbarExpandKey.layoutParams.height = ViewGroup.LayoutParams.MATCH_PARENT
+            toolbarExpandKey.layoutParams.width = ResourceUtils.getStripButtonSize(resources)
+        }
         colors.setBackground(toolbarExpandKey, ColorType.STRIP_BACKGROUND) // necessary because background is re-used for defaultToolbarBackground
         colors.setColor(toolbarExpandKey, ColorType.TOOL_BAR_EXPAND_KEY)
         colors.setColor(toolbarExpandKey.background, ColorType.TOOL_BAR_EXPAND_KEY_BACKGROUND)
@@ -168,7 +184,7 @@ class SuggestionStripView(context: Context, attrs: AttributeSet?, defStyle: Int)
             pinnedKeys.addView(button)
             val pinnedKeyInToolbar = toolbar.findViewWithTag<View>(pinnedKey)
             if (pinnedKeyInToolbar != null && Settings.getValues().mQuickPinToolbarKeys)
-                pinnedKeyInToolbar.background = enabledToolKeyBackground
+                pinnedKeyInToolbar.background = enabledBackground(pinnedKeyInToolbar)
         }
         toolbarContainer.doOnNextLayout {
             // set min with of the toolbar so the weight of the toolbar keys actually does something
@@ -373,11 +389,11 @@ class SuggestionStripView(context: Context, attrs: AttributeSet?, defStyle: Int)
             val pinnedKeyView = pinnedKeys.findViewWithTag<View>(tag)
             if (pinnedKeyView == null) {
                 addKeyToPinnedKeys(tag)
-                toolbar.findViewWithTag<View>(tag).background = enabledToolKeyBackground
+                toolbar.findViewWithTag<View>(tag).let { it.background = enabledBackground(it) }
                 addPinnedKey(context.prefs(), tag)
             } else {
                 removePinnedKey(context.prefs(), tag)
-                toolbar.findViewWithTag<View>(tag).background = defaultToolbarBackground.constantState?.newDrawable(resources)
+                toolbar.findViewWithTag<View>(tag).let { it.background = defaultBackground(it) }
                 pinnedKeys.removeView(pinnedKeyView)
             }
         }
@@ -538,6 +554,22 @@ class SuggestionStripView(context: Context, attrs: AttributeSet?, defStyle: Int)
         copy.isActivated = original.isActivated
         setupKey(copy, Settings.getValues().mColors)
         pinnedKeys.addView(copy)
+    }
+
+    // Keyboard: the background of a pinned tool and of a tool that is not (HeliBoard's onLongClickToolbarKey above):
+    // in the Glass style a round glass button, accent glass for a pinned one, set as View.background
+    // (https://developer.android.com/reference/android/view/View#setBackground(android.graphics.drawable.Drawable));
+    // the button is KeyboardKit's toolbar without band (Autocomplete+Toolbar.swift, 9.9.1,
+    // https://github.com/KeyboardKit/KeyboardKit/tree/9.9.1/Sources/KeyboardKit/Autocomplete), else HeliBoard's drawables
+    private fun enabledBackground(view: View): Drawable {
+        val colors = Settings.getValues().mColors
+        return if (colors.themeStyle == STYLE_GLASS) GlassKeyDrawable.forStripButton(context, colors, view, true) else enabledToolKeyBackground
+    }
+
+    private fun defaultBackground(view: View): Drawable? {
+        val colors = Settings.getValues().mColors
+        return if (colors.themeStyle == STYLE_GLASS) GlassKeyDrawable.forStripButton(context, colors, view)
+        else defaultToolbarBackground.constantState?.newDrawable(resources)
     }
 
     private fun setupKey(view: ImageButton, colors: Colors) {

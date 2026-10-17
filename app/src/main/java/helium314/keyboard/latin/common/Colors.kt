@@ -106,11 +106,24 @@ interface Colors {
     }
 
     /**
+     * Keyboard: with the Glass style the bar above the keys has no band (the frame's ground shows under it):
+     * its views get no background and its icon buttons a round glass (GlassKeyDrawable.forStripButton), after
+     * KeyboardKit 9.9.1's Autocomplete.Toolbar (https://github.com/KeyboardKit/KeyboardKit/blob/9.9.1/Sources/KeyboardKit/Autocomplete/Autocomplete%2BToolbar.swift).
+     * Set as View.background (https://developer.android.com/reference/android/view/View#setBackground(android.graphics.drawable.Drawable)).
+     */
+    fun setGlassStrip(view: View, color: ColorType): Boolean {
+        if (themeStyle != STYLE_GLASS || color != STRIP_BACKGROUND) return false
+        view.background = if (view is android.widget.ImageView) GlassKeyDrawable.forStripButton(view.context, this, view) else null
+        return true
+    }
+
+    /**
      * Keyboard: with the Glass style, gives the view behind popup keys and more suggestions a pane of
      * glass (GlassKeyDrawable.Kind.PANEL) in place of the plain colour; false for any other case.
      * Set as View.background (https://developer.android.com/reference/android/view/View#setBackground(android.graphics.drawable.Drawable)).
      */
     fun setGlassPanel(view: View, color: ColorType): Boolean {
+        if (setGlassStrip(view, color)) return true
         if (themeStyle != STYLE_GLASS || (color != POPUP_KEYS_BACKGROUND && color != MORE_SUGGESTIONS_BACKGROUND)) return false
         view.background = GlassKeyDrawable.forPanel(view.context, isDarkColor(get(MAIN_BACKGROUND)))
         return true

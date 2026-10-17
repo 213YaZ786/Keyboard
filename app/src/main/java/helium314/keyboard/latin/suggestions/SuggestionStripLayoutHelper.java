@@ -18,6 +18,7 @@ import android.graphics.Rect;
 import android.graphics.Typeface;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
+import android.graphics.drawable.ShapeDrawable;
 import android.text.Spannable;
 import android.text.SpannableString;
 import android.text.Spanned;
@@ -37,7 +38,9 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import helium314.keyboard.accessibility.AccessibilityUtils;
+import helium314.keyboard.keyboard.KeyboardTheme;
 import helium314.keyboard.keyboard.KeyboardTypeface;
+import helium314.keyboard.keyboard.internal.GlassKeyDrawable;
 import helium314.keyboard.latin.PunctuationSuggestions;
 import helium314.keyboard.latin.R;
 import helium314.keyboard.latin.SuggestedWords;
@@ -75,6 +78,11 @@ final class SuggestionStripLayoutHelper {
     private final ArrayList<View> mDividerViews;
     private final ArrayList<TextView> mDebugInfoViews;
 
+    // Keyboard: the Glass style, the colours and the pill of the autocorrect word per position in the strip
+    private final boolean mGlass;
+    private final Colors mColors;
+    private final GlassKeyDrawable[] mPills;
+    private final Drawable mMoreSuggestionsSpacer;
     private final int mColorValidTypedWord;
     private final int mColorTypedWord;
     private final int mColorAutoCorrect;
@@ -110,8 +118,7 @@ final class SuggestionStripLayoutHelper {
         mDividerWidth = dividerView.getMeasuredWidth();
 
         final Resources res = wordView.getResources();
-        mSuggestionsStripHeight = res.getDimensionPixelSize(
-                R.dimen.config_suggestions_strip_height);
+        mSuggestionsStripHeight = ResourceUtils.getSuggestionStripHeight(res); // Keyboard: the Glass bar is higher
 
         final TypedArray a = context.obtainStyledAttributes(attrs,
                 R.styleable.SuggestionStripView, defStyle, R.style.SuggestionStripView);
@@ -119,10 +126,16 @@ final class SuggestionStripLayoutHelper {
         mAlphaObsoleted = ResourceUtils.getFraction(a, R.styleable.SuggestionStripView_alphaObsoleted, 1.0f);
 
         final Colors colors = Settings.getValues().mColors;
-        mColorValidTypedWord = colors.get(ColorType.SUGGESTION_VALID_WORD);
-        mColorTypedWord = colors.get(ColorType.SUGGESTION_TYPED_WORD);
-        mColorAutoCorrect = colors.get(ColorType.SUGGESTION_AUTO_CORRECT);
-        mColorSuggested = colors.get(ColorType.SUGGESTED_WORD);
+        // Keyboard: in the Glass style every suggestion is in the key text colour (ToolbarItemStyle.titleColor,
+        // KeyboardKit 9.9.1) and the autocorrect word is told by its glass pill
+        mColors = colors;
+        mGlass = KeyboardTheme.STYLE_GLASS.equals(colors.getThemeStyle());
+        mPills = new GlassKeyDrawable[wordViews.size()];
+        final int keyText = colors.get(ColorType.KEY_TEXT);
+        mColorValidTypedWord = mGlass ? keyText : colors.get(ColorType.SUGGESTION_VALID_WORD);
+        mColorTypedWord = mGlass ? keyText : colors.get(ColorType.SUGGESTION_TYPED_WORD);
+        mColorAutoCorrect = mGlass ? keyText : colors.get(ColorType.SUGGESTION_AUTO_CORRECT);
+        mColorSuggested = mGlass ? keyText : colors.get(ColorType.SUGGESTED_WORD);
         final int colorMoreSuggestionsHint = colors.get(ColorType.MORE_SUGGESTIONS_HINT);
 
         mSuggestionsCountInStrip = a.getInt(
@@ -141,6 +154,13 @@ final class SuggestionStripLayoutHelper {
         mMoreSuggestionsHint = getMoreSuggestionsHint(res,
                 res.getDimension(R.dimen.config_more_suggestions_hint_text_size),
                 colorMoreSuggestionsHint);
+        // Keyboard: a blank drawable as big as the hint (ShapeDrawable.setIntrinsicWidth / setIntrinsicHeight,
+        // https://developer.android.com/reference/android/graphics/drawable/ShapeDrawable#setIntrinsicHeight(int))
+        final ShapeDrawable spacer = new ShapeDrawable();
+        spacer.setIntrinsicWidth(mMoreSuggestionsHint.getIntrinsicWidth());
+        spacer.setIntrinsicHeight(mMoreSuggestionsHint.getIntrinsicHeight());
+        spacer.setAlpha(0);
+        mMoreSuggestionsSpacer = spacer;
         mCenterPositionInStrip = mSuggestionsCountInStrip / 2;
         // Assuming there are at least three suggestions. Also, note that the suggestions are
         // laid out according to script direction, so this is left of the center for LTR scripts
@@ -310,6 +330,7 @@ final class SuggestionStripLayoutHelper {
 
     private static void addDivider(final ViewGroup stripView, final View dividerView) {
         stripView.addView(dividerView);
+        dividerView.setVisibility(View.VISIBLE); // Keyboard: the Glass style hides some after this
         final LinearLayout.LayoutParams params = (LinearLayout.LayoutParams)dividerView.getLayoutParams();
         params.gravity = Gravity.CENTER;
     }
@@ -364,6 +385,9 @@ final class SuggestionStripLayoutHelper {
                 final View divider = mDividerViews.get(positionInStrip);
                 // Add divider if this isn't the left most suggestion in suggestions strip.
                 addDivider(stripView, divider);
+                // Keyboard: Autocomplete.Toolbar.useSeparator (KeyboardKit 9.9.1): none beside the autocorrect word
+                if (mGlass) divider.setVisibility(mWordViews.get(positionInStrip).getBackground() != null
+                        || mWordViews.get(positionInStrip - 1).getBackground() != null ? View.INVISIBLE : View.VISIBLE);
                 x += divider.getMeasuredWidth();
             }
 
@@ -399,7 +423,13 @@ final class SuggestionStripLayoutHelper {
     private TextView layoutWord(final Context context, final int positionInStrip, final int width) {
         final TextView wordView = mWordViews.get(positionInStrip);
         final CharSequence word = wordView.getText();
-        if (positionInStrip == mCenterPositionInStrip && mMoreSuggestionsAvailable) {
+        if (mGlass && positionInStrip == mCenterPositionInStrip && mMoreSuggestionsAvailable) {
+            // Keyboard: the dots below the text with clear space, and the text still centred: the same blank
+            // drawable above balances them (TextView.setCompoundDrawablesWithIntrinsicBounds and
+            // setCompoundDrawablePadding, https://developer.android.com/reference/android/widget/TextView#setCompoundDrawablePadding(int))
+            wordView.setCompoundDrawablesWithIntrinsicBounds(null, mMoreSuggestionsSpacer, null, mMoreSuggestionsHint);
+            wordView.setCompoundDrawablePadding(Math.round(3f * wordView.getResources().getDisplayMetrics().density));
+        } else if (positionInStrip == mCenterPositionInStrip && mMoreSuggestionsAvailable) {
             // TODO: This "more suggestions hint" should have a nicely designed icon.
             wordView.setCompoundDrawablesWithIntrinsicBounds(null, null, null, mMoreSuggestionsHint);
             // HACK: Align with other TextViews that have no compound drawables.
@@ -462,6 +492,7 @@ final class SuggestionStripLayoutHelper {
             final TextView wordView = mWordViews.get(positionInStrip);
             wordView.setText(null);
             wordView.setTag(null);
+            if (mGlass) wordView.setBackground(null); // Keyboard: no pill
             // Make this inactive for touches in {@link #layoutWord(int,int)}.
             if (SuggestionStripView.DEBUG_SUGGESTIONS) {
                 mDebugInfoViews.get(positionInStrip).setText(null);
@@ -482,6 +513,12 @@ final class SuggestionStripLayoutHelper {
             wordView.setTag(indexInSuggestedWords);
             wordView.setText(getStyledSuggestedWord(suggestedWords, indexInSuggestedWords));
             wordView.setTextColor(getSuggestionTextColor(suggestedWords, indexInSuggestedWords));
+            if (mGlass && indexInSuggestedWords == SuggestedWords.INDEX_OF_AUTO_CORRECTION && suggestedWords.mWillAutoCorrect) {
+                // Keyboard: the word that autocorrect will commit, on the glass pill (standardAutocorrect)
+                if (mPills[positionInStrip] == null)
+                    mPills[positionInStrip] = GlassKeyDrawable.Companion.forAutocorrect(wordView.getContext(), mColors, wordView);
+                wordView.setBackground(mPills[positionInStrip]);
+            }
             KeyboardTypeface.applyToTextView(wordView);
             if (SuggestionStripView.DEBUG_SUGGESTIONS) {
                 mDebugInfoViews.get(positionInStrip).setText(suggestedWords.getDebugString(indexInSuggestedWords));
@@ -505,6 +542,7 @@ final class SuggestionStripLayoutHelper {
             // {@link TextView#getTag()} is used to get the index in suggestedWords at
             // {@link SuggestionStripView#onClick(View)}.
             wordView.setTag(positionInStrip);
+            if (mGlass) wordView.setBackground(null); // Keyboard: no pill on punctuation
             wordView.setText(punctuation);
             wordView.setContentDescription(punctuation);
             wordView.setTextScaleX(1.0f);

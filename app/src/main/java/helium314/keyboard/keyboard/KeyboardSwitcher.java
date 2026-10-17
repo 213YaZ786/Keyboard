@@ -565,8 +565,16 @@ public final class KeyboardSwitcher {
         mEmojiTabStripView = mCurrentInputView.findViewById(R.id.emoji_tab_strip);
         mClipboardStripView = mCurrentInputView.findViewById(R.id.clipboard_strip);
         mClipboardStripScrollView = mCurrentInputView.findViewById(R.id.clipboard_strip_scroll_view);
+        if (KeyboardTheme.STYLE_GLASS.equals(Settings.getValues().mColors.getThemeStyle())) {
+            // Keyboard: no band above the emoji and clipboard views either, the frame's ground shows
+            mEmojiTabStripView.setBackground(null);
+            mClipboardStripScrollView.setBackground(null);
+            mClipboardStripScrollView.setFillViewport(true); // the clipboard tools share the width
+        }
         mSuggestionStripView = mCurrentInputView.findViewById(R.id.suggestion_strip_view);
         mStripContainer = mCurrentInputView.findViewById(R.id.strip_container);
+        // Keyboard: the Glass bar is iOS's 48 dp (ResourceUtils.getSuggestionStripHeight), the layout says the dimen's
+        mStripContainer.getLayoutParams().height = ResourceUtils.getSuggestionStripHeight(mThemeContext.getResources());
         mBackgroundGatheringIndicator = mCurrentInputView.findViewById(R.id.backgroundGatheringIndicator);
 
         prefs.registerOnSharedPreferenceChangeListener(mSuggestionStripView);

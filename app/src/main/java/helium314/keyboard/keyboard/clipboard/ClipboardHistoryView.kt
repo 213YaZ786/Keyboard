@@ -18,6 +18,7 @@ import helium314.keyboard.keyboard.KeyboardActionListener
 import helium314.keyboard.keyboard.KeyboardElement
 import helium314.keyboard.keyboard.KeyboardLayoutSet
 import helium314.keyboard.keyboard.KeyboardSwitcher
+import helium314.keyboard.keyboard.KeyboardTheme
 import helium314.keyboard.keyboard.KeyboardTypeface
 import helium314.keyboard.keyboard.MainKeyboardView
 import helium314.keyboard.keyboard.PointerTracker
@@ -121,7 +122,10 @@ class ClipboardHistoryView @JvmOverloads constructor(
 
     private fun setupToolbarKeys() {
         // set layout params
-        val toolbarKeyLayoutParams = LayoutParams(resources.getDimensionPixelSize(R.dimen.config_suggestions_strip_edge_key_width), LayoutParams.MATCH_PARENT)
+        // Keyboard: in the Glass style the tools share the width (the spacer that pushed them to the right gets no share)
+        val glass = Settings.getValues().mColors.themeStyle == KeyboardTheme.STYLE_GLASS
+        if (glass) (KeyboardSwitcher.getInstance().clipboardStrip?.getChildAt(0)?.layoutParams as? LayoutParams)?.weight = 0f
+        val toolbarKeyLayoutParams = LayoutParams(if (glass) ResourceUtils.getStripButtonSize(resources) else resources.getDimensionPixelSize(R.dimen.config_suggestions_strip_edge_key_width), LayoutParams.MATCH_PARENT, if (glass) 1f else 0f)
         toolbarKeys.forEach { it.layoutParams = toolbarKeyLayoutParams }
     }
 

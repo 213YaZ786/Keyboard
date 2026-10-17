@@ -85,7 +85,7 @@ public class InlineAutofillUtils {
         stylesBuilder.addStyle(style);
         Bundle stylesBundle = stylesBuilder.build();
 
-        final int height = context.getResources().getDimensionPixelSize(R.dimen.config_suggestions_strip_height);
+        final int height = ResourceUtils.getSuggestionStripHeight(context.getResources()); // Keyboard: the Glass bar is higher
         final Size min = new Size(100, height);
         final Size max = new Size(740, height);
 

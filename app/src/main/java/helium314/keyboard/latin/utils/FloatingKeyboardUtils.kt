@@ -91,7 +91,7 @@ object FloatingKeyboardUtils {
 
     private fun getSuggestionStripHeight(resources: Resources) =
         if (Settings.getValues().mToolbarMode == ToolbarMode.HIDDEN) 0
-        else resources.getDimension(R.dimen.config_suggestions_strip_height).toInt()
+        else ResourceUtils.getSuggestionStripHeight(resources) // Keyboard: the Glass bar is higher
 
     @SuppressLint("ClickableViewAccessibility")
     private fun View.setDragListener(view: View) {

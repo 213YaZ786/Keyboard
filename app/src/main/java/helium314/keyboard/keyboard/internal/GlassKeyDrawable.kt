@@ -23,6 +23,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import helium314.keyboard.latin.R
 import helium314.keyboard.latin.common.ColorType
+import helium314.keyboard.latin.common.Colors
+import helium314.keyboard.latin.utils.isDarkColor
 import helium314.keyboard.latin.ui.glass.GlassLook
 import helium314.keyboard.latin.ui.glass.ZONE_AGSL
 import helium314.keyboard.latin.ui.glass.glassLookOf
@@ -47,6 +49,15 @@ class GlassKeyDrawable(private val look: GlassLook, private val kind: Kind, cont
      * floating glass of the apps (look.floatTint, as FloatingPane in Modules' panes kit).
      */
     enum class Kind { LETTER, FUNCTIONAL, ACTION, PANEL }
+
+    // Keyboard: the bar above the keys draws round buttons and a pill in this drawable; [host] is the view it is the
+    // background of, which places it in the keyboard frame at each draw. The pill is the autocorrect item's
+    // background of KeyboardKit 9.9.1 (Autocomplete+ToolbarItem.swift standardAutocorrect, corner 4, inside the
+    // toolbar's padding of 4: https://github.com/KeyboardKit/KeyboardKit/tree/9.9.1/Sources/KeyboardKit/Autocomplete)
+    enum class Shape { KEY, ROUND, PILL }
+    var shape = Shape.KEY
+    var pillRadiusDp = 4f
+    var host: View? = null
 
     // The key's place in the ground drawn behind it (GlassZoneNode's origin and window), set by place().
     private var originX = 0f
@@ -117,18 +128,37 @@ class GlassKeyDrawable(private val look: GlassLook, private val kind: Kind, cont
     override fun getOpacity() = PixelFormat.TRANSLUCENT
 
     override fun draw(canvas: Canvas) {
-        val w = bounds.width().toFloat()
-        val h = bounds.height().toFloat()
+        var w = bounds.width().toFloat()
+        var h = bounds.height().toFloat()
         if (w <= 0f || h <= 0f) return
         // Keyboard: a panel is its own window, as place() makes it for a view outside the keyboard frame.
         if (kind == Kind.PANEL) {
             originX = 0f; originY = 0f
             window = Size(w, h)
         }
-        val radius = min((if (kind == Kind.PANEL) PANEL_RADIUS_DP else RADIUS_DP) * density, min(w, h) / 2f)
+        // Keyboard: a drawable of the bar above the keys finds its place in the frame from its view
+        host?.let { place(it, 0f, 0f) }
+        // Keyboard: the glass lies in the bounds at (dx, dy) in w x h, a circle or a pill for the bar above the keys
+        var dx = 0f
+        var dy = 0f
+        var radius = min((if (kind == Kind.PANEL) PANEL_RADIUS_DP else RADIUS_DP) * density, min(w, h) / 2f)
+        if (shape == Shape.ROUND) {
+            val d = min(min(w, h - 2f * STRIP_PADDING_DP * density), MAX_BUTTON_DP * density)
+            if (d <= 0f) return
+            dx = (w - d) / 2f; dy = (h - d) / 2f; w = d; h = d
+            radius = d / 2f
+        } else if (shape == Shape.PILL) {
+            val inset = STRIP_PADDING_DP * density
+            dx = inset; dy = inset; w -= 2f * inset; h -= 2f * inset
+            if (w <= 0f || h <= 0f) return
+            radius = min(pillRadiusDp * density, min(w, h) / 2f)
+        }
         val tint = if (pressed) pressedTint else normalTint
+        val savedX = originX
+        val savedY = originY
+        originX += dx; originY += dy
         canvas.save()
-        canvas.translate(bounds.left.toFloat(), bounds.top.toFloat())
+        canvas.translate(bounds.left.toFloat() + dx, bounds.top.toFloat() + dy)
         rect.set(0f, 0f, w, h)
         var drawn = false
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !shaderFailed && window.width > 0f) {
@@ -144,6 +174,7 @@ class GlassKeyDrawable(private val look: GlassLook, private val kind: Kind, cont
         }
         if (!drawn) drawPane(canvas, w, h, radius, tint)
         canvas.restore()
+        originX = savedX; originY = savedY
     }
 
     // Port of GlassZoneNode.zoneShader and the shadow in GlassZoneNode.draw (Modules glass/GlassZone.kt).
@@ -232,6 +263,44 @@ class GlassKeyDrawable(private val look: GlassLook, private val kind: Kind, cont
          */
         fun forPanel(context: Context, dark: Boolean): GlassKeyDrawable =
             GlassKeyDrawable(lookFor(context, dark), Kind.PANEL, context)
+
+        /** ToolbarStyle.padding of KeyboardKit 9.9.1 (Autocomplete+Toolbar.swift): 4. */
+        internal const val STRIP_PADDING_DP = 4f
+
+        /** The biggest round button of the bar above the keys, in dp. */
+        internal const val MAX_BUTTON_DP = 40f
+
+        /**
+         * A round glass button for the bar above the keys, as big as the bar allows (the bar's height less its
+         * padding twice, at most [MAX_BUTTON_DP]), the background of [host]; [accent] is a pinned tool.
+         * Kind.FUNCTIONAL glass with a radius of half its size, https://developer.android.com/reference/android/view/View#setBackground(android.graphics.drawable.Drawable)
+         */
+        fun forStripButton(context: Context, colors: Colors, host: View, accent: Boolean = false): GlassKeyDrawable =
+            GlassKeyDrawable(lookFor(context, isDarkColor(colors.get(ColorType.MAIN_BACKGROUND))),
+                if (accent) Kind.ACTION else Kind.FUNCTIONAL, context).also { it.shape = Shape.ROUND; it.host = host }
+
+        /**
+         * The autocorrect word's background in the bar above the keys: Kind.LETTER glass as a rounded rectangle of
+         * corner 4 inside the slot (ToolbarItemStyle.standardAutocorrect, backgroundCornerRadius 4).
+         */
+        fun forAutocorrect(context: Context, colors: Colors, host: View): GlassKeyDrawable =
+            GlassKeyDrawable(lookFor(context, isDarkColor(colors.get(ColorType.MAIN_BACKGROUND))), Kind.LETTER, context)
+                .also { it.shape = Shape.PILL; it.host = host }
+
+        /**
+         * The separator between two suggestions: ToolbarSeparatorStyle of KeyboardKit 9.9.1
+         * (Autocomplete+ToolbarSeparator.swift): 1 wide, 30 high, the secondary colour at 50 %, here the scheme's
+         * onSurface; a GradientDrawable of that size (https://developer.android.com/reference/android/graphics/drawable/GradientDrawable#setSize(int,%20int)).
+         */
+        fun separator(context: Context, colors: Colors): android.graphics.drawable.GradientDrawable {
+            val dark = isDarkColor(colors.get(ColorType.MAIN_BACKGROUND))
+            val scheme = if (dark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+            val density = context.resources.displayMetrics.density
+            return android.graphics.drawable.GradientDrawable().apply {
+                setColor(scheme.onSurface.copy(alpha = 0.5f).toArgb())
+                setSize(Math.round(density), Math.round(30f * density))
+            }
+        }
 
         /** The glass key for a kind of background of Colors.selectAndColorDrawable. */
         fun forColorType(context: Context, dark: Boolean, color: ColorType): GlassKeyDrawable {

@@ -19,7 +19,9 @@ import android.view.WindowInsets;
 import android.view.WindowManager;
 import android.view.WindowMetrics;
 
+import helium314.keyboard.keyboard.KeyboardTheme;
 import helium314.keyboard.latin.R;
+import helium314.keyboard.latin.settings.Settings;
 import helium314.keyboard.latin.settings.SettingsValues;
 
 public final class ResourceUtils {
@@ -59,11 +61,31 @@ public final class ResourceUtils {
         return windowBounds.width() - insets.left - insets.right;
     }
 
+    /**
+     * Keyboard: the height of the bar above the keys. HeliBoard's is the dimen config_suggestions_strip_height, which
+     * its resource qualifiers (tablet, landscape) set; in the Glass style it is iOS's ToolbarStyle.height, 48 where
+     * HeliBoard's base is 40 (KeyboardKit 9.9.1, Autocomplete+Toolbar.swift,
+     * https://github.com/KeyboardKit/KeyboardKit/blob/9.9.1/Sources/KeyboardKit/Autocomplete/Autocomplete%2BToolbar.swift):
+     * every qualifier gets the same 8 dp more. Resources.getDimension:
+     * https://developer.android.com/reference/android/content/res/Resources#getDimension(int)
+     */
+    public static int getSuggestionStripHeight(final Resources res) {
+        final int height = (int) res.getDimension(R.dimen.config_suggestions_strip_height);
+        if (!KeyboardTheme.STYLE_GLASS.equals(Settings.getValues().mColors.getThemeStyle())) return height;
+        return height + Math.round(8f * res.getDisplayMetrics().density);
+    }
+
+    /** Keyboard: the round tool button of the Glass bar, the bar's height less its padding twice, at most 40 dp (GlassKeyDrawable). */
+    public static int getStripButtonSize(final Resources res) {
+        final float density = res.getDisplayMetrics().density;
+        return Math.round(Math.min(getSuggestionStripHeight(res) - 8f * density, 40f * density));
+    }
+
     public static int getSecondaryKeyboardHeight(final Resources res, final SettingsValues settingsValues) {
         final int keyboardHeight = getKeyboardHeight(res, settingsValues);
         if (settingsValues.mToolbarMode == ToolbarMode.HIDDEN && ! settingsValues.mToolbarHidingGlobal) {
             // Small adjustment to match the height of the main keyboard which has a hidden strip container.
-            return keyboardHeight - (int) res.getDimension(R.dimen.config_suggestions_strip_height);
+            return keyboardHeight - getSuggestionStripHeight(res); // Keyboard: the Glass bar is higher
         }
         return keyboardHeight;
     }

@@ -49,6 +49,7 @@ import helium314.keyboard.latin.RichInputMethodSubtype;
 import helium314.keyboard.latin.SingleDictionaryFacilitator;
 import helium314.keyboard.latin.common.ColorType;
 import helium314.keyboard.latin.common.Colors;
+import helium314.keyboard.keyboard.KeyboardTheme;
 import helium314.keyboard.latin.settings.Settings;
 import helium314.keyboard.latin.settings.SettingsValues;
 import helium314.keyboard.latin.utils.DictionaryInfoUtils;
@@ -273,7 +274,9 @@ public final class EmojiPalettesView extends LinearLayout
         mEmojiCategoryPageIndicatorView = findViewById(R.id.emoji_category_page_id_view);
         mEmojiLayoutParams.setCategoryPageIdViewProperties(mEmojiCategoryPageIndicatorView);
         setCurrentCategory(mEmojiCategory.getCurrentCategory(), true);
-        mEmojiCategoryPageIndicatorView.setColors(mColors.get(ColorType.EMOJI_CATEGORY_SELECTED), mColors.get(ColorType.STRIP_BACKGROUND));
+        // Keyboard: Glass has no band, so the page indicator has none either
+        mEmojiCategoryPageIndicatorView.setColors(mColors.get(ColorType.EMOJI_CATEGORY_SELECTED),
+                KeyboardTheme.STYLE_GLASS.equals(mColors.getThemeStyle()) ? android.graphics.Color.TRANSPARENT : mColors.get(ColorType.STRIP_BACKGROUND));
         initialized = true;
     }
 
