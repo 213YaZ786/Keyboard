@@ -65,6 +65,7 @@
         <item name="iconEmojiSymbolsTab">@drawable/ic_emoji_symbols_lxx</item>
         <item name="iconEmojiFlagsTab">@drawable/ic_emoji_flags_lxx</item>
         <item name="iconEmojiEmoticonsTab">@drawable/ic_emoji_emoticons_lxx</item>
+        <item name="iconEmojiIslamTab">@drawable/ic_emoji_islam</item>
     </style>
     <style
         name="ClipboardHistoryView.LXX_Base"

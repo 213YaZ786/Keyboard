@@ -72,6 +72,7 @@
         <item name="iconEmojiSymbolsTab">@drawable/ic_emoji_symbols_rounded</item>
         <item name="iconEmojiFlagsTab">@drawable/ic_emoji_flags_rounded</item>
         <item name="iconEmojiEmoticonsTab">@drawable/ic_emoji_emoticons_rounded</item>
+        <item name="iconEmojiIslamTab">@drawable/ic_emoji_islam</item>
     </style>
 
     <style

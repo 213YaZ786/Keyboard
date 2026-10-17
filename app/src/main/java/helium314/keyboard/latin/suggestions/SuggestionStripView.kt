@@ -28,7 +28,6 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.RelativeLayout
 import android.widget.TextView
-import androidx.core.content.ContextCompat
 import androidx.core.view.doOnNextLayout
 import androidx.core.view.isVisible
 import helium314.keyboard.event.HapticEvent
@@ -64,6 +63,7 @@ import helium314.keyboard.latin.utils.setToolbarButtonsActivatedStateOnPrefChang
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.abs
 import kotlin.math.min
+import kotlin.math.roundToInt
 import androidx.core.view.isGone
 import helium314.keyboard.latin.utils.onClickToolbarKey
 import helium314.keyboard.latin.utils.onLongClickToolbarKey
@@ -132,19 +132,15 @@ class SuggestionStripView(context: Context, attrs: AttributeSet?, defStyle: Int)
     private val suggestionsStrip: ViewGroup = findViewById(R.id.suggestions_strip)
     private val toolbarExpandKey = findViewById<ImageButton>(R.id.suggestions_strip_toolbar_key)
     private val incognitoIcon = KeyboardIconsSet.instance.getNewDrawable(ToolbarKey.INCOGNITO.name, context)
-    // Keyboard: Glass opens the tools with Material Symbols' "apps" grid (res/drawable/ic_apps_rounded.xml, from
-    // https://github.com/google/material-design-icons), as Gboard's tools button, in place of the arrow
-    private val isGlass = Settings.getValues().mColors.themeStyle == STYLE_GLASS
-    private val toolbarArrowIcon = if (isGlass) ContextCompat.getDrawable(context, R.drawable.ic_apps_rounded)?.mutate()
-        else KeyboardIconsSet.instance.getNewDrawable(KeyboardIconsSet.NAME_TOOLBAR_KEY, context)
+    private val isGlass = Settings.getValues().mColors.themeStyle == STYLE_GLASS // Keyboard
+    private val toolbarArrowIcon = KeyboardIconsSet.instance.getNewDrawable(KeyboardIconsSet.NAME_TOOLBAR_KEY, context)
     private val defaultToolbarBackground: Drawable = toolbarExpandKey.background
     private val enabledToolKeyBackground = GradientDrawable()
     private var direction = 1 // 1 if LTR, -1 if RTL
 
-    // Keyboard: the Glass bar's three slots as Gboard's tools row: the grid at the left and the voice key at the right,
-    // each beside a thin separator (the one drawn between suggestions); null in the other styles. The voice key is
-    // not among the tools then, it has this place alone.
-    private var glassSeparatorStart: View? = null
+    // Keyboard: the Glass bar has no grid key (the tools are the ones checked in Settings > Advanced > Toolbar, shown
+    // when nothing is typed, as iOS's bar); the voice key sits alone at the right end beside a thin separator (the one
+    // drawn between suggestions); null in the other styles. The voice key is not among the tools then.
     private var glassSeparatorEnd: View? = null
     private var glassVoiceKey: ImageButton? = null
 
@@ -217,31 +213,37 @@ class SuggestionStripView(context: Context, attrs: AttributeSet?, defStyle: Int)
     }
 
     /**
-     * Keyboard: the separator after the grid, and at the right end a separator and the voice key (the tools' VOICE key, so
-     * its tap and its code are HeliBoard's) in a round accent glass (GlassKeyDrawable.Kind.ACTION, as Gboard's tinted mic
-     * circle); the voice key is added only when the user keeps it among the tools or the pinned keys.
+     * Keyboard: at the right end a separator and the voice key (the tools' VOICE key, so its tap and its code are
+     * HeliBoard's) in a round accent glass (GlassKeyDrawable.Kind.ACTION, as Gboard's tinted mic circle); the voice key
+     * is added only when the user keeps it among the tools or the pinned keys.
      * The separator is the one drawn between suggestions (GlassKeyDrawable.separator), added with LinearLayout.addView
-     * (https://developer.android.com/reference/android/widget/LinearLayout) in the strip's wrapper.
+     * (https://developer.android.com/reference/android/widget/LinearLayout) in the strip's wrapper, 8 dp of space on
+     * each side (View.setPadding, https://developer.android.com/reference/android/view/View#setPadding(int,%20int,%20int,%20int)).
      */
     private fun setupGlassSlots(colors: Colors, withVoiceKey: Boolean) {
         val wrapper = findViewById<LinearLayout>(R.id.suggestions_strip_wrapper)
         fun separator() = ImageView(context).apply {
             setImageDrawable(GlassKeyDrawable.separator(context, colors))
             scaleType = ImageView.ScaleType.CENTER
+            val space = (8 * resources.displayMetrics.density).roundToInt()
+            setPadding(space, 0, space, 0)
             layoutParams = LinearLayout.LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.MATCH_PARENT)
             importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO
         }
         // The words take exactly what the two slots leave (0 dp wide with weight 1, LinearLayout.LayoutParams.weight),
         // so the last one never runs under the voice key
         suggestionsStrip.layoutParams = (suggestionsStrip.layoutParams as LinearLayout.LayoutParams).apply { width = 0 }
-        glassSeparatorStart = separator().also { wrapper.addView(it, wrapper.indexOfChild(toolbarExpandKey) + 1) }
         if (!withVoiceKey) return
         glassSeparatorEnd = separator().also { wrapper.addView(it) }
         val mic = createToolbarKey(context, ToolbarKey.VOICE)
-        // The voice key's slot as the grid's: same width and height (its circle centred in the slot), and the same
-        // distance from the screen edge (the grid's marginStart, at the other end)
+        // The voice key's slot: the round button's size (its circle centred in the slot), and the same distance from the
+        // screen edge as the keys' own outer margin: half the keys' horizontal gap, computed as KeyboardParams and
+        // ClipboardLayoutParams do (config_key_horizontal_gap_holo of the keyboard's width, times the gap scale)
+        val settingsValues = Settings.getValues()
+        val keyboardWidth = ResourceUtils.getKeyboardWidth(context, settingsValues)
+        val keyGap = resources.getFraction(R.fraction.config_key_horizontal_gap_holo, keyboardWidth, keyboardWidth) * settingsValues.mKeyGapScale
         mic.layoutParams = LinearLayout.LayoutParams(ResourceUtils.getStripButtonSize(resources), LayoutParams.MATCH_PARENT)
-            .apply { marginEnd = (toolbarExpandKey.layoutParams as LinearLayout.LayoutParams).marginStart }
+            .apply { marginEnd = (keyGap / 2).toInt() }
         setupKey(mic, colors)
         (mic.layoutParams as LinearLayout.LayoutParams).weight = 0f // setupKey gives the tools a share of the row
         mic.background = GlassKeyDrawable.forStripButton(context, colors, mic, accent = true)
@@ -406,10 +408,7 @@ class SuggestionStripView(context: Context, attrs: AttributeSet?, defStyle: Int)
         }
         AudioAndHapticFeedbackManager.getInstance().performHapticAndAudioFeedback(KeyCode.NOT_SPECIFIED, this, HapticEvent.KEY_PRESS)
         if (view === toolbarExpandKey) {
-            // Keyboard: in Glass the grid opens (and closes) the panel of every tool in place of the keys (ToolsPanelView),
-            // as Gboard's tools button; the other styles keep HeliBoard's expanding toolbar
-            if (isGlass) KeyboardSwitcher.getInstance().toggleToolsPanel()
-            else setToolbarVisibility(toolbarContainer.visibility != VISIBLE)
+            setToolbarVisibility(toolbarContainer.visibility != VISIBLE)
         }
 
         // tag for word views is set in SuggestionStripLayoutHelper (setupWordViewsTextAndColor, layoutPunctuationSuggestions)
@@ -591,10 +590,9 @@ class SuggestionStripView(context: Context, attrs: AttributeSet?, defStyle: Int)
             toolbarExpandKey.isVisible = true
         } else {
             toolbarExpandKey.setImageDrawable(toolbarArrowIcon)
-            toolbarExpandKey.isVisible = toolbarIsExpandable
+            toolbarExpandKey.isVisible = toolbarIsExpandable && !isGlass // Keyboard: Glass has no grid key, the bar shows the checked tools
         }
 
-        glassSeparatorStart?.isVisible = toolbarExpandKey.isVisible // Keyboard: a separator only beside the grid
         toolbarExpandKey.setOnClickListener(if (!toolbarIsExpandable) null else this)
         pinnedKeys.visibility = suggestionsStrip.visibility
         isExternalSuggestionVisible = false

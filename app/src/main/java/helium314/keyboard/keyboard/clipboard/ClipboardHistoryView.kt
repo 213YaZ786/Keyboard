@@ -123,9 +123,11 @@ class ClipboardHistoryView @JvmOverloads constructor(
     private fun setupToolbarKeys() {
         // set layout params
         // Keyboard: in the Glass style the tools share the width (the spacer that pushed them to the right gets no share)
+        // a single tool (the default, the clear key) keeps HeliBoard's place at the end instead of being centred on the row
         val glass = Settings.getValues().mColors.themeStyle == KeyboardTheme.STYLE_GLASS
-        if (glass) (KeyboardSwitcher.getInstance().clipboardStrip?.getChildAt(0)?.layoutParams as? LayoutParams)?.weight = 0f
-        val toolbarKeyLayoutParams = LayoutParams(if (glass) ResourceUtils.getStripButtonSize(resources) else resources.getDimensionPixelSize(R.dimen.config_suggestions_strip_edge_key_width), LayoutParams.MATCH_PARENT, if (glass) 1f else 0f)
+        val share = glass && toolbarKeys.size > 1
+        if (share) (KeyboardSwitcher.getInstance().clipboardStrip?.getChildAt(0)?.layoutParams as? LayoutParams)?.weight = 0f
+        val toolbarKeyLayoutParams = LayoutParams(if (glass) ResourceUtils.getStripButtonSize(resources) else resources.getDimensionPixelSize(R.dimen.config_suggestions_strip_edge_key_width), LayoutParams.MATCH_PARENT, if (share) 1f else 0f)
         toolbarKeys.forEach { it.layoutParams = toolbarKeyLayoutParams }
     }
 

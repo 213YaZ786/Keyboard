@@ -1,0 +1,14 @@
+<!--
+    The outline of U+262A (star and crescent) in Noto Sans Symbols Regular, SIL OFL 1.1
+    (github.com/notofonts/symbols), flipped to the vector's top-down axis and centred
+    SPDX-License-Identifier: OFL-1.1
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="860"
+    android:viewportHeight="860">
+    <path
+        android:fillColor="#FFF"
+        android:pathData="M433,792Q337,792 253.5,744Q170,696 120,612Q71,529 71,430Q71,364 93.5,304.5Q116,245 157,196Q198,147 253,116Q337,68 433,68Q514,68 585.5,101Q657,134 708,196Q625,128 518,128Q437,128 367,168Q297,208 256,278Q216,346 216,430Q216,493 239.5,547.5Q263,602 305,643.5Q347,685 401.5,708.5Q456,732 518,732Q624,732 708,665Q656,726 585,759Q514,792 433,792ZM548,554 584,445 497,388H605L643,270L682,388H789L701,445L738,554L643,485Z"/>
+</vector>

@@ -133,7 +133,9 @@ object Defaults {
     // physical layout ignored for uppercase letters only (?) https://github.com/HeliBorg/HeliBoard/issues/2030
     const val PREF_ENABLE_HARDWARE_KEYBOARD = false
     const val PREF_GESTURE_PREVIEW_TRAIL = true
-    const val PREF_GESTURE_FLOATING_PREVIEW_TEXT = true
+    // Keyboard: off, the word shows in the suggestion bar while gliding as in iOS, Gboard and FlorisBoard's smartbar
+    // (the floating box stays a switch under Settings > Advanced > Gesture typing)
+    const val PREF_GESTURE_FLOATING_PREVIEW_TEXT = false
     const val PREF_GESTURE_FLOATING_PREVIEW_DYNAMIC = true
     @JvmField
     var PREF_GESTURE_DYNAMIC_PREVIEW_FOLLOW_SYSTEM = true

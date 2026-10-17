@@ -131,12 +131,12 @@ enum class ToolbarMode {
 val toolbarKeyStrings = entries.associateWithTo(EnumMap(ToolbarKey::class.java)) { it.toString().lowercase(Locale.US) }
 
 val defaultToolbarPref by lazy {
-    // Keyboard: three tools and the clear clipboard key, as iOS's bar (three words, nothing else) and Gboard's few tools;
-    // the grid opens a panel of every tool (ToolsPanelView). EMOJI is not here: the bottom row has its key. VOICE stays
-    // last: the Glass bar draws it in its own slot at the right end (SuggestionStripView.setupGlassSlots), the other
-    // styles show it as the last tool. Order and keys are HeliBoard's
+    // Keyboard: the clipboard and its clear key only, and the mic; every other tool is a box to check in Settings >
+    // Advanced > Toolbar (iOS's bar has no tools, Gboard hides its tool panel behind settings). EMOJI is not here: the
+    // bottom row has its key. VOICE stays last: the Glass bar draws it in its own slot at the right end
+    // (SuggestionStripView.setupGlassSlots), the other styles show it as the last tool. Order and keys are HeliBoard's
     // ToolbarKey list (this file), https://github.com/HeliBorg/HeliBoard/blob/main/app/src/main/java/helium314/keyboard/latin/utils/ToolbarUtils.kt
-    val default = listOf(CLIPBOARD, CLEAR_CLIPBOARD, UNDO, SETTINGS, VOICE)
+    val default = listOf(CLIPBOARD, CLEAR_CLIPBOARD, VOICE)
     val others = entries.filterNot { it in default || it == CLOSE_HISTORY }
     default.joinToString(Separators.ENTRY) { it.name + Separators.KV + true } + Separators.ENTRY +
             others.joinToString(Separators.ENTRY) { it.name + Separators.KV + false }
@@ -147,7 +147,10 @@ val defaultPinnedToolbarPref = entries.filterNot { it == CLOSE_HISTORY }.joinToS
 }
 
 val defaultClipboardToolbarPref by lazy {
-    val default = listOf(CLEAR_CLIPBOARD, UP, DOWN, LEFT, RIGHT, UNDO, CUT, COPY, PASTE, SELECT_WORD, CLOSE_HISTORY)
+    // Keyboard: only the clear key (Gboard's clipboard panel offers only "Edit" and clear, iOS none); the other tools,
+    // HeliBoard's list (UP, DOWN, LEFT, RIGHT, UNDO, CUT, COPY, PASTE, SELECT_WORD, CLOSE_HISTORY), stay boxes to check
+    // in Settings > Advanced > Toolbar; the ABC key of the bottom row goes back to the letters
+    val default = listOf(CLEAR_CLIPBOARD)
     val others = entries.filterNot { it in default }
     default.joinToString(Separators.ENTRY) { it.name + Separators.KV + true } + Separators.ENTRY +
             others.joinToString(Separators.ENTRY) { it.name + Separators.KV + false }

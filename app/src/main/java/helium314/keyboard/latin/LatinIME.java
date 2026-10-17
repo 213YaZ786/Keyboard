@@ -1694,9 +1694,6 @@ public class LatinIME extends InputMethodService implements
     // Hooks for hardware keyboard
     @Override
     public boolean onKeyDown(final int keyCode, final KeyEvent keyEvent) {
-        // Keyboard: Back closes the tools panel first (InputMethodService.onKeyDown would hide the keyboard)
-        if (keyCode == KeyEvent.KEYCODE_BACK && mKeyboardSwitcher.hideToolsPanel())
-            return true;
         if (mKeyboardActionListener.onKeyDown(keyCode, keyEvent))
             return true;
         return super.onKeyDown(keyCode, keyEvent);

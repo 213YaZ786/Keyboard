@@ -79,6 +79,7 @@
         <item name="iconEmojiSymbolsTab">@drawable/ic_emoji_symbols</item>
         <item name="iconEmojiFlagsTab">@drawable/ic_emoji_flags</item>
         <item name="iconEmojiEmoticonsTab">@drawable/ic_emoji_emoticons</item>
+        <item name="iconEmojiIslamTab">@drawable/ic_emoji_islam</item>
     </style>
     <style
             name="ClipboardHistoryView.HoloBase"

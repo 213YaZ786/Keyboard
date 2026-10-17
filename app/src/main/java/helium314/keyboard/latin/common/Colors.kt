@@ -102,18 +102,30 @@ interface Colors {
      */
     fun setGlassGround(view: View) {
         if (view.background is GlassGroundDrawable) return
-        view.background = GlassGroundDrawable(GlassKeyDrawable.lookFor(view.context, isDarkColor(get(MAIN_BACKGROUND))))
+        val look = GlassKeyDrawable.lookFor(view.context, isDarkColor(get(MAIN_BACKGROUND)))
+        if (view.id != R.id.main_keyboard_frame) {
+            view.background = GlassGroundDrawable(look)
+            return
+        }
+        // Keyboard: the keyboard frame is a glass sheet with rounded top corners as iOS 26's; its shadow and the
+        // views above it draw outside the bounds (ViewGroup.setClipChildren,
+        // https://developer.android.com/reference/android/view/ViewGroup#setClipChildren(boolean))
+        val density = view.resources.displayMetrics.density
+        view.background = GlassGroundDrawable(look, GlassGroundDrawable.TOP_RADIUS_DP * density, density)
+        (view as? android.view.ViewGroup)?.clipChildren = false
+        (view.parent as? android.view.ViewGroup)?.clipChildren = false
     }
 
     /**
      * Keyboard: with the Glass style the bar above the keys has no band (the frame's ground shows under it):
-     * its views get no background and its icon buttons a round glass (GlassKeyDrawable.forStripButton), after
+     * its views get no background and its icon buttons (the emoji categories, the clipboard tools) a bare icon with the
+     * round glass only under the finger (GlassKeyDrawable.forStripButton, bare), as iOS's and Gboard's, after
      * KeyboardKit 9.9.1's Autocomplete.Toolbar (https://github.com/KeyboardKit/KeyboardKit/blob/9.9.1/Sources/KeyboardKit/Autocomplete/Autocomplete%2BToolbar.swift).
      * Set as View.background (https://developer.android.com/reference/android/view/View#setBackground(android.graphics.drawable.Drawable)).
      */
     fun setGlassStrip(view: View, color: ColorType): Boolean {
         if (themeStyle != STYLE_GLASS || color != STRIP_BACKGROUND) return false
-        view.background = if (view is android.widget.ImageView) GlassKeyDrawable.forStripButton(view.context, this, view) else null
+        view.background = if (view is android.widget.ImageView) GlassKeyDrawable.forStripButton(view.context, this, view, bare = true) else null
         return true
     }
 

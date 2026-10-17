@@ -41,6 +41,7 @@ internal class EmojiCategory(private val context: Context, private val layoutSet
 
     val shownCategories = listOfNotNull(
         CategoryProperties(Category.RECENTS),
+        CategoryProperties(Category.ISLAM), // Keyboard: Islam, the first category after the recents
         CategoryProperties(Category.SMILEYS),
         CategoryProperties(Category.PEOPLE),
         CategoryProperties(Category.NATURE),
@@ -181,7 +182,9 @@ internal class EmojiCategory(private val context: Context, private val layoutSet
         OBJECTS(KeyboardElement.EMOJI_OBJECTS, R.styleable.EmojiPalettesView_iconEmojiObjectsTab),
         SYMBOLS(KeyboardElement.EMOJI_SYMBOLS, R.styleable.EmojiPalettesView_iconEmojiSymbolsTab),
         FLAGS(KeyboardElement.EMOJI_FLAGS, R.styleable.EmojiPalettesView_iconEmojiFlagsTab),
-        EMOTICONS(KeyboardElement.EMOJI_EMOTICONS, R.styleable.EmojiPalettesView_iconEmojiEmoticonsTab)
+        EMOTICONS(KeyboardElement.EMOJI_EMOTICONS, R.styleable.EmojiPalettesView_iconEmojiEmoticonsTab),
+        // Keyboard: last in the enum (the last shown category is stored by ordinal), shown first after the recents
+        ISLAM(KeyboardElement.EMOJI_ISLAM, R.styleable.EmojiPalettesView_iconEmojiIslamTab)
     }
 
     companion object {

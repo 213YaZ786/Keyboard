@@ -36,6 +36,7 @@ import helium314.keyboard.keyboard.KeyboardSwitcher;
 import helium314.keyboard.keyboard.KeyboardView;
 import helium314.keyboard.keyboard.MainKeyboardView;
 import helium314.keyboard.keyboard.PointerTracker;
+import helium314.keyboard.keyboard.internal.GlassKeyDrawable;
 import helium314.keyboard.keyboard.internal.KeyDrawParams;
 import helium314.keyboard.keyboard.internal.KeyVisualAttributes;
 import helium314.keyboard.keyboard.internal.keyboard_parser.EmojiParserKt;
@@ -236,10 +237,20 @@ public final class EmojiPalettesView extends LinearLayout
         setMeasuredDimension(width, height);
     }
 
+    // Keyboard: in the Glass style the chosen category's icon is the accent and the others the key text colour at 60 %
+    // (GlassKeyDrawable.tabIconColor, as iOS's and Gboard's bare tab icons), set as ImageView.setColorFilter
+    // (https://developer.android.com/reference/android/widget/ImageView#setColorFilter(int)); HeliBoard's colours otherwise
+    private void setTabColor(final ImageView iconView, final boolean selected) {
+        if (KeyboardTheme.STYLE_GLASS.equals(mColors.getThemeStyle()))
+            iconView.setColorFilter(GlassKeyDrawable.Companion.tabIconColor(getContext(), mColors, selected));
+        else
+            mColors.setColor(iconView, selected ? ColorType.EMOJI_CATEGORY_SELECTED : ColorType.EMOJI_CATEGORY);
+    }
+
     private void addTab(LinearLayout host, EmojiCategory.Category category) {
         final ImageView iconView = new ImageView(getContext());
         mColors.setBackground(iconView, ColorType.STRIP_BACKGROUND);
-        mColors.setColor(iconView, ColorType.EMOJI_CATEGORY);
+        setTabColor(iconView, false);
         iconView.setScaleType(ImageView.ScaleType.CENTER);
         iconView.setImageResource(mEmojiCategory.getCategoryTabIcon(category));
         iconView.setContentDescription(mEmojiCategory.getAccessibilityDescription(category));
@@ -460,9 +471,9 @@ public final class EmojiPalettesView extends LinearLayout
                 View current = mTabStrip.findViewWithTag(category);
 
                 if (old instanceof ImageView)
-                    Settings.getValues().mColors.setColor((ImageView) old, ColorType.EMOJI_CATEGORY);
+                    setTabColor((ImageView) old, false);
                 if (current instanceof ImageView)
-                    Settings.getValues().mColors.setColor((ImageView) current, ColorType.EMOJI_CATEGORY_SELECTED);
+                    setTabColor((ImageView) current, true);
             }
         }
     }

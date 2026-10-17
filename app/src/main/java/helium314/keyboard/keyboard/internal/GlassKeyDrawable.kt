@@ -308,20 +308,24 @@ class GlassKeyDrawable(private val look: GlassLook, private val kind: Kind, cont
             GlassKeyDrawable(lookFor(context, isDarkColor(colors.get(ColorType.MAIN_BACKGROUND))), Kind.LETTER, context)
                 .also { it.cornerDp = 12f; it.host = host }
 
-        /**
-         * A tile of the tools panel: Kind.FUNCTIONAL glass with a corner of 16 dp, the background of [host]; [forCard]'s
-         * way (https://developer.android.com/reference/android/view/View#setBackground(android.graphics.drawable.Drawable)),
-         * the tile of FlorisBoard's quick actions overflow panel (SmartbarActionTile,
-         * https://github.com/florisboard/florisboard/blob/main/app/src/main/kotlin/dev/patrickgold/florisboard/ime/smartbar/quickaction/QuickActionButton.kt).
-         */
-        fun forTile(context: Context, colors: Colors, host: View): GlassKeyDrawable =
-            GlassKeyDrawable(lookFor(context, isDarkColor(colors.get(ColorType.MAIN_BACKGROUND))), Kind.FUNCTIONAL, context)
-                .also { it.cornerDp = 16f; it.host = host }
-
         /** The background of an emoji key: nothing at rest, a Kind.LETTER glass circle of the key's smaller side when pressed. */
         fun forEmoji(context: Context, colors: Colors): GlassKeyDrawable =
             GlassKeyDrawable(lookFor(context, isDarkColor(colors.get(ColorType.MAIN_BACKGROUND))), Kind.LETTER, context)
                 .also { it.shape = Shape.CIRCLE; it.onlyPressed = true }
+
+        /**
+         * The colour of an emoji category's icon in the bare tab row (iOS's and Gboard's: grey icons, the chosen one in
+         * the accent): the scheme's primary for the chosen category (ColorScheme.primary,
+         * https://developer.android.com/reference/kotlin/androidx/compose/material3/ColorScheme#primary()), else the key
+         * text colour at 60 %, Material's medium emphasis (https://m2.material.io/design/color/text-legibility.html#legibility-standards).
+         */
+        fun tabIconColor(context: Context, colors: Colors, selected: Boolean): Int {
+            if (selected) {
+                val dark = isDarkColor(colors.get(ColorType.MAIN_BACKGROUND))
+                return (if (dark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)).primary.toArgb()
+            }
+            return Color(colors.get(ColorType.EMOJI_CATEGORY)).copy(alpha = 0.6f).toArgb()
+        }
 
         /**
          * The separator between two suggestions: ToolbarSeparatorStyle of KeyboardKit 9.9.1
