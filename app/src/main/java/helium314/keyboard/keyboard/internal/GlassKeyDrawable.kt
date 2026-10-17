@@ -285,10 +285,12 @@ class GlassKeyDrawable(private val look: GlassLook, private val kind: Kind, cont
          * A round glass button for the bar above the keys, as big as the bar allows (the bar's height less its
          * padding twice, at most [MAX_BUTTON_DP]), the background of [host]; [accent] is a pinned tool.
          * Kind.FUNCTIONAL glass with a radius of half its size, https://developer.android.com/reference/android/view/View#setBackground(android.graphics.drawable.Drawable)
+         * [bare]: the icon alone at rest and the round glass only under the finger, the onlyPressed pattern of [forEmoji]
+         * (FlorisBoard's ime/media/emoji/EmojiPaletteView.kt, https://github.com/florisboard/florisboard), as Gboard's tools.
          */
-        fun forStripButton(context: Context, colors: Colors, host: View, accent: Boolean = false): GlassKeyDrawable =
+        fun forStripButton(context: Context, colors: Colors, host: View, accent: Boolean = false, bare: Boolean = false): GlassKeyDrawable =
             GlassKeyDrawable(lookFor(context, isDarkColor(colors.get(ColorType.MAIN_BACKGROUND))),
-                if (accent) Kind.ACTION else Kind.FUNCTIONAL, context).also { it.shape = Shape.ROUND; it.host = host }
+                if (accent) Kind.ACTION else Kind.FUNCTIONAL, context).also { it.shape = Shape.ROUND; it.host = host; it.onlyPressed = bare }
 
         /**
          * The autocorrect word's background in the bar above the keys: Kind.LETTER glass as a rounded rectangle of

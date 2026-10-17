@@ -23,6 +23,8 @@ import helium314.keyboard.keyboard.KeyboardTypeface
 import helium314.keyboard.compat.ClipboardManagerCompat
 import helium314.keyboard.event.Event
 import helium314.keyboard.event.HapticEvent
+import helium314.keyboard.keyboard.KeyboardTheme
+import helium314.keyboard.keyboard.internal.GlassKeyDrawable
 import helium314.keyboard.keyboard.internal.KeyboardIconsSet
 import helium314.keyboard.keyboard.internal.keyboard_parser.floris.KeyCode
 import helium314.keyboard.latin.common.ColorType
@@ -282,7 +284,11 @@ class ClipboardHistoryManager(
         textView.setTextColor(colors.get(ColorType.KEY_TEXT))
         clipIcon?.let { colors.setColor(it, ColorType.CLIPBOARD_SUGGESTION_ICON) }
         colors.setColor(closeButton, ColorType.REMOVE_SUGGESTION_ICON)
-        colors.setBackground(binding.root, ColorType.CLIPBOARD_SUGGESTION_BACKGROUND)
+        if (colors.themeStyle == KeyboardTheme.STYLE_GLASS) {
+            // Keyboard: Glass draws the chip as a pane of glass (GlassKeyDrawable PILL, Kind.LETTER, as the autocorrect pill)
+            // with a capsule's corner, 32 dp as HeliBoard's res/drawable/clipboard_suggestion_background.xml, instead of the white pill
+            binding.root.background = GlassKeyDrawable.forAutocorrect(latinIME, colors, binding.root).also { it.pillRadiusDp = 32f }
+        } else colors.setBackground(binding.root, ColorType.CLIPBOARD_SUGGESTION_BACKGROUND)
 
         clipboardSuggestionView = binding.root
         return clipboardSuggestionView
