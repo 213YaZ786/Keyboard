@@ -1,4 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="clipboard_provider_authority" translatable="false">helium314.keyboard.clipprovider</string>
+    <!-- clipboard_provider_authority comes from app/build.gradle.kts (resValue), per application id -->
 </resources>

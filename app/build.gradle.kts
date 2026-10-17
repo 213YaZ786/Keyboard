@@ -10,37 +10,64 @@ android {
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "helium314.keyboard"
-        minSdk = 21
+        applicationId = "com.yaz.keyboard"
+        minSdk = 31
         targetSdk = 37
-        versionCode = 4201
-        versionName = "4.2"
+        versionCode = 1
+        versionName = "0.1.0"
         ndk {
             abiFilters.clear()
             abiFilters.addAll(listOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64"))
         }
+        // c++_static as Application.mk's APP_STL (HeliBoard), passed as Calculator does
+        externalNativeBuild {
+            cmake {
+                arguments("-DANDROID_STL=c++_static")
+            }
+        }
         proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+        // Authorities follow the application id, so this app installs beside HeliBoard and its debug build.
+        resValue("string", "clipboard_provider_authority", "com.yaz.keyboard.clipprovider")
+        resValue("string", "gesture_data_provider_authority", "com.yaz.keyboard.provider")
+    }
+
+    signingConfigs {
+        create("release") {
+            val storeFilePath = providers.gradleProperty("keyboard.storeFile").orNull
+            if (storeFilePath != null) {
+                storeFile = file(storeFilePath)
+                storePassword = providers.gradleProperty("keyboard.storePassword").orNull
+                keyAlias = providers.gradleProperty("keyboard.keyAlias").orNull
+                keyPassword = providers.gradleProperty("keyboard.keyPassword").orNull
+            }
+        }
     }
 
     buildTypes {
         release {
-            isMinifyEnabled = true
+            // Only attached when the signing properties are supplied, so a
+            // local build without a keystore still produces an unsigned APK.
+            if (providers.gradleProperty("keyboard.storeFile").isPresent) {
+                signingConfig = signingConfigs.getByName("release")
+            }
+            isMinifyEnabled = false
             isShrinkResources = false
             isDebuggable = false
             isJniDebuggable = false
         }
         create("nouserlib") { // same as release, but does not allow the user to provide a library
-            isMinifyEnabled = true
+            isMinifyEnabled = false
             isShrinkResources = false
             isDebuggable = false
             isJniDebuggable = false
         }
         debug {
-            // "normal" debug has minify for smaller APK to fit the GitHub 25 MB limit when zipped
-            // and for better performance in case users want to install a debug APK
-            isMinifyEnabled = true
+            isMinifyEnabled = false
             isJniDebuggable = false
             applicationIdSuffix = ".debug"
+            versionNameSuffix = "-debug"
+            resValue("string", "clipboard_provider_authority", "com.yaz.keyboard.debug.clipprovider")
+            resValue("string", "gesture_data_provider_authority", "com.yaz.keyboard.debug.provider")
         }
         create("runTests") { // build variant for running tests on CI that skips tests known to fail
             isMinifyEnabled = false
@@ -54,36 +81,22 @@ android {
             applicationIdSuffix = ".debug"
             isDefault = true
         }
-
-        androidComponents.onVariants { variant: ApplicationVariant ->
-            if (variant.buildType == "debug") {
-                // got a little too big for GitHub after some dependency upgrades, so we remove the largest dictionary
-                variant.androidResources.ignoreAssetsPatterns = listOf("main_ro.dict")
-                variant.proguardFiles = emptyList()
-                //noinspection ProguardAndroidTxtUsage we intentionally use the "normal" file here
-                variant.proguardFiles.add(project.layout.buildDirectory.file(project.buildFile.parent + "/dontoptimize.pro"))
-                variant.proguardFiles.add(project.layout.buildDirectory.file(project.buildFile.parent + "/proguard-rules.pro"))
-            }
-            variant.outputs.forEach { output ->
-                if (output is com.android.build.api.variant.impl.VariantOutputImpl) {
-                    output.outputFileName = "HeliBoard_${defaultConfig.versionName}-${variant.buildType}.apk"
-                }
-            }
-        }
     }
 
     buildFeatures {
         viewBinding = true
         buildConfig = true
         compose = true
+        resValues = true
     }
 
     externalNativeBuild {
-        ndkBuild {
-            path = File("src/main/jni/Android.mk")
+        // CMake, as Scribe-Android (app/build.gradle.kts): ndk-build cannot take a path with a space
+        cmake {
+            path = File("src/main/jni/CMakeLists.txt")
         }
     }
-    ndkVersion = "28.0.13004108"
+    ndkVersion = "28.2.13676358"
 
     packaging {
         jniLibs {
@@ -127,8 +140,10 @@ dependencies {
 
     // compose
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
-    implementation(platform("androidx.compose:compose-bom:2025.11.01")) // newer requires minSdk 23
+    // versions of Modules' catalogue (shared/base/root/gradle/libs.versions.toml), minSdk 31
+    implementation(platform("androidx.compose:compose-bom:2026.09.00"))
     implementation("androidx.compose.material3:material3")
+    implementation("androidx.graphics:graphics-shapes:1.1.0") // Modules' EmptyZone and SunnyShape
     implementation("androidx.compose.ui:ui-tooling-preview")
     debugImplementation("androidx.compose.ui:ui-tooling")
     "debugNoMinifyImplementation"("androidx.compose.ui:ui-tooling")

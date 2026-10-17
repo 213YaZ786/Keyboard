@@ -1,0 +1,268 @@
+# Builds on every push and pull request, and publishes a release for every
+# green build on main.
+#
+# Action versions: actions/checkout v7, actions/setup-java v6,
+# actions/upload-artifact v7, gradle/actions v6. Dependabot moves them.
+#
+# Shared across the apps of this base: edit Modules/shared, then run sync.sh.
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      # This repository has gradle/wrapper/gradle-wrapper.properties but no
+      # gradlew script and no gradle-wrapper.jar, so there is no wrapper to
+      # validate and nothing to run. Gradle is installed instead, at the
+      # version the properties file names. Read from there, never written
+      # here: Dependabot bumps the wrapper together with AGP, and a version
+      # pinned in this file stayed behind and failed its pull requests.
+      - name: Read the Gradle version
+        run: |
+          GRADLE_VERSION="$(grep -oP 'gradle-\K[0-9.]+(?=-bin\.zip)' gradle/wrapper/gradle-wrapper.properties)"
+          echo "Gradle $GRADLE_VERSION"
+          echo "GRADLE_VERSION=$GRADLE_VERSION" >> "$GITHUB_ENV"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          gradle-version: ${{ env.GRADLE_VERSION }}
+
+      - name: Read the version
+        run: |
+          VERSION="$(grep -oP 'versionName = "\K[^"]+' app/build.gradle.kts)"
+          CODE="$(grep -oP 'versionCode = \K[0-9]+' app/build.gradle.kts)"
+          echo "versionName $VERSION, versionCode $CODE"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "CODE=$CODE" >> "$GITHUB_ENV"
+
+      # Says out loud which of the four secrets the run can see, by name and
+      # never by value, and restores the key when all four are there. Both
+      # naming schemes are accepted, ANDROID_KEYSTORE_BASE64 and the shorter
+      # KEYSTORE_BASE64, because either is a reasonable thing to have typed.
+      #
+      # A pull request from a fork or from Dependabot sees no secret at all,
+      # which is normal and only means it builds without signing.
+      #
+      # app/build.gradle.kts reads four Gradle properties, not environment
+      # variables, so they are written to the Gradle home rather than exported.
+      - name: Check the signing secrets
+        id: signing
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 || secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD || secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS || secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD || secrets.KEY_PASSWORD }}
+        run: |
+          missing=
+          for name in KEYSTORE_BASE64 KEYSTORE_PASSWORD KEY_ALIAS KEY_PASSWORD
+          do
+            if [ -n "${!name}" ]
+            then
+              echo "$name: present"
+            else
+              echo "$name: MISSING"
+              missing=1
+            fi
+          done
+          if [ -n "$missing" ]
+          then
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/keyboard-release.jks"
+          if [ ! -s "$RUNNER_TEMP/keyboard-release.jks" ]
+          then
+            echo "::error::The keystore secret is not valid base64."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+          echo "keystore restored, $(stat -c%s "$RUNNER_TEMP/keyboard-release.jks") bytes"
+          mkdir -p ~/.gradle
+          cat >> ~/.gradle/gradle.properties <<EOF
+          keyboard.storeFile=$RUNNER_TEMP/keyboard-release.jks
+          keyboard.storePassword=$KEYSTORE_PASSWORD
+          keyboard.keyAlias=$KEY_ALIAS
+          keyboard.keyPassword=$KEY_PASSWORD
+          EOF
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+
+      # One command, so a failing test stops the release like a failing
+      # compile does. The unit tests are pure Kotlin with no Android
+      # dependency, so a red one here is a real failure and not flake.
+      - name: Build and test
+        run: gradle --stacktrace assembleDebug assembleRelease testDebugUnitTest
+
+      # No ABI splits: Keyboard ships no native code of its own, so every
+      # split would be the same bytes under a different name. The two builds
+      # that do differ are the signed release and the debug one, and both are
+      # named and hashed.
+      - name: Name the files and note their fingerprints
+        run: |
+          mkdir -p release
+          # Without the signing secrets, as on a pull request from Dependabot,
+          # the release build is left unsigned under another name. It is
+          # still named, hashed and checked, only never published.
+          RELEASE=app/build/outputs/apk/release/app-release.apk
+          [ -f "$RELEASE" ] || RELEASE=app/build/outputs/apk/release/app-release-unsigned.apk
+          cp "$RELEASE" "release/Keyboard-$VERSION.apk"
+          cp app/build/outputs/apk/debug/app-debug.apk "release/Keyboard-$VERSION-debug.apk"
+          ( cd release && sha256sum ./*.apk > SHA256SUMS.txt )
+          cat release/SHA256SUMS.txt
+
+      # The app declares a handful of permissions and depends on libraries
+      # that declare a few of their own, WorkManager above all. Allowed: the
+      # list below, plus what the app's own manifest asks for, since an app
+      # that is not a reader (a phone app) has needs of its own. Anything else
+      # fails the build, which is the point: a new dependency that wants the
+      # camera should stop the release rather than ship quietly.
+      - name: Check release permissions
+        run: |
+          AAPT2="$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -n 1)aapt2"
+          "$AAPT2" dump permissions "release/Keyboard-$VERSION.apk" | tee permissions.txt
+          printf '%s\n' \
+            android.permission.INTERNET \
+            android.permission.ACCESS_NETWORK_STATE \
+            android.permission.POST_NOTIFICATIONS \
+            android.permission.REQUEST_INSTALL_PACKAGES \
+            android.permission.UPDATE_PACKAGES_WITHOUT_USER_ACTION \
+            android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS \
+            android.permission.DOWNLOAD_WITHOUT_NOTIFICATION \
+            android.permission.WAKE_LOCK \
+            android.permission.RECEIVE_BOOT_COMPLETED \
+            android.permission.FOREGROUND_SERVICE \
+            android.permission.FOREGROUND_SERVICE_DATA_SYNC \
+            helium314.keyboard.latin.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION > allowed.txt
+          # One line per element first: a uses-permission may span lines.
+          tr '\n' ' ' < app/src/main/AndroidManifest.xml \
+            | grep -oP '<uses-permission[^>]*?android:name="\K[^"]+' >> allowed.txt || true
+          # A name built from a manifest placeholder, as the release build fills it
+          # (the first manifestPlaceholders line, defaultConfig's).
+          grep -oP 'manifestPlaceholders\["\K[^"]+"\] = "[^"]+' app/build.gradle.kts | sed 's/"\] = "/ /' | awk '!seen[$1]++' \
+            | while read -r name value; do sed -i "s|\\\${$name}|$value|g" allowed.txt; done || true
+          echo "allowed:"; sort -u allowed.txt
+          unexpected="$(grep -oP "uses-permission: name='\K[^']+" permissions.txt | grep -vxF -f allowed.txt || true)"
+          if [ -n "$unexpected" ]
+          then
+            echo "$unexpected"
+            echo "::error::Unexpected permission in the release APK"
+            exit 1
+          fi
+
+      # A release APK that ships debuggable is a release APK that anyone can
+      # attach a debugger to and read the whole process from. It has happened
+      # to better projects than this one.
+      - name: Check the release is not debuggable
+        run: |
+          AAPT2="$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -n 1)aapt2"
+          if "$AAPT2" dump badging "release/Keyboard-$VERSION.apk" | grep -q "application-debuggable"
+          then
+            echo "::error::The release APK is debuggable"
+            exit 1
+          fi
+          echo "not debuggable"
+
+      # The run page says what was built without anyone opening a log: the
+      # version, the size of each file and its fingerprint.
+      - name: Write the summary
+        run: |
+          {
+            echo "## Keyboard $VERSION (versionCode $CODE)"
+            echo
+            echo "| File | Size | SHA-256 |"
+            echo "| --- | --- | --- |"
+            for apk in release/*.apk
+            do
+              size="$(du -h "$apk" | cut -f1)"
+              sum="$(sha256sum "$apk" | cut -d' ' -f1)"
+              echo "| $(basename "$apk") | $size | \`$sum\` |"
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # Never fails the build. Lint has opinions and some of them are wrong,
+      # but the report is worth reading before a release.
+      - name: Lint
+        continue-on-error: true
+        run: gradle --stacktrace :app:lintRelease
+
+      - name: Upload the reports
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: keyboard-reports
+          path: |
+            app/build/reports/tests/
+            app/build/reports/lint-results-release.html
+          if-no-files-found: ignore
+
+      - name: Upload the APKs
+        uses: actions/upload-artifact@v7
+        with:
+          name: keyboard-apks
+          path: release/*
+          if-no-files-found: error
+
+      # One release per green build on main. The first build of a version
+      # takes the plain tag, the next ones carry the run number, so a release
+      # is never overwritten and the history stays readable.
+      - name: Publish the release
+        if: ${{ github.event_name != 'pull_request' && steps.signing.outputs.ready == 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="v$VERSION"
+          TITLE="Keyboard $VERSION"
+          if gh release view "$TAG" > /dev/null 2>&1
+          then
+            TAG="v$VERSION-b$GITHUB_RUN_NUMBER"
+            TITLE="Keyboard $VERSION (build $GITHUB_RUN_NUMBER)"
+          fi
+          {
+            echo "versionCode $CODE"
+            echo
+            echo '```'
+            cat release/SHA256SUMS.txt
+            echo '```'
+          } > notes.md
+          gh release create "$TAG" release/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "$TITLE" \
+            --target "$GITHUB_SHA" \
+            --notes-file notes.md \
+            --generate-notes
+          echo "published $TAG"
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json url --jq .url
+
+      # Red on purpose. A build that cannot publish used to pass quietly,
+      # which reads as "it worked" while nothing was released.
+      - name: Fail when a push could not be published
+        if: ${{ github.event_name != 'pull_request' && steps.signing.outputs.ready != 'true' }}
+        run: |
+          echo "::error::No release: the signing secrets are missing or unreadable."
+          echo "Read the Check the signing secrets step above to see which one."
+          echo "Names accepted: ANDROID_KEYSTORE_BASE64 or KEYSTORE_BASE64, and the"
+          echo "matching PASSWORD, ALIAS and KEY_PASSWORD."
+          exit 1
