@@ -227,7 +227,8 @@ internal const val GLASS_COMMON = """
     }
 """
 
-private const val ZONE_AGSL = """
+/** The zone's shader: also drawn on a View's canvas by Keyboard's keys. */
+internal const val ZONE_AGSL = """
     uniform float2 size;
     uniform float4 radii;
     uniform float flanks;

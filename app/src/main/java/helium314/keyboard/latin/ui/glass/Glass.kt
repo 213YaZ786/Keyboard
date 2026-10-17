@@ -67,9 +67,17 @@ val LocalGlass = staticCompositionLocalOf<GlassLook?> { null }
 /** The glass for [scheme], or null when [enabled] is false. */
 @Composable
 fun rememberGlassLook(scheme: ColorScheme, enabled: Boolean): GlassLook? = remember(scheme, enabled) {
-    if (!enabled) return@remember null
+    if (enabled) glassLookOf(scheme) else null
+}
+
+/**
+ * The glass for [scheme], outside Compose too (Keyboard's keys, drawn on a View's canvas).
+ * The body of rememberGlassLook moved out of remember, which wraps a plain factory as in
+ * Jetpack Compose's state guide (https://developer.android.com/develop/ui/compose/state).
+ */
+fun glassLookOf(scheme: ColorScheme): GlassLook {
     val dark = scheme.background.luminance() < 0.5f
-    GlassLook(
+    return GlassLook(
         dark = dark,
         ground = scheme.background,
         halos = listOf(

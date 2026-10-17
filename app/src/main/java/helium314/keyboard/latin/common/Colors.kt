@@ -22,7 +22,10 @@ import androidx.core.graphics.BlendModeCompat
 import androidx.core.graphics.ColorUtils
 import androidx.core.graphics.drawable.DrawableCompat
 import androidx.core.graphics.drawable.toBitmap
+import helium314.keyboard.keyboard.KeyboardTheme.Companion.STYLE_GLASS
 import helium314.keyboard.keyboard.KeyboardTheme.Companion.STYLE_HOLO
+import helium314.keyboard.keyboard.internal.GlassGroundDrawable
+import helium314.keyboard.keyboard.internal.GlassKeyDrawable
 import helium314.keyboard.keyboard.KeyboardTheme.Companion.STYLE_MATERIAL
 import helium314.keyboard.latin.common.ColorType.*
 import helium314.keyboard.latin.R
@@ -65,6 +68,9 @@ interface Colors {
 
     /** returns a colored drawable selected from [attr], which must contain using R.styleable.KeyboardView_* */
     fun selectAndColorDrawable(attr: TypedArray, color: ColorType): Drawable {
+        // Keyboard: Glass draws every key as a pane of glass, which keeps its own colours (no setColor)
+        if (themeStyle == STYLE_GLASS)
+            return GlassKeyDrawable.forColorType(Settings.getCurrentContext(), isDarkColor(get(MAIN_BACKGROUND)), color)
         val drawable = when (color) {
             KEY_BACKGROUND, MORE_SUGGESTIONS_WORD_BACKGROUND, ACTION_KEY_POPUP_KEYS_BACKGROUND, POPUP_KEYS_BACKGROUND ->
                 attr.getDrawable(R.styleable.KeyboardView_keyBackground)
@@ -84,6 +90,16 @@ interface Colors {
 
         setColor(drawable, color)
         return drawable
+    }
+
+    /**
+     * Keyboard: gives [view] the Glass ground (the look's ground and halos) as its background, once.
+     * Built from drawGround (Modules glass/Glass.kt, latin/ui/glass/Glass.kt in the app) and
+     * https://developer.android.com/reference/android/view/View#setBackground(android.graphics.drawable.Drawable).
+     */
+    fun setGlassGround(view: View) {
+        if (view.background is GlassGroundDrawable) return
+        view.background = GlassGroundDrawable(GlassKeyDrawable.lookFor(view.context, isDarkColor(get(MAIN_BACKGROUND))))
     }
 }
 
@@ -269,7 +285,7 @@ class DynamicColors(context: Context, override val themeStyle: String, override 
         keyTextFilter = colorFilter(keyText)
 
         actionKeyIconColorFilter = when {
-            themeStyle == STYLE_HOLO -> keyTextFilter
+            themeStyle == STYLE_HOLO || themeStyle == STYLE_GLASS -> keyTextFilter
             // the white icon may not have enough contrast, and can't be adjusted by the user
             isBrightColor(accent) -> colorFilter(Color.DKGRAY)
             else -> null
@@ -296,7 +312,8 @@ class DynamicColors(context: Context, override val themeStyle: String, override 
         CLIPBOARD_SUGGESTION_BACKGROUND -> keyBackground
         NAVIGATION_BAR -> navBar
         MORE_SUGGESTIONS_HINT, SUGGESTED_WORD, SUGGESTION_TYPED_WORD, SUGGESTION_VALID_WORD -> adjustedKeyText
-        ACTION_KEY_ICON, TOOL_BAR_EXPAND_KEY -> Color.WHITE
+        ACTION_KEY_ICON -> if (themeStyle == STYLE_GLASS) keyText else Color.WHITE // Keyboard: Glass action key is a pale pane by day
+        TOOL_BAR_EXPAND_KEY -> Color.WHITE
     }
 
     override fun setColor(drawable: Drawable, color: ColorType) {
@@ -358,6 +375,8 @@ class DynamicColors(context: Context, override val themeStyle: String, override 
                         backgroundSetupDone = true
                     }
                     view.background = keyboardBackground
+                } else if (themeStyle == STYLE_GLASS) {
+                    setGlassGround(view)
                 } else {
                     view.background.colorFilter = backgroundFilter
                 }
@@ -468,7 +487,7 @@ class DefaultColors (
         }
         keyTextFilter = colorFilter(keyText)
         actionKeyIconColorFilter = when {
-            themeStyle == STYLE_HOLO -> keyTextFilter
+            themeStyle == STYLE_HOLO || themeStyle == STYLE_GLASS -> keyTextFilter
             // the white icon may not have enough contrast, and can't be adjusted by the user
             isBrightColor(accent) -> colorFilter(Color.DKGRAY)
             else -> null
@@ -495,7 +514,7 @@ class DefaultColors (
         NAVIGATION_BAR -> navBar
         SUGGESTION_AUTO_CORRECT, EMOJI_CATEGORY, TOOL_BAR_KEY, TOOL_BAR_EXPAND_KEY, ONE_HANDED_MODE_BUTTON -> suggestionText
         MORE_SUGGESTIONS_HINT, SUGGESTED_WORD, SUGGESTION_TYPED_WORD, SUGGESTION_VALID_WORD -> adjustedSuggestionText
-        ACTION_KEY_ICON -> Color.WHITE
+        ACTION_KEY_ICON -> if (themeStyle == STYLE_GLASS) keyText else Color.WHITE // Keyboard: Glass action key is a pale pane by day
     }
 
     override fun setColor(drawable: Drawable, color: ColorType) {
@@ -543,6 +562,8 @@ class DefaultColors (
                         backgroundSetupDone = true
                     }
                     view.background = keyboardBackground
+                } else if (themeStyle == STYLE_GLASS) {
+                    setGlassGround(view)
                 } else {
                     view.background.colorFilter = backgroundFilter
                 }
@@ -595,6 +616,8 @@ class AllColors(private val colorMap: EnumMap<ColorType, Int>, override val them
                         backgroundSetupDone = true
                     }
                     view.background = keyboardBackground
+                } else if (themeStyle == STYLE_GLASS) {
+                    setGlassGround(view)
                 } else {
                     setColor(view.background, color)
                 }

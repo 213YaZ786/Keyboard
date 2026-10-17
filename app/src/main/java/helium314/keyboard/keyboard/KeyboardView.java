@@ -6,6 +6,7 @@
 
 package helium314.keyboard.keyboard;
 
+import static helium314.keyboard.keyboard.KeyboardTheme.STYLE_GLASS;
 import static helium314.keyboard.keyboard.KeyboardTheme.STYLE_ROUNDED;
 
 import android.content.Context;
@@ -28,6 +29,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import helium314.keyboard.keyboard.emoji.EmojiPageKeyboardView;
+import helium314.keyboard.keyboard.internal.GlassKeyDrawable;
 import helium314.keyboard.keyboard.internal.KeyDrawParams;
 import helium314.keyboard.keyboard.internal.KeyVisualAttributes;
 import helium314.keyboard.keyboard.internal.keyboard_parser.floris.KeyCode;
@@ -65,6 +67,9 @@ public class KeyboardView extends View {
     private final Rect mKeyBackgroundPadding = new Rect();
     private static final float KET_TEXT_SHADOW_RADIUS_DISABLED = -1.0f;
     private final Colors mColors;
+    // Keyboard: Glass keeps Rounded's label places; the same STYLE_ROUNDED check as upstream
+    // (https://github.com/HeliBorg/HeliBoard/blob/main/app/src/main/java/helium314/keyboard/keyboard/KeyboardView.java)
+    private final boolean mIsRoundedStyle;
     private float mKeyScaleForText;
     protected float mFontSizeMultiplier;
     protected float mHintFontSizeMultiplier;
@@ -106,6 +111,7 @@ public class KeyboardView extends View {
     public KeyboardView(final Context context, final AttributeSet attrs, final int defStyle) {
         super(context, attrs, defStyle);
         mColors = Settings.getValues().mColors;
+        mIsRoundedStyle = mColors.getThemeStyle().equals(STYLE_ROUNDED) || mColors.getThemeStyle().equals(STYLE_GLASS);
 
         final TypedArray keyboardViewAttr = context.obtainStyledAttributes(attrs,
                 R.styleable.KeyboardView, defStyle, R.style.KeyboardView);
@@ -357,7 +363,8 @@ public class KeyboardView extends View {
         final int bgWidth, bgHeight, bgX, bgY;
         if (key.needsToKeepBackgroundAspectRatio(mDefaultKeyLabelFlags)
                 // HACK: To disable expanding normal/functional key background.
-                && !key.hasCustomActionLabel()) {
+                && !key.hasCustomActionLabel()
+                && !(background instanceof GlassKeyDrawable)) { // Keyboard: a glass key fills its key
             bgWidth = (int) (background.getIntrinsicWidth() * mIconScaleFactor);
             bgHeight = (int) (background.getIntrinsicHeight() * mIconScaleFactor);
             bgX = (keyWidth - bgWidth) / 2;
@@ -370,6 +377,8 @@ public class KeyboardView extends View {
             bgX = -padding.left;
         }
         background.setBounds(0, 0, bgWidth, bgHeight);
+        if (background instanceof GlassKeyDrawable) // Keyboard: the glass bends the ground behind the key
+            ((GlassKeyDrawable) background).place(this, key.getDrawX() + getPaddingLeft() + bgX, key.getY() + getPaddingTop() + bgY);
         canvas.translate(bgX, bgY);
         background.draw(canvas);
         canvas.translate(-bgX, -bgY);
@@ -467,7 +476,7 @@ public class KeyboardView extends View {
             blendAlpha(paint, params.mAnimAlpha);
             final float labelCharHeight = TypefaceUtils.getReferenceCharHeight(paint);
             final float labelCharWidth = TypefaceUtils.getReferenceCharWidth(paint);
-            final boolean isFunctionalKeyAndRoundedStyle = mColors.getThemeStyle().equals(STYLE_ROUNDED) && key.hasFunctionalBackground();
+            final boolean isFunctionalKeyAndRoundedStyle = mIsRoundedStyle && key.hasFunctionalBackground();
             final float hintX, hintBaseline;
             if (key.hasHintLabel()) {
                 // The hint label is placed just right of the key label. Used mainly on
@@ -506,7 +515,7 @@ public class KeyboardView extends View {
             canvas.drawText(hintLabel, 0, hintLabel.length(), hintX, hintBaseline + adjustmentY, paint);
         } else if (hintIcon != null) {
             int iconSize = (int) (key.selectHintTextSize(params) * mHintFontSizeMultiplier);
-            boolean isFunctionalKeyAndRoundedStyle = mColors.getThemeStyle().equals(STYLE_ROUNDED) && (key.hasFunctionalBackground() || key.hasActionKeyBackground());
+            boolean isFunctionalKeyAndRoundedStyle = mIsRoundedStyle && (key.hasFunctionalBackground() || key.hasActionKeyBackground());
             float hintX, hintBaseline;
             if (key.hasHintLabel()) {
                 // The hint icon is placed just right of the key label. Used mainly on "phone number" layout.
@@ -564,7 +573,7 @@ public class KeyboardView extends View {
         paint.setTextSize(params.mHintLetterSize);
         paint.setColor(params.mHintLabelColor);
         paint.setTextAlign(Align.CENTER);
-        if (mColors.getThemeStyle().equals(STYLE_ROUNDED)) {
+        if (mIsRoundedStyle) {
             if (key.getBackgroundType() == Key.BACKGROUND_TYPE_SPACEBAR)
                 hintX = keyWidth + hintBaseline + labelCharWidth * 0.1f;
             else
