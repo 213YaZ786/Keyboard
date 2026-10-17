@@ -3,8 +3,12 @@
 package helium314.keyboard.latin.utils
 
 import android.content.Context
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
@@ -14,8 +18,10 @@ import helium314.keyboard.latin.R
 import helium314.keyboard.latin.common.Links
 import helium314.keyboard.latin.common.LocaleUtils
 import helium314.keyboard.latin.common.LocaleUtils.constructLocale
+import helium314.keyboard.latin.core.net.KeyboardNetwork
 import helium314.keyboard.latin.settings.Defaults
 import helium314.keyboard.latin.settings.Settings
+import helium314.keyboard.settings.dialogs.AvailableDictionaries
 import helium314.keyboard.settings.dialogs.ConfirmationDialog
 import java.io.File
 import java.util.Locale
@@ -52,7 +58,9 @@ fun MissingDictionaryDialog(onDismissRequest: () -> Unit, locale: Locale) {
     val dictionaryLink = stringResource(R.string.dictionary_link_text).withHtmlLink(dictUrl)
     val message = stringResource(R.string.no_dictionary_message, repositoryLink, locale.toString(), dictionaryLink)
     var annotatedString = message.htmlToAnnotated()
-    if (availableDicts.isNotEmpty())
+    // Keyboard: with the Network switch on, the dictionaries of the repo come with a Download button (AvailableDictionaries)
+    val network = KeyboardNetwork.enabled(LocalContext.current)
+    if (availableDicts.isNotEmpty() && !network)
         annotatedString += AnnotatedString("\n") + availableDicts
 
     ConfirmationDialog(
@@ -60,7 +68,12 @@ fun MissingDictionaryDialog(onDismissRequest: () -> Unit, locale: Locale) {
         cancelButtonText = stringResource(R.string.dialog_close),
         onConfirmed = { prefs.edit { putBoolean(Settings.PREF_DONT_SHOW_MISSING_DICTIONARY_DIALOG, true) } },
         confirmButtonText = stringResource(R.string.no_dictionary_dont_show_again_button),
-        content = { Text(annotatedString) }
+        content = {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                Text(annotatedString)
+                if (network && availableDicts.isNotEmpty()) AvailableDictionaries(locale)
+            }
+        }
     )
 }
 

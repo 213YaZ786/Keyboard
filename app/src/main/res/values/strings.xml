@@ -226,6 +226,20 @@
     <string name="clipboard_sensitive_expiry">Remove sensitive items after 20 seconds</string>
     <string name="clipboard_clean_links">Clean links when pasting</string>
     <string name="clipboard_clean_links_summary">Drops tracking parameters and redirects from pasted links</string>
+    <!-- Keyboard: the Network switch, the update mode and the dictionaries downloaded on a tap -->
+    <string name="network_title">Network</string>
+    <string name="update_mode_title">Updates</string>
+    <string name="update_mode_off">Off</string>
+    <string name="update_mode_notify">Notify me</string>
+    <string name="update_mode_install">Install automatically</string>
+    <string name="dictionary_download">Download</string>
+    <string name="dictionary_downloading">Downloading</string>
+    <string name="dictionary_installed">Installed</string>
+    <string name="dictionary_download_offline">No connection.</string>
+    <string name="dictionary_download_unavailable">The dictionary server did not answer.</string>
+    <string name="dictionary_download_too_large">The file is larger than 20 MB, it was not kept.</string>
+    <string name="dictionary_download_refused">The file is not one of the known dictionaries, it was not kept.</string>
+    <string name="dictionary_download_invalid">The file is not a valid dictionary, it was not kept.</string>
     <!-- Description, used for non-image clipboard files -->
     <string name="item_description">Description: %s</string>
     <!-- Type, used for non-image clipboard files -->

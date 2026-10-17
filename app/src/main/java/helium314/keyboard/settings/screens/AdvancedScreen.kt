@@ -20,6 +20,9 @@ import helium314.keyboard.keyboard.KeyboardLayoutSet
 import helium314.keyboard.keyboard.KeyboardSwitcher
 import helium314.keyboard.keyboard.emoji.SupportedEmojis
 import helium314.keyboard.latin.BuildConfig
+import helium314.keyboard.latin.core.net.KeyboardNetwork
+import helium314.keyboard.latin.core.update.UpdateMode
+import helium314.keyboard.latin.core.update.Updates
 import helium314.keyboard.latin.R
 import helium314.keyboard.latin.SystemBroadcastReceiver
 import helium314.keyboard.latin.common.splitOnWhitespace
@@ -82,6 +85,7 @@ fun AdvancedSettingsScreen(
         Settings.PREF_CUSTOM_CURRENCY_KEY,
         Settings.PREF_MORE_POPUP_KEYS,
         Settings.PREF_TIMESTAMP_FORMAT,
+        if (KeyboardNetwork.enabled(LocalContext.current)) Settings.PREF_UPDATE_MODE else null, // Keyboard: only with the Network switch on
         SettingsWithoutKey.BACKUP_RESTORE,
         if (BuildConfig.DEBUG || prefs.getBoolean(DebugSettings.PREF_SHOW_DEBUG_SETTINGS, Defaults.PREF_SHOW_DEBUG_SETTINGS))
             SettingsWithoutKey.DEBUG_SETTINGS else null,
@@ -280,7 +284,27 @@ fun createAdvancedSettings(context: Context) = listOf(
     Setting(context, SettingsWithoutKey.LOAD_GESTURE_LIB, R.string.load_gesture_library, R.string.load_gesture_library_summary) {
         LoadGestureLibPreference(it)
     },
+    // Keyboard: the Network switch has its row on the main page, here only for the search
+    Setting(context, Settings.PREF_NETWORK, R.string.network_title) {
+        SwitchPreference(it, Defaults.PREF_NETWORK) { on -> if (!on) Updates.drop() }
+    },
+    // Keyboard: what the app does when a newer release is out, as Calculator's Updates setting
+    // https://github.com/213YaZ786/Calculator/blob/main/app/src/main/java/com/yaz/calculator/feature/settings/SettingsScreen.kt
+    Setting(context, Settings.PREF_UPDATE_MODE, R.string.update_mode_title) { setting ->
+        val ctx = LocalContext.current
+        val items = UpdateMode.entries.map { stringResource(updateModeLabel(it)) to it.name }
+        ListPreference(setting, items, Defaults.PREF_UPDATE_MODE) { mode ->
+            if (mode == UpdateMode.INSTALL.name && !Updates.canInstall(ctx)) Updates.allowInstalls(ctx)
+        }
+    },
 )
+
+@androidx.annotation.StringRes
+private fun updateModeLabel(mode: UpdateMode): Int = when (mode) {
+    UpdateMode.OFF -> R.string.update_mode_off
+    UpdateMode.NOTIFY -> R.string.update_mode_notify
+    UpdateMode.INSTALL -> R.string.update_mode_install
+}
 
 @Preview
 @Composable

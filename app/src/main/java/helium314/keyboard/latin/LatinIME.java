@@ -1020,6 +1020,7 @@ public class LatinIME extends InputMethodService implements
     @Override
     public void onWindowShown() {
         super.onWindowShown();
+        InputWindowState.INSTANCE.setShown(true); // Keyboard: an update never replaces the app under the user's typing
         if (isInputViewShown()) {
             if (mInputView != null && Settings.getValues().mIsFloatingKeyboard)
                 FloatingKeyboardUtils.setFloating(mInputView);
@@ -1031,6 +1032,7 @@ public class LatinIME extends InputMethodService implements
     @Override
     public void onWindowHidden() {
         super.onWindowHidden();
+        InputWindowState.INSTANCE.setShown(false); // Keyboard
         Log.i(TAG, "onWindowHidden");
         final MainKeyboardView mainKeyboardView = mKeyboardSwitcher.getMainKeyboardView();
         if (mainKeyboardView != null) {

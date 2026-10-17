@@ -22,6 +22,7 @@ import helium314.keyboard.keyboard.KeyboardTheme
 import helium314.keyboard.keyboard.KeyboardTypeface
 import helium314.keyboard.keyboard.MainKeyboardView
 import helium314.keyboard.keyboard.PointerTracker
+import helium314.keyboard.keyboard.internal.GlassKeyDrawable
 import helium314.keyboard.keyboard.internal.KeyDrawParams
 import helium314.keyboard.keyboard.internal.KeyVisualAttributes
 import helium314.keyboard.keyboard.internal.keyboard_parser.floris.KeyCode
@@ -128,7 +129,18 @@ class ClipboardHistoryView @JvmOverloads constructor(
         val share = glass && toolbarKeys.size > 1
         if (share) (KeyboardSwitcher.getInstance().clipboardStrip?.getChildAt(0)?.layoutParams as? LayoutParams)?.weight = 0f
         val toolbarKeyLayoutParams = LayoutParams(if (glass) ResourceUtils.getStripButtonSize(resources) else resources.getDimensionPixelSize(R.dimen.config_suggestions_strip_edge_key_width), LayoutParams.MATCH_PARENT, if (share) 1f else 0f)
-        toolbarKeys.forEach { it.layoutParams = toolbarKeyLayoutParams }
+        // Keyboard: a lone tool sits where the mic sits in the bar (SuggestionStripView): the round button's size, half the
+        // keys' gap from the screen edge, and the bar tools' bare glass (a round glass under the finger), icon at its own size
+        if (glass && !share) {
+            val settingsValues = Settings.getValues()
+            val keyboardWidth = ResourceUtils.getKeyboardWidth(context, settingsValues)
+            val keyGap = resources.getFraction(R.fraction.config_key_horizontal_gap_holo, keyboardWidth, keyboardWidth) * settingsValues.mKeyGapScale
+            toolbarKeyLayoutParams.marginEnd = (keyGap / 2).toInt()
+        }
+        toolbarKeys.forEach {
+            it.layoutParams = toolbarKeyLayoutParams
+            if (glass) it.background = GlassKeyDrawable.forStripButton(context, Settings.getValues().mColors, it, bare = true)
+        }
     }
 
     private fun setupBottomRowKeyboard(editorInfo: EditorInfo, listener: KeyboardActionListener) {

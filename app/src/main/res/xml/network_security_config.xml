@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The app's connections, the update check on GitHub and the dictionaries of Codeberg: encrypted only,
+     trusting Android's own certificate authorities (never one a user or an app added), and checked against the
+     public Certificate Transparency logs (Android 16 and later), so a wrongly issued certificate is refused.
+     https://developer.android.com/privacy-and-security/security-config -->
+<network-security-config xmlns:tools="http://schemas.android.com/tools">
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+        <certificateTransparency enabled="true" tools:ignore="NetworkSecurityConfig" />
+    </base-config>
+</network-security-config>

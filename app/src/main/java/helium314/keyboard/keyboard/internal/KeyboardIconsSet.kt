@@ -140,7 +140,7 @@ class KeyboardIconsSet private constructor() {
                     ToolbarKey.FLOATING -> R.drawable.ic_drag_indicator
                     ToolbarKey.INCOGNITO -> R.drawable.sym_keyboard_incognito_holo
                     ToolbarKey.AUTOCORRECT -> R.drawable.ic_autocorrect
-                    ToolbarKey.CLEAR_CLIPBOARD -> R.drawable.sym_keyboard_clear_clipboard_holo
+                    ToolbarKey.CLEAR_CLIPBOARD -> R.drawable.ic_ink_eraser // Keyboard: Material Symbols ink_eraser in the three sets
                     ToolbarKey.CLOSE_HISTORY -> R.drawable.ic_close
                     ToolbarKey.EMOJI -> R.drawable.sym_keyboard_smiley_holo
                     ToolbarKey.LEFT -> R.drawable.ic_dpad_left
@@ -204,7 +204,7 @@ class KeyboardIconsSet private constructor() {
                     ToolbarKey.FLOATING -> R.drawable.ic_drag_indicator
                     ToolbarKey.INCOGNITO -> R.drawable.sym_keyboard_incognito_lxx
                     ToolbarKey.AUTOCORRECT -> R.drawable.ic_autocorrect
-                    ToolbarKey.CLEAR_CLIPBOARD -> R.drawable.sym_keyboard_clear_clipboard_lxx
+                    ToolbarKey.CLEAR_CLIPBOARD -> R.drawable.ic_ink_eraser // Keyboard
                     ToolbarKey.CLOSE_HISTORY -> R.drawable.ic_close
                     ToolbarKey.EMOJI -> R.drawable.sym_keyboard_smiley_lxx
                     ToolbarKey.LEFT -> R.drawable.ic_dpad_left
@@ -268,7 +268,7 @@ class KeyboardIconsSet private constructor() {
                     ToolbarKey.FLOATING -> R.drawable.ic_drag_indicator
                     ToolbarKey.INCOGNITO -> R.drawable.sym_keyboard_incognito_lxx
                     ToolbarKey.AUTOCORRECT -> R.drawable.ic_autocorrect_rounded
-                    ToolbarKey.CLEAR_CLIPBOARD -> R.drawable.sym_keyboard_clear_clipboard_rounded
+                    ToolbarKey.CLEAR_CLIPBOARD -> R.drawable.ic_ink_eraser // Keyboard
                     ToolbarKey.CLOSE_HISTORY -> R.drawable.ic_close_rounded
                     ToolbarKey.EMOJI -> R.drawable.sym_keyboard_smiley_rounded
                     ToolbarKey.LEFT -> R.drawable.ic_dpad_left_rounded

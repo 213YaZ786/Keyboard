@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 package helium314.keyboard.settings.dialogs
 
+import android.content.Context
 import android.content.Intent
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
@@ -75,18 +76,7 @@ fun NewDictionaryDialog(
         val info = header.info(LocalConfiguration.current.locale())
         ThreeButtonAlertDialog(
             onDismissRequest = { onDismissRequest(); cachedFile.delete() },
-            onConfirmed = {
-                dictFile.parentFile?.mkdirs()
-                dictFile.delete()
-                cachedFile.renameTo(dictFile)
-                if (type == Dictionary.TYPE_MAIN) {
-                    // replaced main dict, remove the one created from internal data
-                    val internalMainDictFile = File(cacheDir, DictionaryInfoUtils.MAIN_DICT_FILE_NAME)
-                    internalMainDictFile.delete()
-                }
-                val newDictBroadcast = Intent(DictionaryPackConstants.NEW_DICTIONARY_INTENT_ACTION)
-                ctx.sendBroadcast(newDictBroadcast)
-            },
+            onConfirmed = { installDictionary(ctx, cachedFile, header, locale) }, // Keyboard: the install is a function, see below
             confirmButtonText = stringResource(if (dictFile.exists()) R.string.replace_dictionary else android.R.string.ok),
             title = { Text(stringResource(R.string.add_new_dictionary_title)) },
             content = {
@@ -124,7 +114,32 @@ fun NewDictionaryDialog(
     }
 }
 
-private fun checkDict(file: File): Pair<Int?, DictionaryHeader?> {
+// Keyboard: installDictionary is the body of NewDictionaryDialog's OK in HeliBoard, unchanged, as a function, so that a
+// dictionary downloaded on a tap goes in exactly as an imported one
+// https://github.com/HeliBorg/HeliBoard/blob/main/app/src/main/java/helium314/keyboard/settings/dialogs/NewDictionaryDialog.kt
+fun installDictionary(ctx: Context, cachedFile: File, header: DictionaryHeader, locale: Locale) {
+    val cacheDir = DictionaryInfoUtils.getCacheDirectoryForLocale(locale, ctx)
+    val type = header.mIdString.substringBefore(":")
+    val dictFile = File(cacheDir, type + "_" + DictionaryInfoUtils.USER_DICTIONARY_SUFFIX)
+    dictFile.parentFile?.mkdirs()
+    dictFile.delete()
+    cachedFile.renameTo(dictFile)
+    if (type == Dictionary.TYPE_MAIN) {
+        // replaced main dict, remove the one created from internal data
+        val internalMainDictFile = File(cacheDir, DictionaryInfoUtils.MAIN_DICT_FILE_NAME)
+        internalMainDictFile.delete()
+    }
+    val newDictBroadcast = Intent(DictionaryPackConstants.NEW_DICTIONARY_INTENT_ACTION)
+    ctx.sendBroadcast(newDictBroadcast)
+}
+
+// Keyboard: where installDictionary puts a dictionary with this header (the dialog's own dictFile), to know whether
+// it would replace one: https://github.com/HeliBorg/HeliBoard/blob/main/app/src/main/java/helium314/keyboard/settings/dialogs/NewDictionaryDialog.kt
+fun dictionaryTargetFile(ctx: Context, locale: Locale, header: DictionaryHeader): File =
+    File(DictionaryInfoUtils.getCacheDirectoryForLocale(locale, ctx), header.mIdString.substringBefore(":") + "_" + DictionaryInfoUtils.USER_DICTIONARY_SUFFIX)
+
+// Keyboard: not private, the downloaded dictionaries are checked the same way
+fun checkDict(file: File): Pair<Int?, DictionaryHeader?> {
     convertDictIfNecessary(file)
     val newHeader = DictionaryInfoUtils.getDictionaryFileHeaderOrNull(file)
         ?: return R.string.dictionary_file_error to null

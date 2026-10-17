@@ -9,6 +9,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import helium314.keyboard.keyboard.KeyboardSwitcher
 import helium314.keyboard.latin.AudioAndHapticFeedbackManager
 import helium314.keyboard.latin.R
+import helium314.keyboard.latin.core.update.Updates
 import helium314.keyboard.latin.gesture.FreeGlide
 import helium314.keyboard.latin.settings.Defaults
 import helium314.keyboard.latin.settings.Settings
@@ -107,6 +108,11 @@ fun MainSettingsScreen(
                     stringResource(R.string.main_sound),
                     key = Settings.PREF_SOUND_ON, default = Defaults.PREF_SOUND_ON
                 )
+                // Keyboard: off, nothing of the app touches the network: no update check, no dictionary download
+                SwitchPreference(
+                    stringResource(R.string.network_title),
+                    key = Settings.PREF_NETWORK, default = Defaults.PREF_NETWORK
+                ) { if (!it) Updates.drop() } // an update downloaded and waiting is forgotten
             }
             PreferenceSection(null) {
                 Preference(

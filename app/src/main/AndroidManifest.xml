@@ -14,6 +14,17 @@ SPDX-License-Identifier: Apache-2.0 AND GPL-3.0-only
     <uses-permission android:name="android.permission.WRITE_USER_DICTIONARY" />
     <uses-permission android:name="android.permission.READ_CONTACTS" />
 
+    <!-- Keyboard: the Network switch in Settings turns all of it off. Only the update check on GitHub and the
+         dictionaries downloaded on a tap go out; nothing typed ever does. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Only used when the user chooses to install updates from the app; Android asks them then. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- An update goes in without a question when the user leaves the app. -->
+    <uses-permission android:name="android.permission.UPDATE_PACKAGES_WITHOUT_USER_ACTION" />
+    <!-- The note after an update and while one downloads. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
     <application android:label="@string/english_ime_name"
             android:name="helium314.keyboard.latin.App"
             android:icon="@mipmap/ic_launcher"
@@ -24,6 +35,8 @@ SPDX-License-Identifier: Apache-2.0 AND GPL-3.0-only
             android:directBootAware="true"
             android:enableOnBackInvokedCallback="false"
             android:memtagMode="sync"
+            android:usesCleartextTraffic="false"
+            android:networkSecurityConfig="@xml/network_security_config"
             android:localeConfig="@xml/locales_config"
             tools:remove="android:appComponentFactory"
             tools:targetApi="33">
@@ -100,6 +113,13 @@ SPDX-License-Identifier: Apache-2.0 AND GPL-3.0-only
                 <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
                 <action android:name="android.intent.action.USER_INITIALIZE" />
                 <action android:name="android.intent.action.LOCALE_CHANGED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Keyboard: after an update the app installed itself, a notification to open it again (update kit). -->
+        <receiver android:name=".core.update.UpdatedReceiver" android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
             </intent-filter>
         </receiver>
 

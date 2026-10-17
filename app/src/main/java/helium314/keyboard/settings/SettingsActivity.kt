@@ -154,6 +154,7 @@ open class SettingsActivity : ComponentActivity(), SharedPreferences.OnSharedPre
                             GestureDataGatheringSettings.GestureDataPromotionReminderDialog()
                         }
                     }
+                    if (!spellchecker) UpdateCheck() // Keyboard: the update kit, when the settings open and the Network switch is on
                     if (dictUri != null) {
                         NewDictionaryDialog(
                             onDismissRequest = { dictUriFlow.value = null },

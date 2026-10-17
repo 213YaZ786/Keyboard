@@ -27,6 +27,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import helium314.keyboard.compat.locale
+import helium314.keyboard.latin.core.net.KeyboardNetwork
 import helium314.keyboard.latin.dictionary.Dictionary
 import helium314.keyboard.latin.R
 import helium314.keyboard.latin.common.LocaleUtils.localizedDisplayName
@@ -92,7 +93,9 @@ fun DictionaryDialog(
                         modifier = Modifier.padding(top = 12.dp, bottom = 4.dp),
                         style = MaterialTheme.typography.titleSmall
                     )
-                    Text(dictString, style = LocalTextStyle.current.merge(lineHeight = 1.8.em))
+                    // Keyboard: with the Network switch on, a Download button for each instead of the links to a browser
+                    if (KeyboardNetwork.enabled(ctx)) AvailableDictionaries(locale)
+                    else Text(dictString, style = LocalTextStyle.current.merge(lineHeight = 1.8.em))
                 }
             }
         },
