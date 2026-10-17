@@ -495,10 +495,12 @@ public final class MainKeyboardView extends KeyboardView implements DrawingProxy
             final boolean isSinglePopupKeyWithPreview = mKeyPreviewDrawParams.isPopupEnabled()
                     && key.hasPreview() && popupKeys.length == 1
                     && mKeyPreviewDrawParams.getVisibleWidth() > 0;
+            // Keyboard: the Glass style shows the long press panel as iOS's action callout (the input callout is gone)
+            final boolean actionCallout = KeyboardTheme.STYLE_GLASS.equals(Settings.getValues().mColors.getThemeStyle());
             final PopupKeysKeyboard.Builder builder = new PopupKeysKeyboard.Builder(
-                    getContext(), key, getKeyboard(), isSinglePopupKeyWithPreview,
+                    getContext(), key, getKeyboard(), isSinglePopupKeyWithPreview && !actionCallout,
                     mKeyPreviewDrawParams.getVisibleWidth(),
-                    mKeyPreviewDrawParams.getVisibleHeight(), newLabelPaint(key));
+                    mKeyPreviewDrawParams.getVisibleHeight(), newLabelPaint(key), actionCallout);
             popupKeysKeyboard = builder.build();
             mPopupKeysKeyboardCache.put(key, popupKeysKeyboard);
         }

@@ -16,17 +16,25 @@ import android.util.AttributeSet;
 import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewGroup;
 
 import androidx.annotation.NonNull;
 
 import helium314.keyboard.accessibility.AccessibilityUtils;
 import helium314.keyboard.accessibility.PopupKeysKeyboardAccessibilityDelegate;
+import helium314.keyboard.keyboard.internal.GlassActionCalloutDrawable;
+import helium314.keyboard.keyboard.internal.GlassCalloutItemDrawable;
+import helium314.keyboard.keyboard.internal.GlassKeyDrawable;
 import helium314.keyboard.keyboard.internal.KeyDrawParams;
 import helium314.keyboard.keyboard.internal.keyboard_parser.floris.KeyCode;
 import helium314.keyboard.latin.R;
 import helium314.keyboard.latin.RichInputMethodManager;
+import helium314.keyboard.latin.common.ColorType;
+import helium314.keyboard.latin.common.Colors;
 import helium314.keyboard.latin.common.Constants;
 import helium314.keyboard.latin.common.CoordinateUtils;
+import helium314.keyboard.latin.settings.Settings;
+import helium314.keyboard.latin.utils.ColorUtilKt;
 import kotlin.Unit;
 import kotlin.jvm.functions.Function1;
 
@@ -45,6 +53,10 @@ public class PopupKeysKeyboardView extends KeyboardView implements PopupKeysPane
     private int mOriginX;
     private int mOriginY;
     private Key mCurrentKey;
+    // Keyboard: the action callout's outline and the colour of the selected item's label
+    private GlassActionCalloutDrawable mCallout;
+    private int mCalloutSelectedText;
+    private static final float TABLET_OFFSET_DP = 20f;
 
     private int mActivePointerId;
 
@@ -94,9 +106,32 @@ public class PopupKeysKeyboardView extends KeyboardView implements PopupKeysPane
         drawIcon(canvas, mDivider, iconX, iconY, iconWidth, iconHeight);
     }
 
+    // Keyboard: whether this panel is iOS's action callout (Glass style, long press of the main keyboard), the
+    // case of ActionCallout.isActive (KeyboardKit 9.9.1,
+    // https://github.com/KeyboardKit/KeyboardKit/blob/9.9.1/Sources/KeyboardKit/Callouts/Callouts%2BActionCallout.swift)
+    public boolean isActionCallout() {
+        return getKeyboard() instanceof PopupKeysKeyboard && ((PopupKeysKeyboard) getKeyboard()).mActionCallout;
+    }
+
+    // Keyboard: ActionCallout.calloutBubble (same file as above): the label of the item under the finger is
+    // selectedForegroundColor, the others foregroundColor
+    public int calloutTextColor(final Key key) {
+        return key == mCurrentKey ? mCalloutSelectedText : Settings.getValues().mColors.get(ColorType.POPUP_KEY_TEXT);
+    }
+
     @Override
     public void setKeyboard(@NonNull final Keyboard keyboard) {
         super.setKeyboard(keyboard);
+        if (isActionCallout()) {
+            // Keyboard: the panel is the callout's outline in glass, its items are plain (GlassCalloutItemDrawable)
+            final Colors colors = Settings.getValues().mColors;
+            if (mCallout == null) {
+                mCallout = new GlassActionCalloutDrawable(GlassKeyDrawable.Companion.lookFor(getContext(),
+                        ColorUtilKt.isDarkColor(colors.get(ColorType.MAIN_BACKGROUND))), getContext());
+            }
+            mCalloutSelectedText = GlassCalloutItemDrawable.selectedTextColor(getContext(), colors);
+            setBackground(mCallout);
+        }
         mKeyDetector.setKeyboard(
                 keyboard, -getPaddingLeft(), -getPaddingTop() + getVerticalCorrection());
         if (AccessibilityUtils.Companion.getInstance().isAccessibilityEnabled()) {
@@ -141,8 +176,23 @@ public class PopupKeysKeyboardView extends KeyboardView implements PopupKeysPane
 
     @SuppressLint("RtlHardcoded") // a key on the left is on the left, independent of layout direction
     private void showPopupKeysPanelInternal(final View parentView, final Controller controller,
-            final int pointX, final int pointY) {
+            final int pointXIn, final int pointYIn) {
         mController = controller;
+        int pointX = pointXIn;
+        int pointY = pointYIn;
+        // Keyboard: the action callout (Glass style) lies on the pressed key: the first item starts at the key (or the
+        // last ends at it), the bubble ends at the key's top, the body lies over the key. On a tablet the body is not
+        // drawn and the bubble is moved by standardVerticalOffset(.pad), 20 (ActionCallout.verticalOffset, KeyboardKit 9.9.1,
+        // Callouts+ActionCallout.swift and Callouts+CalloutStyle.swift; SwiftUI's offset(y:) moves downwards).
+        final PopupKeysKeyboard callout = isActionCallout() ? (PopupKeysKeyboard) getKeyboard() : null;
+        if (callout != null) {
+            final Key parent = callout.mParentKey;
+            final int itemWidth = callout.mMostCommonKeyWidth;
+            pointX = callout.mActionCalloutLeading ? parent.getDrawX() + itemWidth / 2
+                    : parent.getDrawX() + parent.getDrawWidth() - itemWidth / 2;
+            pointY = callout.mBodyZone > 0 ? parent.getY() + parent.getHeight()
+                    : parent.getY() + Math.round(TABLET_OFFSET_DP * getResources().getDisplayMetrics().density);
+        }
         final View container = getContainerView();
         // The coordinates of panel's left-top corner in parentView's coordinate system.
         // We need to consider background drawable paddings.
@@ -178,7 +228,26 @@ public class PopupKeysKeyboardView extends KeyboardView implements PopupKeysPane
 
         mOriginX = panelFinalX;
         mOriginY = y + container.getPaddingTop() + (int) getY();
+        if (callout != null && mCallout != null) {
+            final Key parent = callout.mParentKey;
+            mCallout.layoutAction(getMeasuredWidth(), getMeasuredHeight() - callout.mBodyZone,
+                    parent.getDrawX() - panelFinalX, parent.getDrawWidth(), parent.getHeight(), callout.mBodyZone > 0);
+            // the callout lies in the keyboard frame that carries the ground, as the keys do (GlassKeyDrawable.place)
+            final View frame = parentView.getRootView().findViewById(R.id.main_keyboard_frame);
+            if (frame != null) {
+                final int[] frameAt = new int[2];
+                frame.getLocationInWindow(frameAt);
+                mCallout.setPlace(CoordinateUtils.x(mCoordinates) + panelFinalX - frameAt[0],
+                        CoordinateUtils.y(mCoordinates) + mOriginY - frameAt[1], frame.getWidth(), frame.getHeight());
+            } else {
+                mCallout.setPlace(0f, 0f, 0f, 0f);
+            }
+        }
         controller.onShowPopupKeysPanel(this);
+        if (callout != null) { // the shadow and the body lie outside the items' bounds
+            if (container instanceof ViewGroup containerGroup) containerGroup.setClipChildren(false);
+            if (container.getParent() instanceof ViewGroup parentGroup) parentGroup.setClipChildren(false);
+        }
         final PopupKeysKeyboardAccessibilityDelegate accessibilityDelegate = mAccessibilityDelegate;
         if (accessibilityDelegate != null
                 && AccessibilityUtils.Companion.getInstance().isAccessibilityEnabled()) {

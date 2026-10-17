@@ -20,10 +20,20 @@ import helium314.keyboard.latin.utils.TypefaceUtils;
 
 public final class PopupKeysKeyboard extends Keyboard {
     private final int mDefaultKeyCoordX;
+    // Keyboard: the long press panel as iOS's action callout (Glass style), see Builder; the key that was pressed,
+    // which side of the keyboard it is on, and the height of the body under the items (0 on a tablet)
+    public final boolean mActionCallout;
+    public final boolean mActionCalloutLeading;
+    public final Key mParentKey;
+    public final int mBodyZone;
 
     PopupKeysKeyboard(final PopupKeysKeyboardParams params) {
         super(params);
         mDefaultKeyCoordX = params.getDefaultKeyCoordX() + params.mAbsolutePopupKeyWidth / 2;
+        mActionCallout = params.mActionCallout;
+        mActionCalloutLeading = params.mActionCalloutAlign > 0;
+        mParentKey = params.mParentKey;
+        mBodyZone = params.mBottomPadding;
     }
 
     public int getDefaultCoordX() {
@@ -31,6 +41,10 @@ public final class PopupKeysKeyboard extends Keyboard {
     }
 
     static class PopupKeysKeyboardParams extends KeyboardParams {
+        // Keyboard: action callout: 0 none, 1 the items go right from the key, -1 they go left
+        public boolean mActionCallout;
+        public int mActionCalloutAlign;
+        public Key mParentKey;
         public boolean mIsPopupKeysFixedOrder;
         /* package */int mTopRowAdjustment;
         public int mNumRows;
@@ -109,6 +123,15 @@ public final class PopupKeysKeyboard extends Keyboard {
                 leftKeys++;
                 rightKeys--;
             }
+            if (mActionCalloutAlign != 0) {
+                // Keyboard: ActionCallout.positionX: the items start at the key (leading) or end at it (trailing),
+                // shifted by whole columns only to stay inside the keyboard
+                int preferred = mActionCalloutAlign > 0 ? 0 : numColumns - 1;
+                final int lowest = numColumns - 1 - maxRightKeys;
+                if (lowest <= maxLeftKeys) preferred = Math.min(Math.max(preferred, lowest), maxLeftKeys);
+                leftKeys = Math.max(0, Math.min(numColumns - 1, preferred));
+                rightKeys = numColumns - leftKeys;
+            }
             mLeftKeys = leftKeys;
             mRightKeys = rightKeys;
 
@@ -118,6 +141,7 @@ public final class PopupKeysKeyboard extends Keyboard {
             mDividerWidth = dividerWidth;
             mColumnWidth = mDefaultAbsoluteKeyWidth + mDividerWidth;
             mBaseWidth = mOccupiedWidth = mNumColumns * mColumnWidth - mDividerWidth;
+            if (mActionCallout) mBaseWidth = mOccupiedWidth += mLeftPadding + mRightPadding; // Keyboard: the bubble's side padding
             // Need to subtract the bottom row's gutter only.
             mBaseHeight = mOccupiedHeight = mNumRows * mDefaultAbsoluteRowHeight - mVerticalGap
                     + mTopPadding + mBottomPadding;
@@ -262,6 +286,22 @@ public final class PopupKeysKeyboard extends Keyboard {
         public Builder(final Context context, final Key key, final Keyboard keyboard,
                 final boolean isSinglePopupKeyWithPreview, final int keyPreviewVisibleWidth,
                 final int keyPreviewVisibleHeight, final Paint paintToMeasure) {
+            this(context, key, keyboard, isSinglePopupKeyWithPreview, keyPreviewVisibleWidth,
+                    keyPreviewVisibleHeight, paintToMeasure, false);
+        }
+
+        /**
+         * Keyboard: with [actionCallout] (Glass style) the items are laid out as iOS's ActionCallout
+         * (KeyboardKit 9.9.1, Callouts+ActionCallout.swift, itemSize, itemSizeWidthScale, positionX,
+         * https://github.com/KeyboardKit/KeyboardKit/blob/9.9.1/Sources/KeyboardKit/Callouts/Callouts%2BActionCallout.swift):
+         * an item is the key's size capped at 50 x 50 dp, 1.4 times as wide when alone, with 6 dp above and below,
+         * side by side without gaps nor dividers, starting at the key when it is on the leading side of the keyboard
+         * and ending at it otherwise; the bubble has the curve width (8 dp) at each side, and under it the body
+         * (the key's height) is left free, so the panel reaches down to the key.
+         */
+        public Builder(final Context context, final Key key, final Keyboard keyboard,
+                final boolean isSinglePopupKeyWithPreview, final int keyPreviewVisibleWidth,
+                final int keyPreviewVisibleHeight, final Paint paintToMeasure, final boolean actionCallout) {
             super(context, new PopupKeysKeyboardParams());
             mParams.mId = keyboard.mId;
             readAttributes(keyboard.mPopupKeysTemplate);
@@ -271,9 +311,34 @@ public final class PopupKeysKeyboard extends Keyboard {
             mParams.mVerticalGap = keyboard.mVerticalGap / 2;
             // This {@link PopupKeysKeyboard} is invoked from the <code>key</code>.
             mParentKey = key;
+            int calloutItemWidth = 0;
+            if (actionCallout) {
+                final float density = context.getResources().getDisplayMetrics().density;
+                mParams.mActionCallout = true;
+                mParams.mParentKey = key;
+                mParams.mVerticalGap = 0;
+                mParams.mHorizontalGap = 0;
+                mParams.mLeftPadding = mParams.mRightPadding = Math.round(8f * density); // curveSize.width
+                mParams.mTopPadding = 0;
+                // the body of the callout is as high as the key; none on a tablet (ButtonArea.opacity(0))
+                mParams.mBottomPadding = context.getResources().getConfiguration().smallestScreenWidthDp >= 600
+                        ? 0 : key.getHeight();
+                final float widthScale = key.getPopupKeys().length == 1 ? 1.4f : 1f;
+                calloutItemWidth = Math.max(1, Math.round(Math.min(key.getDrawWidth(), 50f * density) * widthScale));
+                mParams.mActionCalloutAlign = key.getX() + key.getWidth() / 2 < keyboard.mId.getWidth() / 2 ? 1 : -1;
+            }
 
             final int keyWidth, rowHeight;
-            if (isSinglePopupKeyWithPreview) {
+            if (actionCallout) {
+                final float density = context.getResources().getDisplayMetrics().density;
+                mParams.mAbsolutePopupKeyWidth = calloutItemWidth;
+                final float padding = context.getResources().getDimension(
+                        R.dimen.config_popup_keys_keyboard_key_horizontal_padding)
+                        + (key.hasLabelsInPopupKeys() ? calloutItemWidth * LABEL_PADDING_RATIO : 0.0f);
+                keyWidth = getMaxKeyWidth(key, calloutItemWidth, padding, paintToMeasure);
+                mParams.mAbsolutePopupKeyWidth = keyWidth;
+                rowHeight = Math.round(Math.min(key.getHeight(), 50f * density) + 2 * 6f * density);
+            } else if (isSinglePopupKeyWithPreview) {
                 // Use pre-computed width and height if this popup keys keyboard has only one key to
                 // mitigate visual flicker between key preview and popup keys keyboard.
                 // Caveats for the visual assets: To achieve this effect, both the key preview
@@ -292,20 +357,24 @@ public final class PopupKeysKeyboard extends Keyboard {
                 rowHeight = keyboard.mMostCommonKeyHeight;
             }
             final int dividerWidth;
-            if (key.needsDividersInPopupKeys()) {
+            if (key.needsDividersInPopupKeys() && !actionCallout) {
                 dividerWidth = (int)(keyWidth * DIVIDER_RATIO);
             } else {
                 dividerWidth = 0;
             }
             final PopupKeySpec[] popupKeys = key.getPopupKeys();
             final int defaultColumns = key.getPopupKeysColumnNumber();
-            final int spaceForKeys = keyboard.mId.getWidth() / keyWidth;
+            final int spaceForKeys = (keyboard.mId.getWidth() - mParams.mLeftPadding - mParams.mRightPadding) / Math.max(1, keyWidth);
             int finalNumColumns = spaceForKeys >= Math.min(popupKeys.length, defaultColumns)
                     ? defaultColumns
                     : (spaceForKeys > 0 ? spaceForKeys : defaultColumns);
             if (finalNumColumns < 1) finalNumColumns = 1; // avoid exception in setParameters
+            // Keyboard: the first item starts at the key (leading) or the last ends at it (trailing)
+            final int coordXInParent = !actionCallout ? key.getX() + key.getWidth() / 2
+                    : mParams.mActionCalloutAlign > 0 ? key.getDrawX() + keyWidth / 2
+                    : key.getDrawX() + key.getDrawWidth() - keyWidth / 2;
             mParams.setParameters(popupKeys.length, finalNumColumns, keyWidth,
-                    rowHeight, key.getX() + key.getWidth() / 2, keyboard.mId.getWidth(),
+                    rowHeight, coordXInParent, keyboard.mId.getWidth(),
                     key.isPopupKeysFixedColumn(), key.isPopupKeysFixedOrder(), dividerWidth);
         }
 

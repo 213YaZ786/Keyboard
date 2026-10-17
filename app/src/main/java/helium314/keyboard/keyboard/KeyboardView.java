@@ -29,6 +29,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import helium314.keyboard.keyboard.emoji.EmojiPageKeyboardView;
+import helium314.keyboard.keyboard.internal.GlassCalloutItemDrawable;
 import helium314.keyboard.keyboard.internal.GlassKeyDrawable;
 import helium314.keyboard.keyboard.internal.KeyDrawParams;
 import helium314.keyboard.keyboard.internal.KeyVisualAttributes;
@@ -364,7 +365,8 @@ public class KeyboardView extends View {
         if (key.needsToKeepBackgroundAspectRatio(mDefaultKeyLabelFlags)
                 // HACK: To disable expanding normal/functional key background.
                 && !key.hasCustomActionLabel()
-                && !(background instanceof GlassKeyDrawable)) { // Keyboard: a glass key fills its key
+                && !(background instanceof GlassKeyDrawable) // Keyboard: a glass key fills its key
+                && !(background instanceof GlassCalloutItemDrawable)) {
             bgWidth = (int) (background.getIntrinsicWidth() * mIconScaleFactor);
             bgHeight = (int) (background.getIntrinsicHeight() * mIconScaleFactor);
             bgX = (keyWidth - bgWidth) / 2;
@@ -402,6 +404,9 @@ public class KeyboardView extends View {
         if (label != null) {
             paint.setTypeface(KeyboardTypeface.resolve(label, key.selectTypeface(params)));
             paint.setTextSize(key.selectTextSize(params) * mFontSizeMultiplier);
+            if (this instanceof PopupKeysKeyboardView && ((PopupKeysKeyboardView) this).isActionCallout()) // Keyboard: ActionCallout's item font, title3 (20)
+                paint.setTextSize(android.util.TypedValue.applyDimension(android.util.TypedValue.COMPLEX_UNIT_SP,
+                        GlassCalloutItemDrawable.TEXT_SIZE_SP, getResources().getDisplayMetrics()));
             final float labelCharHeight = TypefaceUtils.getReferenceCharHeight(paint);
             final float labelCharWidth = TypefaceUtils.getReferenceCharWidth(paint);
 
@@ -438,6 +443,8 @@ public class KeyboardView extends View {
             if (key.isEnabled()) {
                 if (StringUtilsKt.isEmoji(label))
                     paint.setColor(key.selectTextColor(params) | 0xFF000000); // ignore alpha for emojis (though actually color isn't applied anyway and we could just set white)
+                else if (this instanceof PopupKeysKeyboardView && ((PopupKeysKeyboardView) this).isActionCallout())
+                    paint.setColor(((PopupKeysKeyboardView) this).calloutTextColor(key)); // Keyboard: plain labels, the selected one on its pill
                 else if (key.hasActionKeyBackground())
                     paint.setColor(mColors.get(ColorType.ACTION_KEY_ICON));
                 else if (this instanceof EmojiPageKeyboardView)
@@ -647,7 +654,10 @@ public class KeyboardView extends View {
     }
 
     private void setKeyIconColor(Key key, Drawable icon, Keyboard keyboard) {
-        if (key.hasActionKeyBackground()) {
+        if (this instanceof PopupKeysKeyboardView && ((PopupKeysKeyboardView) this).isActionCallout()) {
+            // Keyboard: an icon item as a label item (calloutTextColor)
+            icon.setColorFilter(((PopupKeysKeyboardView) this).calloutTextColor(key), PorterDuff.Mode.SRC_IN);
+        } else if (key.hasActionKeyBackground()) {
             mColors.setColor(icon, ColorType.ACTION_KEY_ICON);
         } else if (key.isShift() && keyboard != null) {
             if (keyboard.mId.getElement().isAlphabetShifted())

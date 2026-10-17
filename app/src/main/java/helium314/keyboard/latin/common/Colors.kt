@@ -24,6 +24,7 @@ import androidx.core.graphics.drawable.DrawableCompat
 import androidx.core.graphics.drawable.toBitmap
 import helium314.keyboard.keyboard.KeyboardTheme.Companion.STYLE_GLASS
 import helium314.keyboard.keyboard.KeyboardTheme.Companion.STYLE_HOLO
+import helium314.keyboard.keyboard.internal.GlassCalloutItemDrawable
 import helium314.keyboard.keyboard.internal.GlassGroundDrawable
 import helium314.keyboard.keyboard.internal.GlassKeyDrawable
 import helium314.keyboard.keyboard.KeyboardTheme.Companion.STYLE_MATERIAL
@@ -69,6 +70,8 @@ interface Colors {
     /** returns a colored drawable selected from [attr], which must contain using R.styleable.KeyboardView_* */
     fun selectAndColorDrawable(attr: TypedArray, color: ColorType): Drawable {
         // Keyboard: Glass draws every key as a pane of glass, which keeps its own colours (no setColor)
+        if (themeStyle == STYLE_GLASS && (color == POPUP_KEYS_BACKGROUND || color == ACTION_KEY_POPUP_KEYS_BACKGROUND))
+            return GlassCalloutItemDrawable.forColors(Settings.getCurrentContext(), this) // Keyboard: the items of the action callout have no key under them
         if (themeStyle == STYLE_GLASS)
             return GlassKeyDrawable.forColorType(Settings.getCurrentContext(), isDarkColor(get(MAIN_BACKGROUND)), color)
         val drawable = when (color) {

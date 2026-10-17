@@ -42,8 +42,8 @@ import kotlin.math.min
  * the fill is GlassKeyDrawable.drawGlass (same ZONE_AGSL shader and uniforms) and, without
  * RuntimeShader, GlassKeyDrawable.drawPane (the tint, then the rim).
  */
-class GlassCalloutDrawable(private val look: GlassLook, context: Context) : Drawable() {
-    private val density = context.resources.displayMetrics.density
+open class GlassCalloutDrawable(private val look: GlassLook, context: Context) : Drawable() { // Keyboard: open, GlassActionCalloutDrawable shares the fill
+    protected val density = context.resources.displayMetrics.density
 
     // The callout's place in the ground behind it (GlassKeyDrawable.place), set by setPlace().
     private var originX = 0f
@@ -51,11 +51,11 @@ class GlassCalloutDrawable(private val look: GlassLook, context: Context) : Draw
     private var window = Size.Zero
 
     private var shader: Any? = null
-    private val path = Path()
-    private val piece = Path()
-    private val rect = RectF()
+    protected val path = Path()
+    protected val piece = Path()
+    protected val rect = RectF()
     private val box = RectF()
-    private var keyRadius = 0f
+    protected var keyRadius = 0f
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val shadowPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val rimPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
@@ -198,13 +198,13 @@ class GlassCalloutDrawable(private val look: GlassLook, context: Context) : Draw
     }
 
     // Path.op(UNION): https://developer.android.com/reference/android/graphics/Path#op(android.graphics.Path,%20android.graphics.Path.Op)
-    private fun union(other: Path) {
+    protected fun union(other: Path) {
         if (!path.op(other, Path.Op.UNION)) path.addPath(other)
     }
 
     // CustomRoundedRectangle.path: each radius at most half the height and half the width; the arcs are
     // Path.addRoundRect (https://developer.android.com/reference/android/graphics/Path#addRoundRect(android.graphics.RectF,%20float[],%20android.graphics.Path.Direction)).
-    private fun addRoundedRect(into: Path, r: RectF, topLeft: Float, topRight: Float, bottomRight: Float, bottomLeft: Float) {
+    protected fun addRoundedRect(into: Path, r: RectF, topLeft: Float, topRight: Float, bottomRight: Float, bottomLeft: Float) {
         val limit = min(r.height() / 2f, r.width() / 2f)
         val tl = min(topLeft, limit)
         val tr = min(topRight, limit)
@@ -227,11 +227,11 @@ class GlassCalloutDrawable(private val look: GlassLook, context: Context) : Draw
         private const val TAG = "Glass"
 
         /** CalloutStyle.cornerRadius: 10. */
-        private const val CORNER_RADIUS_DP = 10f
+        internal const val CORNER_RADIUS_DP = 10f
 
         /** CalloutStyle.curveSize: 8 x 15. */
-        private const val CURVE_WIDTH_DP = 8f
-        private const val CURVE_HEIGHT_DP = 15f
+        internal const val CURVE_WIDTH_DP = 8f
+        internal const val CURVE_HEIGHT_DP = 15f
 
         /** CalloutStyle.inputItemMinSize: height 55. */
         private const val MIN_HEIGHT_DP = 55f
