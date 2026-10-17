@@ -18,7 +18,6 @@ import android.graphics.Rect;
 import android.graphics.Typeface;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
-import android.graphics.drawable.ShapeDrawable;
 import android.text.Spannable;
 import android.text.SpannableString;
 import android.text.Spanned;
@@ -82,7 +81,6 @@ final class SuggestionStripLayoutHelper {
     private final boolean mGlass;
     private final Colors mColors;
     private final GlassKeyDrawable[] mPills;
-    private final Drawable mMoreSuggestionsSpacer;
     private final int mColorValidTypedWord;
     private final int mColorTypedWord;
     private final int mColorAutoCorrect;
@@ -154,13 +152,6 @@ final class SuggestionStripLayoutHelper {
         mMoreSuggestionsHint = getMoreSuggestionsHint(res,
                 res.getDimension(R.dimen.config_more_suggestions_hint_text_size),
                 colorMoreSuggestionsHint);
-        // Keyboard: a blank drawable as big as the hint (ShapeDrawable.setIntrinsicWidth / setIntrinsicHeight,
-        // https://developer.android.com/reference/android/graphics/drawable/ShapeDrawable#setIntrinsicHeight(int))
-        final ShapeDrawable spacer = new ShapeDrawable();
-        spacer.setIntrinsicWidth(mMoreSuggestionsHint.getIntrinsicWidth());
-        spacer.setIntrinsicHeight(mMoreSuggestionsHint.getIntrinsicHeight());
-        spacer.setAlpha(0);
-        mMoreSuggestionsSpacer = spacer;
         mCenterPositionInStrip = mSuggestionsCountInStrip / 2;
         // Assuming there are at least three suggestions. Also, note that the suggestions are
         // laid out according to script direction, so this is left of the center for LTR scripts
@@ -423,13 +414,8 @@ final class SuggestionStripLayoutHelper {
     private TextView layoutWord(final Context context, final int positionInStrip, final int width) {
         final TextView wordView = mWordViews.get(positionInStrip);
         final CharSequence word = wordView.getText();
-        if (mGlass && positionInStrip == mCenterPositionInStrip && mMoreSuggestionsAvailable) {
-            // Keyboard: the dots below the text with clear space, and the text still centred: the same blank
-            // drawable above balances them (TextView.setCompoundDrawablesWithIntrinsicBounds and
-            // setCompoundDrawablePadding, https://developer.android.com/reference/android/widget/TextView#setCompoundDrawablePadding(int))
-            wordView.setCompoundDrawablesWithIntrinsicBounds(null, mMoreSuggestionsSpacer, null, mMoreSuggestionsHint);
-            wordView.setCompoundDrawablePadding(Math.round(3f * wordView.getResources().getDisplayMetrics().density));
-        } else if (positionInStrip == mCenterPositionInStrip && mMoreSuggestionsAvailable) {
+        // Keyboard: no "more suggestions" dots in the Glass style (iOS and Gboard show none)
+        if (!mGlass && positionInStrip == mCenterPositionInStrip && mMoreSuggestionsAvailable) {
             // TODO: This "more suggestions hint" should have a nicely designed icon.
             wordView.setCompoundDrawablesWithIntrinsicBounds(null, null, null, mMoreSuggestionsHint);
             // HACK: Align with other TextViews that have no compound drawables.

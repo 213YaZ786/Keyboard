@@ -228,12 +228,17 @@ class SuggestionStripView(context: Context, attrs: AttributeSet?, defStyle: Int)
             layoutParams = LinearLayout.LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.MATCH_PARENT)
             importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO
         }
+        // The words take exactly what the two slots leave (0 dp wide with weight 1, LinearLayout.LayoutParams.weight),
+        // so the last one never runs under the voice key
+        suggestionsStrip.layoutParams = (suggestionsStrip.layoutParams as LinearLayout.LayoutParams).apply { width = 0 }
         glassSeparatorStart = separator().also { wrapper.addView(it, wrapper.indexOfChild(toolbarExpandKey) + 1) }
         if (!withVoiceKey) return
         glassSeparatorEnd = separator().also { wrapper.addView(it) }
         val mic = createToolbarKey(context, ToolbarKey.VOICE)
+        // The voice key's slot as the grid's: same width and height (its circle centred in the slot), and the same
+        // distance from the screen edge (the grid's marginStart, at the other end)
         mic.layoutParams = LinearLayout.LayoutParams(ResourceUtils.getStripButtonSize(resources), LayoutParams.MATCH_PARENT)
-            .apply { marginEnd = 4.dpToPx(resources) } // GlassKeyDrawable.STRIP_PADDING_DP, KeyboardKit's toolbar padding
+            .apply { marginEnd = (toolbarExpandKey.layoutParams as LinearLayout.LayoutParams).marginStart }
         setupKey(mic, colors)
         (mic.layoutParams as LinearLayout.LayoutParams).weight = 0f // setupKey gives the tools a share of the row
         mic.background = GlassKeyDrawable.forStripButton(context, colors, mic, accent = true)
