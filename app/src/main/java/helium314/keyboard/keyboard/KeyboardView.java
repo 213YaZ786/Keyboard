@@ -120,6 +120,8 @@ public class KeyboardView extends View {
             mKeyBackground = mColors.selectAndColorDrawable(keyboardViewAttr, ColorType.MORE_SUGGESTIONS_WORD_BACKGROUND);
         else if (this instanceof PopupKeysKeyboardView)
             mKeyBackground = mColors.selectAndColorDrawable(keyboardViewAttr, ColorType.POPUP_KEYS_BACKGROUND);
+        else if (this instanceof EmojiPageKeyboardView && mColors.getThemeStyle().equals(STYLE_GLASS))
+            mKeyBackground = GlassKeyDrawable.Companion.forEmoji(context, mColors); // Keyboard: the glyph alone, a glass circle when pressed
         else
             mKeyBackground = mColors.selectAndColorDrawable(keyboardViewAttr, ColorType.KEY_BACKGROUND);
         mKeyBackground.getPadding(mKeyBackgroundPadding);

@@ -168,10 +168,26 @@ class ClipboardHistoryView @JvmOverloads constructor(
             KeyboardTypeface.applyToTextView(this)
             setTextColor(params.mTextColor)
             setTextSize(TypedValue.COMPLEX_UNIT_PX, params.mLabelSize.toFloat() * 2)
+            if (clipboardAdapter.glass) {
+                // Keyboard: FlorisBoard's HistoryEmptyView (ClipboardInputLayout.kt): a title and a message, centred
+                // (https://github.com/florisboard/florisboard/blob/main/app/src/main/kotlin/dev/patrickgold/florisboard/ime/clipboard/ClipboardInputLayout.kt)
+                text = android.text.SpannableStringBuilder(context.getString(R.string.clipboard_empty_title)).apply {
+                    setSpan(android.text.style.StyleSpan(android.graphics.Typeface.BOLD), 0, length, 0)
+                    append("\n").append(context.getString(R.string.clipboard_empty_message))
+                }
+                gravity = android.view.Gravity.CENTER
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+            }
         }
         clipboardRecyclerView.apply {
             adapter = clipboardAdapter
             val keyboardWidth = ResourceUtils.getKeyboardWidth(context, settings.current)
+            if (clipboardAdapter.glass) {
+                // Keyboard: StaggeredGridCells.Adaptive(160.dp) of FlorisBoard's HistoryMainView: as many columns as
+                // fit 160 dp, at least 2
+                (layoutManager as StaggeredGridLayoutManager).spanCount =
+                    maxOf(2, (keyboardWidth / (160 * resources.displayMetrics.density)).toInt())
+            }
             layoutParams.width = keyboardWidth
             // new ClipboardLayoutParams means ClipboardAdapter has wrong gaps, but that's ok (only relevant when resizing floating keyboard)
             ClipboardLayoutParams(context).setListProperties(this)
@@ -232,15 +248,26 @@ class ClipboardHistoryView @JvmOverloads constructor(
     }
 
     override fun onClipInserted(position: Int) {
+        if (clipboardAdapter.glass) { // Keyboard: the headers move the positions, the whole list is set again
+            clipboardAdapter.notifyDataSetChanged()
+            clipboardRecyclerView.smoothScrollToPosition(clipboardAdapter.scrollPositionOf(position))
+            return
+        }
         clipboardAdapter.notifyItemInserted(position)
         clipboardRecyclerView.smoothScrollToPosition(position)
     }
 
     override fun onClipsRemoved(position: Int, count: Int) {
+        if (clipboardAdapter.glass) { clipboardAdapter.notifyDataSetChanged(); return } // Keyboard: as above
         clipboardAdapter.notifyItemRangeRemoved(position, count)
     }
 
     override fun onClipMoved(oldPosition: Int, newPosition: Int) {
+        if (clipboardAdapter.glass) { // Keyboard: as above
+            clipboardAdapter.notifyDataSetChanged()
+            if (newPosition < oldPosition) clipboardRecyclerView.smoothScrollToPosition(clipboardAdapter.scrollPositionOf(newPosition))
+            return
+        }
         clipboardAdapter.notifyItemMoved(oldPosition, newPosition)
         clipboardAdapter.notifyItemChanged(newPosition)
         if (newPosition < oldPosition) clipboardRecyclerView.smoothScrollToPosition(newPosition)

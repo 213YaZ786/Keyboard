@@ -22,14 +22,23 @@ class ClipboardHistoryRecyclerView @JvmOverloads constructor(
     @Suppress("unused")
     private val touchHelper = ItemTouchHelper(object : ItemTouchHelper.SimpleCallback(0, ItemTouchHelper.LEFT) {
         override fun onMove(recyclerView: RecyclerView, viewHolder: ViewHolder, target: ViewHolder) = false
+        // Keyboard: the entry's index in the history. With the headers of the Glass style (ClipboardAdapter.dataIndex,
+        // after FlorisBoard's ClipCategoryTitle items in ClipboardInputLayout.kt,
+        // https://github.com/florisboard/florisboard/blob/main/app/src/main/kotlin/dev/patrickgold/florisboard/ime/clipboard/ClipboardInputLayout.kt)
+        // it is not the position
+        private fun indexOf(viewHolder: ViewHolder) =
+            (adapter as? ClipboardAdapter)?.dataIndex(viewHolder.absoluteAdapterPosition) ?: viewHolder.absoluteAdapterPosition
+
         override fun getSwipeDirs(recyclerView: RecyclerView, viewHolder: ViewHolder): Int {
-            if (historyManager?.canRemove(viewHolder.absoluteAdapterPosition) == false)
+            if (indexOf(viewHolder) < 0) return 0 // a header
+            if (historyManager?.canRemove(indexOf(viewHolder)) == false)
                 return 0 // block swipe for pinned items
             return super.getSwipeDirs(recyclerView, viewHolder)
         }
         override fun onSwiped(viewHolder: ViewHolder, dir: Int) {
-            historyManager?.removeEntry(viewHolder.absoluteAdapterPosition)
-            adapter?.notifyItemRemoved(viewHolder.absoluteAdapterPosition)
+            historyManager?.removeEntry(indexOf(viewHolder))
+            if ((adapter as? ClipboardAdapter)?.glass == true) adapter?.notifyDataSetChanged() // the headers change too
+            else adapter?.notifyItemRemoved(viewHolder.absoluteAdapterPosition)
         }
     }).attachToRecyclerView(this)
 

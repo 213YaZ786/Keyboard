@@ -54,9 +54,14 @@ class GlassKeyDrawable(private val look: GlassLook, private val kind: Kind, cont
     // background of, which places it in the keyboard frame at each draw. The pill is the autocorrect item's
     // background of KeyboardKit 9.9.1 (Autocomplete+ToolbarItem.swift standardAutocorrect, corner 4, inside the
     // toolbar's padding of 4: https://github.com/KeyboardKit/KeyboardKit/tree/9.9.1/Sources/KeyboardKit/Autocomplete)
-    enum class Shape { KEY, ROUND, PILL }
+    // CIRCLE, a circle of the smaller side, and [onlyPressed], nothing at rest, are for the emoji keys (FlorisBoard's
+    // ime/media/emoji/EmojiPaletteView.kt shows the glyph alone); [cornerDp], a fixed corner for the clipboard cards
+    // (FlorisBoard's stylesheet, clipboard-item shape rounded-corner(12dp))
+    enum class Shape { KEY, ROUND, PILL, CIRCLE }
     var shape = Shape.KEY
     var pillRadiusDp = 4f
+    var onlyPressed = false
+    var cornerDp = 0f
     var host: View? = null
 
     // The key's place in the ground drawn behind it (GlassZoneNode's origin and window), set by place().
@@ -142,7 +147,13 @@ class GlassKeyDrawable(private val look: GlassLook, private val kind: Kind, cont
         var dx = 0f
         var dy = 0f
         var radius = min((if (kind == Kind.PANEL) PANEL_RADIUS_DP else RADIUS_DP) * density, min(w, h) / 2f)
-        if (shape == Shape.ROUND) {
+        if (onlyPressed && !pressed) return
+        if (cornerDp > 0f) radius = min(cornerDp * density, min(w, h) / 2f)
+        if (shape == Shape.CIRCLE) {
+            val d = min(w, h)
+            dx = (w - d) / 2f; dy = (h - d) / 2f; w = d; h = d
+            radius = d / 2f
+        } else if (shape == Shape.ROUND) {
             val d = min(min(w, h - 2f * STRIP_PADDING_DP * density), MAX_BUTTON_DP * density)
             if (d <= 0f) return
             dx = (w - d) / 2f; dy = (h - d) / 2f; w = d; h = d
@@ -286,6 +297,19 @@ class GlassKeyDrawable(private val look: GlassLook, private val kind: Kind, cont
         fun forAutocorrect(context: Context, colors: Colors, host: View): GlassKeyDrawable =
             GlassKeyDrawable(lookFor(context, isDarkColor(colors.get(ColorType.MAIN_BACKGROUND))), Kind.LETTER, context)
                 .also { it.shape = Shape.PILL; it.host = host }
+
+        /**
+         * A clipboard card: Kind.LETTER glass with the corner of FlorisBoard's clipboard-item (12 dp), the background of
+         * [host] (https://developer.android.com/reference/android/view/View#setBackground(android.graphics.drawable.Drawable)).
+         */
+        fun forCard(context: Context, colors: Colors, host: View): GlassKeyDrawable =
+            GlassKeyDrawable(lookFor(context, isDarkColor(colors.get(ColorType.MAIN_BACKGROUND))), Kind.LETTER, context)
+                .also { it.cornerDp = 12f; it.host = host }
+
+        /** The background of an emoji key: nothing at rest, a Kind.LETTER glass circle of the key's smaller side when pressed. */
+        fun forEmoji(context: Context, colors: Colors): GlassKeyDrawable =
+            GlassKeyDrawable(lookFor(context, isDarkColor(colors.get(ColorType.MAIN_BACKGROUND))), Kind.LETTER, context)
+                .also { it.shape = Shape.CIRCLE; it.onlyPressed = true }
 
         /**
          * The separator between two suggestions: ToolbarSeparatorStyle of KeyboardKit 9.9.1

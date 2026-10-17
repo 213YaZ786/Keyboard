@@ -212,6 +212,11 @@
     <string name="clipboard_history_retention_time">History retention time</string>
     <!-- Preferences item for showing pinned clipboard items first -->
     <string name="clipboard_history_pinned_first">Show pinned items on top</string>
+    <!-- Keyboard: the clipboard sections and the empty clipboard of the Glass style -->
+    <string name="clipboard_group_pinned">Pinned</string>
+    <string name="clipboard_group_recent">Recent</string>
+    <string name="clipboard_empty_title">Your clipboard is empty</string>
+    <string name="clipboard_empty_message">Once you copy text clips or images they will show up here.</string>
     <!-- Preferences item for extending the clipboard history to files (images or others) -->
     <string name="clipboard_history_files">Add images and other files to clipboard history</string>
     <!-- Preferences item for selecting maximum combined size of clipboard history files -->
