@@ -25,6 +25,7 @@ import helium314.keyboard.settings.screens.DictionaryScreen
 import helium314.keyboard.settings.screens.GestureTypingScreen
 import helium314.keyboard.settings.screens.LanguageScreen
 import helium314.keyboard.settings.screens.MainSettingsScreen
+import helium314.keyboard.settings.screens.MoreSettingsScreen
 import helium314.keyboard.settings.screens.PersonalDictionariesScreen
 import helium314.keyboard.settings.screens.PersonalDictionaryScreen
 import helium314.keyboard.settings.screens.PreferencesScreen
@@ -66,7 +67,17 @@ fun SettingsNavHost(
         popExitTransition = { slideOutHorizontally(targetOffsetX = { +it * dir }, animationSpec = animation) }
     ) {
         composable(SettingsDestination.Settings) {
+            // Keyboard: one page; everything else is under Advanced (MoreSettingsScreen)
             MainSettingsScreen(
+                onClickLanguage = { navController.navigate(SettingsDestination.Languages) },
+                onClickTextReplacement = { navController.navigate(SettingsDestination.PersonalDictionaries) },
+                onClickAppearance = { navController.navigate(SettingsDestination.Appearance) },
+                onClickAdvanced = { navController.navigate(SettingsDestination.More) },
+                onClickBack = ::goBack,
+            )
+        }
+        composable(SettingsDestination.More) { // Keyboard: the former main page's other screens
+            MoreSettingsScreen(
                 onClickAbout = { navController.navigate(SettingsDestination.About) },
                 onClickTextCorrection = { navController.navigate(SettingsDestination.TextCorrection) },
                 onClickPreferences = { navController.navigate(SettingsDestination.Preferences) },
@@ -74,8 +85,6 @@ fun SettingsNavHost(
                 onClickGestureTyping = { navController.navigate(SettingsDestination.GestureTyping) },
                 onClickDataGathering = { navController.navigate(SettingsDestination.DataGathering) },
                 onClickAdvanced = { navController.navigate(SettingsDestination.Advanced) },
-                onClickAppearance = { navController.navigate(SettingsDestination.Appearance) },
-                onClickLanguage = { navController.navigate(SettingsDestination.Languages) },
                 onClickLayouts = { navController.navigate(SettingsDestination.Layouts) },
                 onClickDictionaries = { navController.navigate(SettingsDestination.Dictionaries) },
                 onClickBack = ::goBack,
@@ -146,6 +155,7 @@ fun SettingsNavHost(
 
 object SettingsDestination {
     const val Settings = "settings"
+    const val More = "more" // Keyboard: Advanced, the list of the other screens
     const val About = "about"
     const val TextCorrection = "text_correction"
     const val Preferences = "preferences"

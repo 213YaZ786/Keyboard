@@ -204,6 +204,9 @@ class SuggestionStripView(context: Context, attrs: AttributeSet?, defStyle: Int)
                 pinnedKeyInToolbar.background = enabledBackground(pinnedKeyInToolbar)
         }
         if (isGlass) setupGlassSlots(colors, ToolbarKey.VOICE in enabledKeys || ToolbarKey.VOICE in pinnedToolbarKeys)
+        // Keyboard: no scroll bar under the tools in Glass (the thin line along the bar's bottom edge, @color/toolbar_scrollbar),
+        // https://developer.android.com/reference/android/view/View#setHorizontalScrollBarEnabled(boolean)
+        if (isGlass) toolbarContainer.isHorizontalScrollBarEnabled = false
         toolbarContainer.doOnNextLayout {
             // set min with of the toolbar so the weight of the toolbar keys actually does something
             // todo: results in requestLayout() improperly called by android.widget.LinearLayout during layout: running second layout pass
@@ -403,7 +406,10 @@ class SuggestionStripView(context: Context, attrs: AttributeSet?, defStyle: Int)
         }
         AudioAndHapticFeedbackManager.getInstance().performHapticAndAudioFeedback(KeyCode.NOT_SPECIFIED, this, HapticEvent.KEY_PRESS)
         if (view === toolbarExpandKey) {
-            setToolbarVisibility(toolbarContainer.visibility != VISIBLE)
+            // Keyboard: in Glass the grid opens (and closes) the panel of every tool in place of the keys (ToolsPanelView),
+            // as Gboard's tools button; the other styles keep HeliBoard's expanding toolbar
+            if (isGlass) KeyboardSwitcher.getInstance().toggleToolsPanel()
+            else setToolbarVisibility(toolbarContainer.visibility != VISIBLE)
         }
 
         // tag for word views is set in SuggestionStripLayoutHelper (setupWordViewsTextAndColor, layoutPunctuationSuggestions)

@@ -131,7 +131,12 @@ enum class ToolbarMode {
 val toolbarKeyStrings = entries.associateWithTo(EnumMap(ToolbarKey::class.java)) { it.toString().lowercase(Locale.US) }
 
 val defaultToolbarPref by lazy {
-    val default = listOf(SETTINGS, VOICE, CLIPBOARD, UNDO, REDO, SELECT_WORD, COPY, PASTE, LEFT, RIGHT)
+    // Keyboard: three tools and the clear clipboard key, as iOS's bar (three words, nothing else) and Gboard's few tools;
+    // the grid opens a panel of every tool (ToolsPanelView). EMOJI is not here: the bottom row has its key. VOICE stays
+    // last: the Glass bar draws it in its own slot at the right end (SuggestionStripView.setupGlassSlots), the other
+    // styles show it as the last tool. Order and keys are HeliBoard's
+    // ToolbarKey list (this file), https://github.com/HeliBorg/HeliBoard/blob/main/app/src/main/java/helium314/keyboard/latin/utils/ToolbarUtils.kt
+    val default = listOf(CLIPBOARD, CLEAR_CLIPBOARD, UNDO, SETTINGS, VOICE)
     val others = entries.filterNot { it in default || it == CLOSE_HISTORY }
     default.joinToString(Separators.ENTRY) { it.name + Separators.KV + true } + Separators.ENTRY +
             others.joinToString(Separators.ENTRY) { it.name + Separators.KV + false }

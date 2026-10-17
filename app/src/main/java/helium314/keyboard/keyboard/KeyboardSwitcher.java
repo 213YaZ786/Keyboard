@@ -76,6 +76,7 @@ public final class KeyboardSwitcher {
     private SuggestionStripView mSuggestionStripView;
     private FrameLayout mStripContainer;
     private ClipboardHistoryView mClipboardHistoryView;
+    @Nullable private ToolsPanelView mToolsPanelView; // Keyboard: the panel of every tool, Glass only
     private TextView mFakeToastView;
     private ImageView mBackgroundGatheringIndicator;
     private LatinIME mLatinIME;
@@ -184,6 +185,7 @@ public final class KeyboardSwitcher {
     }
 
     public void onHideWindow() {
+        hideToolsPanel(); // Keyboard
         if (mKeyboardView != null) {
             mKeyboardView.onHideWindow();
         }
@@ -234,6 +236,7 @@ public final class KeyboardSwitcher {
     private void setMainKeyboardFrame(
             @NonNull final SettingsValues settingsValues,
             @NonNull final KeyboardSwitchState toggleState) {
+        hideToolsPanelView(); // Keyboard: any other keyboard takes the panel's place
         final int visibility = isImeSuppressedByHardwareKeyboard(settingsValues, toggleState) ? View.GONE : View.VISIBLE;
         final int stripVisibility = mLatinIME.hasSuggestionStripView()? View.VISIBLE : View.GONE;
         mStripContainer.setVisibility(stripVisibility);
@@ -475,10 +478,43 @@ public final class KeyboardSwitcher {
     }
 
     public boolean isShowingPopupKeysPanel() {
-        if (isShowingEmojiPalettes() || isShowingClipboardHistory()) {
+        if (isShowingEmojiPalettes() || isShowingClipboardHistory() || isShowingToolsPanel()) {
             return false;
         }
         return mKeyboardView.isShowingPopupKeysPanel();
+    }
+
+    // Keyboard: the tools panel (ToolsPanelView) takes the keys' place as the clipboard history does (HeliBoard's
+    // SwitchActions.setClipboardKeyboard below, https://github.com/HeliBorg/HeliBoard/blob/main/app/src/main/java/helium314/keyboard/keyboard/KeyboardSwitcher.java,
+    // and the visibility of a View, https://developer.android.com/reference/android/view/View#setVisibility(int));
+    // opened by the bar's grid key in Glass (FlorisBoard's quick actions overflow panel is the model), closed by the same
+    // key, the panel's ABC key, Back (LatinIME.onKeyDown), a tool that leaves the letters, another keyboard
+    // (setMainKeyboardFrame and the switch actions) or the window hiding
+    public boolean isShowingToolsPanel() {
+        return mToolsPanelView != null && mToolsPanelView.getVisibility() == View.VISIBLE;
+    }
+
+    public void toggleToolsPanel() {
+        if (isShowingToolsPanel()) {
+            hideToolsPanel();
+        } else if (mToolsPanelView != null && mKeyboardView != null && mKeyboardView.getVisibility() == View.VISIBLE) {
+            mKeyboardView.onHideWindow(); // no popup keys panel left open over the letters
+            mToolsPanelView.fill(ResourceUtils.getKeyboardWidth(mThemeContext, Settings.getValues()));
+            mKeyboardView.setVisibility(View.GONE);
+            mToolsPanelView.setVisibility(View.VISIBLE);
+        }
+    }
+
+    /** Closes the panel and gives the keys back; returns whether it was open. */
+    public boolean hideToolsPanel() {
+        if (!isShowingToolsPanel()) return false;
+        hideToolsPanelView();
+        mKeyboardView.setVisibility(View.VISIBLE);
+        return true;
+    }
+
+    private void hideToolsPanelView() {
+        if (mToolsPanelView != null) mToolsPanelView.setVisibility(View.GONE);
     }
 
     public boolean isShowingStripContainer() {
@@ -490,6 +526,8 @@ public final class KeyboardSwitcher {
             return mEmojiPalettesView;
         } else if (isShowingClipboardHistory()) {
             return mClipboardHistoryView;
+        } else if (isShowingToolsPanel()) {
+            return mToolsPanelView;
         }
         return mKeyboardView;
     }
@@ -562,6 +600,13 @@ public final class KeyboardSwitcher {
         mEmojiPalettesView.setKeyboardActionListener(mLatinIME.mKeyboardActionListener);
         mClipboardHistoryView.setHardwareAcceleratedDrawingEnabled(isHardwareAcceleratedDrawingEnabled);
         mClipboardHistoryView.setKeyboardActionListener(mLatinIME.mKeyboardActionListener);
+        mToolsPanelView = null;
+        if (KeyboardTheme.STYLE_GLASS.equals(Settings.getValues().mColors.getThemeStyle())) {
+            // Keyboard: the tools panel, in the wrapper after the clipboard view and at the bottom as it is
+            mToolsPanelView = new ToolsPanelView(mThemeContext, mLatinIME.mKeyboardActionListener);
+            mKeyboardViewWrapper.addView(mToolsPanelView, mKeyboardViewWrapper.indexOfChild(mClipboardHistoryView) + 1,
+                    new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM));
+        }
         mEmojiTabStripView = mCurrentInputView.findViewById(R.id.emoji_tab_strip);
         mClipboardStripView = mCurrentInputView.findViewById(R.id.clipboard_strip);
         mClipboardStripScrollView = mCurrentInputView.findViewById(R.id.clipboard_strip_scroll_view);
@@ -655,6 +700,7 @@ public final class KeyboardSwitcher {
             if (DEBUG_ACTION) {
                 Log.d(TAG, "setEmojiKeyboard");
             }
+            hideToolsPanelView(); // Keyboard
             mMainKeyboardFrame.setVisibility(View.VISIBLE);
             // The visibility of {@link #mKeyboardView} must be aligned with {@link #MainKeyboardFrame}.
             // @see #getVisibleKeyboardView() and
@@ -675,6 +721,7 @@ public final class KeyboardSwitcher {
             if (DEBUG_ACTION) {
                 Log.d(TAG, "setClipboardKeyboard");
             }
+            hideToolsPanelView(); // Keyboard
             mMainKeyboardFrame.setVisibility(View.VISIBLE);
             // The visibility of {@link #mKeyboardView} must be aligned with {@link #MainKeyboardFrame}.
             // @see #getVisibleKeyboardView() and

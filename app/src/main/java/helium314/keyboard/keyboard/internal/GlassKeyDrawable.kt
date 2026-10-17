@@ -308,6 +308,16 @@ class GlassKeyDrawable(private val look: GlassLook, private val kind: Kind, cont
             GlassKeyDrawable(lookFor(context, isDarkColor(colors.get(ColorType.MAIN_BACKGROUND))), Kind.LETTER, context)
                 .also { it.cornerDp = 12f; it.host = host }
 
+        /**
+         * A tile of the tools panel: Kind.FUNCTIONAL glass with a corner of 16 dp, the background of [host]; [forCard]'s
+         * way (https://developer.android.com/reference/android/view/View#setBackground(android.graphics.drawable.Drawable)),
+         * the tile of FlorisBoard's quick actions overflow panel (SmartbarActionTile,
+         * https://github.com/florisboard/florisboard/blob/main/app/src/main/kotlin/dev/patrickgold/florisboard/ime/smartbar/quickaction/QuickActionButton.kt).
+         */
+        fun forTile(context: Context, colors: Colors, host: View): GlassKeyDrawable =
+            GlassKeyDrawable(lookFor(context, isDarkColor(colors.get(ColorType.MAIN_BACKGROUND))), Kind.FUNCTIONAL, context)
+                .also { it.cornerDp = 16f; it.host = host }
+
         /** The background of an emoji key: nothing at rest, a Kind.LETTER glass circle of the key's smaller side when pressed. */
         fun forEmoji(context: Context, colors: Colors): GlassKeyDrawable =
             GlassKeyDrawable(lookFor(context, isDarkColor(colors.get(ColorType.MAIN_BACKGROUND))), Kind.LETTER, context)

@@ -1004,6 +1004,19 @@ New dictionary:
     <string name="spell_check_suggestions_summary">Show suggestions when selecting a word with red underline. Requires setting app as default spell checker.</string>
 
 
+    <!-- Keyboard: main settings page and setup guide -->
+    <string name="main_text_replacement">Text replacement</string>
+    <string name="main_spell_check">Spell check</string>
+    <string name="main_predictions">Predictions</string>
+    <string name="main_smart_punctuation">Smart punctuation</string>
+    <string name="main_period_shortcut">\".\" shortcut</string>
+    <string name="main_glide_typing">Glide typing</string>
+    <string name="main_key_preview">Key preview</string>
+    <string name="main_dictation">Dictation</string>
+    <string name="main_vibration">Vibration</string>
+    <string name="main_sound">Sound</string>
+    <string name="setup_step3_choose_languages">Choose your languages</string>
+
     <!-- gesture data gathering, new strings for normal use should go above -->
 
     <!-- Title for screen to provide gesture data for library development
