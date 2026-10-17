@@ -41,7 +41,7 @@ internal class EmojiCategory(private val context: Context, private val layoutSet
 
     val shownCategories = listOfNotNull(
         CategoryProperties(Category.RECENTS),
-        CategoryProperties(Category.ISLAM), // Keyboard: Islam, the first category after the recents
+        CategoryProperties(Category.ANIMATED), // Keyboard: Noto animated emoji, right after the recents
         CategoryProperties(Category.SMILEYS),
         CategoryProperties(Category.PEOPLE),
         CategoryProperties(Category.NATURE),
@@ -70,7 +70,8 @@ internal class EmojiCategory(private val context: Context, private val layoutSet
 
     fun initialize() {
         val recentsKbd = getKeyboard(Category.RECENTS, 0)
-        currentCategory = Category.entries[prefs.getInt(Settings.PREF_LAST_SHOWN_EMOJI_CATEGORY_ID, defaultCategory.ordinal)]
+        // Keyboard: getOrElse, a category stored by an older version may no longer exist (the Islam tab)
+        currentCategory = Category.entries.getOrElse(prefs.getInt(Settings.PREF_LAST_SHOWN_EMOJI_CATEGORY_ID, defaultCategory.ordinal)) { defaultCategory }
         currentCategoryPageId =
             prefs.getInt(Settings.PREF_LAST_SHOWN_EMOJI_CATEGORY_PAGE_ID, Defaults.PREF_LAST_SHOWN_EMOJI_CATEGORY_PAGE_ID)
         if (shownCategories.none { it.category == currentCategory }) {
@@ -183,8 +184,8 @@ internal class EmojiCategory(private val context: Context, private val layoutSet
         SYMBOLS(KeyboardElement.EMOJI_SYMBOLS, R.styleable.EmojiPalettesView_iconEmojiSymbolsTab),
         FLAGS(KeyboardElement.EMOJI_FLAGS, R.styleable.EmojiPalettesView_iconEmojiFlagsTab),
         EMOTICONS(KeyboardElement.EMOJI_EMOTICONS, R.styleable.EmojiPalettesView_iconEmojiEmoticonsTab),
-        // Keyboard: last in the enum (the last shown category is stored by ordinal), shown first after the recents
-        ISLAM(KeyboardElement.EMOJI_ISLAM, R.styleable.EmojiPalettesView_iconEmojiIslamTab)
+        // Keyboard: last in the enum (the last shown category is stored by ordinal), shown right after the recents
+        ANIMATED(KeyboardElement.EMOJI_ANIMATED, R.styleable.EmojiPalettesView_iconEmojiAnimatedTab)
     }
 
     companion object {

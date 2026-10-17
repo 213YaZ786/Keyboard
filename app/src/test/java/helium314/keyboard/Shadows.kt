@@ -23,9 +23,12 @@ import com.android.inputmethod.latin.utils.BinaryDictionaryUtils
 import helium314.keyboard.latin.BuildConfig
 import helium314.keyboard.latin.DictionaryFacilitatorImpl
 import helium314.keyboard.latin.common.StringUtils
+import helium314.keyboard.latin.makedict.DictionaryHeader
+import helium314.keyboard.latin.makedict.UnsupportedFormatException
 import org.robolectric.annotation.Implementation
 import org.robolectric.annotation.Implements
 import org.robolectric.shadows.ShadowInputMethodManager
+import java.io.File
 import java.util.*
 
 @Implements(LocaleManagerCompat::class)
@@ -77,6 +80,15 @@ object ShadowBinaryDictionaryUtils {
         val weight = 1.0f - distance.toFloat() / afterLength.toFloat()
         return score.toFloat() / 1000000.0f * weight
     }
+
+    // Keyboard: no native library in these tests, so the emoji dictionary bundled in the assets (extracted when the
+    // input logic looks for it) is read as no dictionary, which is what the tests saw before it was bundled.
+    // Written as calcNormalizedScore above (HeliBoard's own shadow) and Robolectric's custom shadows,
+    // https://robolectric.org/extending/ (@Implements, @Implementation)
+    @Implementation
+    @JvmStatic
+    fun getHeader(dictFile: File): DictionaryHeader =
+        throw UnsupportedFormatException("no native library in unit tests")
 
     private fun editDistance(x: String, y: String): Int {
         val dp = Array(x.length + 1) {

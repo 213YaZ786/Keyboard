@@ -202,9 +202,11 @@ class StringUtilsTest {
     @Test fun isEmojiDetectsAllAvailableEmojis() {
         val ctx = ApplicationProvider.getApplicationContext<App>()
         val allEmojis = ctx.assets.list("emoji")!!.flatMap {
-            if (it == "minApi.txt" || it == "EMOTICONS.txt" || it == "ISLAM.txt") return@flatMap emptyList()
+            if (it == "minApi.txt" || it == "EMOTICONS.txt") return@flatMap emptyList()
             ctx.assets.open("emoji/$it").reader().readLines()
         }.flatMap { it.splitOnWhitespace() }
+            // Keyboard: the Arabic signs of SYMBOLS.txt (religion) are letters and marks, not emoji: only these are left out
+            .filterNot { it in listOf("﷽", "ﷲ", "ﷺ", "ﷻ", "ﷴ", "۞", "۩", "۝") }
 
         val brokenDetectionAtStart = listOf("〰️", "〽️", "©️", "®️", "#️⃣", "*️⃣", "0️⃣", "1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "㊗️", "㊙️")
         allEmojis.forEach {

@@ -140,7 +140,7 @@ private fun getEmojiFileName(category: KeyboardElement) = when (category) {
     KeyboardElement.EMOJI_SYMBOLS -> "SYMBOLS.txt"
     KeyboardElement.EMOJI_FLAGS -> "FLAGS.txt"
     KeyboardElement.EMOJI_EMOTICONS -> "EMOTICONS.txt"
-    KeyboardElement.EMOJI_ISLAM -> "ISLAM.txt" // Keyboard: one sign per line, as EMOTICONS.txt
+    KeyboardElement.EMOJI_ANIMATED -> "ANIMATED.txt" // Keyboard: one emoji per line, each with its GIF in assets/animated
     else -> null
 }
 

@@ -22,6 +22,13 @@ Keyboard for Android, a fork of [HeliBoard](https://github.com/HeliBorg/HeliBoar
   Arabic from [aosp-dictionary-tools](https://github.com/remi0s/aosp-dictionary-tools)
   (Apache-2.0); Kabyle from word lists of [OPUS](https://opus.nlpl.eu/)
   (CC BY 4.0).
+- Emoji search dictionaries (English, French, Arabic, Kabyle, German,
+  Spanish) from [aosp-dictionaries](https://codeberg.org/Helium314/aosp-dictionaries):
+  words from [CLDR](https://cldr.unicode.org) (Unicode License v3) and the
+  [emoji-search-index of Signal](https://github.com/signalapp/emoji-search-index)
+  (AGPL-3.0); these data files stay under the AGPL-3.0.
+- [Noto Animated Emoji](https://googlefonts.github.io/noto-emoji-animation/)
+  (Google, CC BY 4.0): the animated emoji, resized to 160 px.
 
 ## License
 

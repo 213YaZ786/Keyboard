@@ -49,6 +49,7 @@ final class EmojiPalettesAdapter extends RecyclerView.Adapter<EmojiPalettesAdapt
 
         final Keyboard keyboard = mEmojiCategory.getKeyboardFromAdapterPosition(mCategory, position);
         holder.getKeyboardView().setKeyboard(keyboard);
+        holder.getKeyboardView().setAnimated(mCategory == EmojiCategory.Category.ANIMATED); // Keyboard: GIFs in place of the glyphs
     }
 
     @Override

@@ -29,6 +29,7 @@ android {
         // Authorities follow the application id, so this app installs beside HeliBoard and its debug build.
         resValue("string", "clipboard_provider_authority", "com.yaz.keyboard.clipprovider")
         resValue("string", "gesture_data_provider_authority", "com.yaz.keyboard.provider")
+        resValue("string", "animated_provider_authority", "com.yaz.keyboard.animated") // Keyboard: animated emoji sent as images
     }
 
     signingConfigs {
@@ -68,6 +69,7 @@ android {
             versionNameSuffix = "-debug"
             resValue("string", "clipboard_provider_authority", "com.yaz.keyboard.debug.clipprovider")
             resValue("string", "gesture_data_provider_authority", "com.yaz.keyboard.debug.provider")
+            resValue("string", "animated_provider_authority", "com.yaz.keyboard.debug.animated")
         }
         create("runTests") { // build variant for running tests on CI that skips tests known to fail
             isMinifyEnabled = false

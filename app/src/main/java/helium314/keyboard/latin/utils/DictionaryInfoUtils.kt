@@ -10,6 +10,7 @@ import android.text.TextUtils
 import com.android.inputmethod.latin.utils.BinaryDictionaryUtils
 import helium314.keyboard.latin.dictionary.Dictionary
 import helium314.keyboard.latin.common.FileUtils
+import helium314.keyboard.latin.common.LocaleUtils
 import helium314.keyboard.latin.common.LocaleUtils.constructLocale
 import helium314.keyboard.latin.common.loopOverCodePoints
 import helium314.keyboard.latin.define.DecoderSpecificConstants
@@ -108,9 +109,22 @@ object DictionaryInfoUtils {
         SubtypeSettings.getEnabledSubtypes(true)
             .map { it.locale() }.filter { getCachedDictForLocaleAndType(it, Dictionary.TYPE_EMOJI, context) != null }
 
+    // Keyboard: the dictionary bundled in assets (emoji_xx.dict) is extracted on first use, and an extracted
+    // file (<type>.dict) is found too: it has no "_" in its name; a dictionary added by the user comes first
     @JvmStatic
     fun getCachedDictForLocaleAndType(locale: Locale, type: String, context: Context): File? =
-        getCachedDictsForLocale(locale, context).firstOrNull { it.name.substringBefore("_") == type }
+        getCachedDictsForLocale(locale, context)
+            .sortedByDescending { it.name.endsWith(USER_DICTIONARY_SUFFIX) }
+            .firstOrNull { it.name.substringBefore("_").substringBefore(".") == type }
+            ?: extractBundledDictForType(locale, type, context)
+
+    // Keyboard: same steps as DictionaryFactory.getAvailableDictsForLocale (HeliBoard, Apache-2.0 AND GPL-3.0),
+    // https://github.com/HeliBorg/HeliBoard/blob/main/app/src/main/java/helium314/keyboard/latin/dictionary/DictionaryFactory.kt
+    private fun extractBundledDictForType(locale: Locale, type: String, context: Context): File? {
+        val bundled = getAssetsDictionaryList(context)?.filter { it.substringBefore("_") == type }.orEmpty()
+        val best = LocaleUtils.getBestMatch(locale, bundled) { extractLocaleFromAssetsDictionaryFile(it) } ?: return null
+        return extractAssetsDictionary(best, locale, context)
+    }
 
     fun getCachedDictsForLocale(locale: Locale, context: Context) =
         getCacheDirectoryForLocale(locale, context)?.let { File(it).listFiles() }.orEmpty()

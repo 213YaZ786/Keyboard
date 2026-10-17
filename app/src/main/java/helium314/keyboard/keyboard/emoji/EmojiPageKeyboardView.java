@@ -12,6 +12,9 @@ import android.content.res.TypedArray;
 import android.graphics.Paint;
 import android.graphics.PorterDuff;
 import android.graphics.PorterDuffXfermode;
+import android.graphics.Canvas;
+import android.graphics.drawable.AnimatedImageDrawable;
+import android.graphics.drawable.Drawable;
 import android.os.Handler;
 import android.util.AttributeSet;
 import android.widget.LinearLayout;
@@ -38,12 +41,14 @@ import helium314.keyboard.keyboard.KeyboardView;
 import helium314.keyboard.keyboard.PopupKeysKeyboard;
 import helium314.keyboard.keyboard.PopupKeysKeyboardView;
 import helium314.keyboard.keyboard.PopupKeysPanel;
+import helium314.keyboard.keyboard.internal.KeyDrawParams;
 import helium314.keyboard.keyboard.internal.PopupKeySpec;
 import helium314.keyboard.latin.R;
 import helium314.keyboard.latin.common.CoordinateUtils;
 import helium314.keyboard.latin.settings.Settings;
 import kotlin.Unit;
 
+import java.util.HashMap;
 import java.util.WeakHashMap;
 
 /**
@@ -165,11 +170,96 @@ public final class EmojiPageKeyboardView extends KeyboardView implements
         mEmojiViewCallback = emojiViewCallback;
     }
 
+    // Keyboard: the animated emoji category draws the GIF of each key (AnimatedImageDrawable,
+    // https://developer.android.com/reference/android/graphics/drawable/AnimatedImageDrawable), the view being its
+    // Drawable.Callback (View.verifyDrawable and invalidateDrawable); it plays only while the view is on screen
+    // (View.onVisibilityAggregated, also called on attach, detach and when the window hides)
+    private static final float ANIMATION_SIZE_FRACTION = 0.8f;
+    private boolean mAnimated;
+    private boolean mOnScreen;
+    private final HashMap<Key, AnimatedImageDrawable> mAnimations = new HashMap<>(); // null: no GIF, drawn as text
+
+    void setAnimated(final boolean animated) {
+        if (mAnimated == animated) return;
+        mAnimated = animated;
+        releaseAnimations();
+        invalidateAllKeys();
+    }
+
+    private void releaseAnimations() {
+        for (final AnimatedImageDrawable animation : mAnimations.values()) {
+            if (animation == null) continue;
+            animation.stop();
+            animation.setCallback(null);
+        }
+        mAnimations.clear();
+    }
+
+    private void updateAnimationsPlaying() {
+        for (final AnimatedImageDrawable animation : mAnimations.values()) {
+            if (animation == null) continue;
+            if (!mOnScreen) animation.stop();
+            else if (!animation.isRunning()) animation.start();
+        }
+    }
+
+    @Override
+    public void onVisibilityAggregated(final boolean isVisible) {
+        super.onVisibilityAggregated(isVisible);
+        mOnScreen = isVisible;
+        updateAnimationsPlaying();
+    }
+
+    @Override
+    protected void onDetachedFromWindow() {
+        releaseAnimations();
+        super.onDetachedFromWindow();
+    }
+
+    @Override
+    protected boolean verifyDrawable(@NonNull final Drawable who) {
+        return mAnimations.containsValue(who) || super.verifyDrawable(who);
+    }
+
+    @Override
+    public void invalidateDrawable(@NonNull final Drawable who) {
+        if (mAnimations.containsValue(who)) invalidateAllKeys();
+        else super.invalidateDrawable(who);
+    }
+
+    @Override
+    protected void onDrawKeyTopVisuals(@NonNull final Key key, @NonNull final Canvas canvas,
+            @NonNull final Paint paint, @NonNull final KeyDrawParams params) {
+        if (!mAnimated || key.getLabel() == null) {
+            super.onDrawKeyTopVisuals(key, canvas, paint, params);
+            return;
+        }
+        if (!mAnimations.containsKey(key)) {
+            final AnimatedImageDrawable loaded = AnimatedEmoji.load(getContext(), key.getLabel());
+            mAnimations.put(key, loaded);
+            if (loaded != null) {
+                loaded.setCallback(this);
+                if (mOnScreen) loaded.start();
+            }
+        }
+        final AnimatedImageDrawable animation = mAnimations.get(key);
+        if (animation == null) {
+            super.onDrawKeyTopVisuals(key, canvas, paint, params);
+            return;
+        }
+        final int size = Math.round(Math.min(key.getDrawWidth(), key.getHeight()) * ANIMATION_SIZE_FRACTION);
+        final int left = (key.getDrawWidth() - size) / 2;
+        final int top = (key.getHeight() - size) / 2;
+        animation.setBounds(left, top, left + size, top + size);
+        animation.draw(canvas);
+    }
+
     /**
      * {@inheritDoc}
      */
     @Override
     public void setKeyboard(@NonNull final Keyboard keyboard) {
+        releaseAnimations(); // Keyboard: the animated emoji of the page that was shown
         super.setKeyboard(keyboard);
         mKeyDetector.setKeyboard(keyboard, 0 /* correctionX */, 0 /* correctionY */);
         mPopupKeysKeyboardCache.clear();

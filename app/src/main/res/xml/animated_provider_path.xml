@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Keyboard: only the animated emoji, copied from assets/animated when one is sent
+     (file_paths.xml of the CommitContentSampleIME, Apache-2.0) -->
+<paths>
+    <files-path
+        name="animated"
+        path="animated/"/>
+</paths>

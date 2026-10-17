@@ -130,6 +130,19 @@ SPDX-License-Identifier: Apache-2.0 AND GPL-3.0-only
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/gesture_data_path"/>
         </provider>
+
+        <!-- Keyboard: the animated emoji sent as images (InputConnectionCompat.commitContent), only the animated folder,
+             read by the app receiving it through the one-time grant of the input content, never exported
+             (https://developer.android.com/develop/ui/views/touch-and-input/image-keyboard;
+             https://github.com/android/input-samples/tree/main/CommitContentSampleIME, Apache-2.0) -->
+        <provider android:name="androidx.core.content.FileProvider"
+            android:authorities="@string/animated_provider_authority"
+            android:grantUriPermissions="true"
+            android:exported="false">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/animated_provider_path"/>
+        </provider>
     </application>
 
     <queries>

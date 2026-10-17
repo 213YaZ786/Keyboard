@@ -166,7 +166,7 @@
         <attr name="iconEmojiSymbolsTab" format="reference" />
         <attr name="iconEmojiFlagsTab" format="reference" />
         <attr name="iconEmojiEmoticonsTab" format="reference" />
-        <attr name="iconEmojiIslamTab" format="reference" />
+        <attr name="iconEmojiAnimatedTab" format="reference" />
     </declare-styleable>
 
     <declare-styleable name="ClipboardHistoryView">

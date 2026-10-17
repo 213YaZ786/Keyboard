@@ -327,7 +327,10 @@ public final class EmojiPalettesView extends LinearLayout
     public void onReleaseKey(final Key key) {
         addRecentKey(key);
         final int code = key.getCode();
-        if (code == KeyCode.MULTIPLE_CODE_POINTS) {
+        if (mEmojiCategory.getCurrentCategory() == EmojiCategory.Category.ANIMATED && key.getLabel() != null
+                && AnimatedEmoji.commit(getContext(), key.getLabel())) {
+            // Keyboard: sent as a GIF to a field that takes images, else the plain emoji is typed as below
+        } else if (code == KeyCode.MULTIPLE_CODE_POINTS) {
             // todo: when we enter some emoticons, e.g. :-D, inline emoji search is triggered and emoji view is closed
             //  (one more instance of "emoji search should recognize emoticons", but in this case could be fixed in other ways)
             mKeyboardActionListener.onTextInput(key.getOutputText());
