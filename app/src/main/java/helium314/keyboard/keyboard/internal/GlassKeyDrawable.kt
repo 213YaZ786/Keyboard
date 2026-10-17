@@ -41,8 +41,12 @@ import kotlin.math.min
  */
 class GlassKeyDrawable(private val look: GlassLook, private val kind: Kind, context: Context) : Drawable() {
 
-    /** The kinds of key the glass tints differently, from the GlassLook's tints (Glass.kt glassLookOf). */
-    enum class Kind { LETTER, FUNCTIONAL, ACTION }
+    /**
+     * The kinds of key the glass tints differently, from the GlassLook's tints (Glass.kt glassLookOf).
+     * PANEL is not a key: the pane behind the popup keys and the more suggestions, tinted as the
+     * floating glass of the apps (look.floatTint, as FloatingPane in Modules' panes kit).
+     */
+    enum class Kind { LETTER, FUNCTIONAL, ACTION, PANEL }
 
     // The key's place in the ground drawn behind it (GlassZoneNode's origin and window), set by place().
     private var originX = 0f
@@ -61,11 +65,13 @@ class GlassKeyDrawable(private val look: GlassLook, private val kind: Kind, cont
         Kind.LETTER -> look.zoneTint
         Kind.FUNCTIONAL -> look.floatTint
         Kind.ACTION -> look.accentTint
+        Kind.PANEL -> look.floatTint
     }
 
     // Pressed: the tint deepened toward the accent (the action key more, it is already the accent).
     private val pressedTint = when (kind) {
         Kind.ACTION -> look.accentTint.copy(alpha = min(0.9f, look.accentTint.alpha * 1.8f))
+        Kind.PANEL -> look.floatTint
         else -> look.accentTint.copy(alpha = min(0.85f, look.accentTint.alpha * 1.6f))
     }
 
@@ -114,7 +120,12 @@ class GlassKeyDrawable(private val look: GlassLook, private val kind: Kind, cont
         val w = bounds.width().toFloat()
         val h = bounds.height().toFloat()
         if (w <= 0f || h <= 0f) return
-        val radius = min(RADIUS_DP * density, min(w, h) / 2f)
+        // Keyboard: a panel is its own window, as place() makes it for a view outside the keyboard frame.
+        if (kind == Kind.PANEL) {
+            originX = 0f; originY = 0f
+            window = Size(w, h)
+        }
+        val radius = min((if (kind == Kind.PANEL) PANEL_RADIUS_DP else RADIUS_DP) * density, min(w, h) / 2f)
         val tint = if (pressed) pressedTint else normalTint
         canvas.save()
         canvas.translate(bounds.left.toFloat(), bounds.top.toFloat())
@@ -185,6 +196,9 @@ class GlassKeyDrawable(private val look: GlassLook, private val kind: Kind, cont
         /** The corner radius of HeliBoard's Rounded key, res/drawable/btn_keyboard_key_pressed_rounded_base.xml (10dp). */
         private const val RADIUS_DP = 10f
 
+        /** The corner radius of the pane behind popup keys and more suggestions: 16 dp, rounder than a key. */
+        private const val PANEL_RADIUS_DP = 16f
+
         /** GlassZoneNode's lens default (glassZone(shape, look, lens = 0.7f)). */
         private const val LENS = 0.7f
 
@@ -200,6 +214,14 @@ class GlassKeyDrawable(private val look: GlassLook, private val kind: Kind, cont
          */
         fun lookFor(context: Context, dark: Boolean): GlassLook =
             glassLookOf(if (dark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context))
+
+        /**
+         * The glass pane for the view of popup keys or more suggestions (Kind.PANEL), its own window.
+         * The same look as the keys' (lookFor); it becomes View.background
+         * (https://developer.android.com/reference/android/view/View#setBackground(android.graphics.drawable.Drawable)).
+         */
+        fun forPanel(context: Context, dark: Boolean): GlassKeyDrawable =
+            GlassKeyDrawable(lookFor(context, dark), Kind.PANEL, context)
 
         /** The glass key for a kind of background of Colors.selectAndColorDrawable. */
         fun forColorType(context: Context, dark: Boolean, color: ColorType): GlassKeyDrawable {

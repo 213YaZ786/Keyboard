@@ -70,13 +70,16 @@ import helium314.keyboard.latin.utils.prefs
 import helium314.keyboard.latin.utils.withHtmlLink
 import helium314.keyboard.settings.ActionRow
 import helium314.keyboard.latin.utils.DefaultButton
-import helium314.keyboard.latin.utils.DeleteButton
+import helium314.keyboard.latin.ui.component.FloatingAction
+import helium314.keyboard.latin.ui.icon.AppIcons
 import helium314.keyboard.settings.DropDownField
 import helium314.keyboard.settings.SearchScreen
 import helium314.keyboard.settings.SettingsActivity
 import helium314.keyboard.latin.utils.Theme
 import helium314.keyboard.latin.utils.previewDark
-import helium314.keyboard.settings.WithSmallTitle
+import helium314.keyboard.settings.SettingsPage
+import helium314.keyboard.settings.preferences.PreferenceCategory
+import helium314.keyboard.settings.preferences.PreferenceSection
 import helium314.keyboard.settings.dialogs.ConfirmationDialog
 import helium314.keyboard.settings.dialogs.LayoutEditDialog
 import helium314.keyboard.settings.dialogs.ListPickerDialog
@@ -133,26 +136,21 @@ fun SubtypeScreen(
     val customMainLayouts = LayoutUtilsCustom.getLayoutFiles(LayoutType.MAIN, ctx, currentSubtype.locale).map { it.name }
     SearchScreen(
         onClickBack = onClickBack,
-        icon = { if (currentSubtype.isAdditionalSubtype(prefs)) DeleteButton {
+        icon = { if (currentSubtype.isAdditionalSubtype(prefs)) FloatingAction(AppIcons.Delete, stringResource(R.string.delete), onClick = {
             SubtypeUtilsAdditional.removeAdditionalSubtype(ctx, currentSubtype.toAdditionalSubtype())
             SubtypeSettings.removeEnabledSubtype(ctx, currentSubtype.toAdditionalSubtype())
             onClickBack()
-        } },
+        }) },
         title = { Text(currentSubtype.toAdditionalSubtype().displayName()) },
         itemContent = { },
         filteredItems = { emptyList<String>() }
     ) {
-        Scaffold(
-            contentWindowInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom)
-        ) { innerPadding ->
-            Column(
-                modifier = Modifier.verticalScroll(scrollState).padding(horizontal = 12.dp)
-                    .then(Modifier.padding(innerPadding)),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
+        // Keyboard: each group of rows is a Section (SubtypeSection), the page scrolls under the floating top
+        // (SettingsPage), as Calculator's settings https://github.com/213YaZ786/Calculator/blob/main/app/src/main/java/com/yaz/calculator/feature/settings/SettingsScreen.kt
+        SettingsPage(scrollState) {
                 MainLayoutRow(currentSubtype, customMainLayouts) { setCurrentSubtype(it) }
                 if (availableLocalesForScript.size > 1) {
-                    WithSmallTitle(stringResource(R.string.secondary_locale)) {
+                    SubtypeSection(stringResource(R.string.secondary_locale)) {
                         ActionRow(onClick = { showSecondaryLocaleDialog = true }) {
                             val text = getSecondaryLocales(currentSubtype.extraValues).joinToString(", ") {
                                 it.localizedDisplayName(ctx.resources)
@@ -164,7 +162,7 @@ fun SubtypeScreen(
                         }
                     }
                 }
-                WithSmallTitle(stringResource(R.string.popup_order_and_hint_source)) {
+                SubtypeSection(stringResource(R.string.popup_order_and_hint_source)) {
                     ActionRow(onClick = { showKeyOrderDialog = true }) {
                         Text(stringResource(R.string.popup_order),
                             modifier = Modifier
@@ -187,7 +185,7 @@ fun SubtypeScreen(
                     }
                 }
                 if (currentSubtype.locale.script() == ScriptUtils.SCRIPT_LATIN) {
-                    WithSmallTitle(stringResource(R.string.show_popup_keys_title)) {
+                    SubtypeSection(stringResource(R.string.show_popup_keys_title)) {
                         val explicitValue = currentSubtype.getExtraValueOf(ExtraValue.MORE_POPUPS)
                         val value = explicitValue ?: prefs.getString(
                             Settings.PREF_MORE_POPUP_KEYS,
@@ -207,7 +205,7 @@ fun SubtypeScreen(
                 }
                 if (LocaleKeyboardInfos.hasLocalizedNumberRow(currentSubtype.locale, ctx)) {
                     val checked = currentSubtype.getExtraValueOf(ExtraValue.LOCALIZED_NUMBER_ROW)?.toBoolean()
-                    WithSmallTitle(stringResource(R.string.number_row)) {
+                    SubtypeSection(stringResource(R.string.number_row)) {
                         ActionRow {
                             Text(stringResource(R.string.localized_number_row),
                                 modifier = Modifier
@@ -229,14 +227,10 @@ fun SubtypeScreen(
                         }
                     }
                 }
-                HorizontalDivider()
-                Text(
-                    stringResource(R.string.settings_screen_secondary_layouts),
-                    style = MaterialTheme.typography.titleMedium
-                )
+                PreferenceCategory(stringResource(R.string.settings_screen_secondary_layouts))
                 LayoutType.entries.forEach { type ->
                     if (type == LayoutType.MAIN) return@forEach
-                    WithSmallTitle(stringResource(type.displayNameId)) {
+                    SubtypeSection(stringResource(type.displayNameId)) {
                         val explicitLayout = currentSubtype.layoutName(type)
                         val layout = explicitLayout ?: Settings.readDefaultLayoutName(type, prefs)
                         val defaultLayouts = LayoutUtils.getAvailableLayouts(type, ctx)
@@ -283,7 +277,6 @@ fun SubtypeScreen(
                         }
                     }
                 }
-            }
         }
         if (showSecondaryLocaleDialog)
             MultiListPickerDialog(
@@ -394,6 +387,16 @@ private fun PopupOrderDialog(
     )
 }
 
+// Keyboard: upstream's WithSmallTitle as a Section of Calculator's settings, its title above one zone holding
+// the rows (PreferenceSection). Source:
+// https://github.com/213YaZ786/Calculator/blob/main/app/src/main/java/com/yaz/calculator/feature/settings/SettingsScreen.kt
+@Composable
+private fun SubtypeSection(title: String, content: @Composable () -> Unit) {
+    PreferenceSection(title) {
+        Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) { content() }
+    }
+}
+
 @Composable
 private fun MainLayoutRow(
     currentSubtype: SettingsSubtype,
@@ -401,7 +404,7 @@ private fun MainLayoutRow(
     setCurrentSubtype: (SettingsSubtype) -> Unit,
 ) {
     val ctx = LocalContext.current
-    WithSmallTitle(stringResource(R.string.keyboard_layout_set)) {
+    SubtypeSection(stringResource(R.string.keyboard_layout_set)) {
         val appLayouts = LayoutUtils.getAvailableLayouts(LayoutType.MAIN, ctx, currentSubtype.locale)
         var showAddLayoutDialog by remember { mutableStateOf(false) }
         var showLayoutEditDialog: Pair<String, String?>? by remember { mutableStateOf(null) }

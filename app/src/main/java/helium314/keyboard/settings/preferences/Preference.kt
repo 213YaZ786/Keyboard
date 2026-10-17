@@ -5,12 +5,15 @@ import androidx.annotation.DrawableRes
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.LocalTextStyle
@@ -28,25 +31,40 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import helium314.keyboard.latin.R
+import helium314.keyboard.latin.ui.component.ZoneSurface
 import helium314.keyboard.settings.IconOrImage
 import helium314.keyboard.latin.utils.Theme
 import helium314.keyboard.latin.utils.previewDark
 
 // partially taken from StreetComplete / SCEE
 
+// Keyboard: the category's title as the title of a Section in Calculator's settings, centred, in the accent,
+// above its zone (PreferenceSection). Source: Section in
+// https://github.com/213YaZ786/Calculator/blob/main/app/src/main/java/com/yaz/calculator/feature/settings/SettingsScreen.kt
 @Composable
 fun PreferenceCategory(
     title: String,
     modifier: Modifier = Modifier,
 ) {
-    Column {
-        HorizontalDivider()
-        Text(
-            text = title,
-            modifier = modifier.padding(top = 12.dp, start = 16.dp, end = 8.dp, bottom = 8.dp),
-            color = MaterialTheme.colorScheme.secondary,
-            style = MaterialTheme.typography.titleSmall
-        )
+    Text(
+        text = title,
+        modifier = modifier.fillMaxWidth().padding(start = 28.dp, end = 28.dp, top = 24.dp, bottom = 10.dp),
+        color = MaterialTheme.colorScheme.primary,
+        textAlign = TextAlign.Center,
+        style = MaterialTheme.typography.titleMedium
+    )
+}
+
+// Keyboard: a category and its rows, ported from Section in Calculator's settings: its title, then one
+// ZoneSurface holding the rows. Source:
+// https://github.com/213YaZ786/Calculator/blob/main/app/src/main/java/com/yaz/calculator/feature/settings/SettingsScreen.kt
+// The rows are transparent: a zone never holds a second zone. A group with no title (the preferences
+// before the first category) gets only a little room above it.
+@Composable
+fun PreferenceSection(title: String?, content: @Composable ColumnScope.() -> Unit) {
+    if (title != null) PreferenceCategory(title) else Spacer(Modifier.height(8.dp))
+    ZoneSurface(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+        Column(content = content)
     }
 }
 

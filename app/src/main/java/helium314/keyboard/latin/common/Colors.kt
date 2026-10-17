@@ -101,6 +101,17 @@ interface Colors {
         if (view.background is GlassGroundDrawable) return
         view.background = GlassGroundDrawable(GlassKeyDrawable.lookFor(view.context, isDarkColor(get(MAIN_BACKGROUND))))
     }
+
+    /**
+     * Keyboard: with the Glass style, gives the view behind popup keys and more suggestions a pane of
+     * glass (GlassKeyDrawable.Kind.PANEL) in place of the plain colour; false for any other case.
+     * Set as View.background (https://developer.android.com/reference/android/view/View#setBackground(android.graphics.drawable.Drawable)).
+     */
+    fun setGlassPanel(view: View, color: ColorType): Boolean {
+        if (themeStyle != STYLE_GLASS || (color != POPUP_KEYS_BACKGROUND && color != MORE_SUGGESTIONS_BACKGROUND)) return false
+        view.background = GlassKeyDrawable.forPanel(view.context, isDarkColor(get(MAIN_BACKGROUND)))
+        return true
+    }
 }
 
 @RequiresApi(Build.VERSION_CODES.S)
@@ -357,6 +368,7 @@ class DynamicColors(context: Context, override val themeStyle: String, override 
     }
 
     override fun setBackground(view: View, color: ColorType) {
+        if (setGlassPanel(view, color)) return // Keyboard: Glass panels behind popup keys and more suggestions
         if (view.background == null)
             view.setBackgroundColor(Color.WHITE) // set white to make the color filters work
         when (color) {
@@ -548,6 +560,7 @@ class DefaultColors (
     }
 
     override fun setBackground(view: View, color: ColorType) {
+        if (setGlassPanel(view, color)) return // Keyboard: Glass panels behind popup keys and more suggestions
         if (view.background == null)
             view.setBackgroundColor(Color.WHITE) // set white to make the color filters work
         when (color) {
@@ -605,6 +618,7 @@ class AllColors(private val colorMap: EnumMap<ColorType, Int>, override val them
     }
 
     override fun setBackground(view: View, color: ColorType) {
+        if (setGlassPanel(view, color)) return // Keyboard: Glass panels behind popup keys and more suggestions
         if (view.background == null)
             view.setBackgroundColor(Color.WHITE) // set white to make the color filters work
         when (color) {

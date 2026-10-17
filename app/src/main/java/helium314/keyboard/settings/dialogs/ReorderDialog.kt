@@ -69,7 +69,8 @@ fun <T: Any> ReorderDialog(
                         key = getKey(item)
                     ) { dragging ->
                         val elevation by animateDpAsState(if (dragging) 4.dp else 0.dp)
-                        Surface(shadowElevation = elevation) {
+                        // Keyboard: a row in a glass dialog is transparent, never a card (a zone holds no second zone)
+                        Surface(color = androidx.compose.ui.graphics.Color.Transparent, shadowElevation = elevation) {
                             Row(
                                 modifier = Modifier
                                     .longPressDraggableHandle()

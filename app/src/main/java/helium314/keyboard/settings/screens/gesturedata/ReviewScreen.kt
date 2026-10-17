@@ -131,6 +131,8 @@ fun ReviewScreen(
         onPauseOrDispose {  }
     }
     Scaffold(
+        containerColor = Color.Transparent, // Keyboard: glass ground behind
+        contentColor = MaterialTheme.colorScheme.onBackground,
         contentWindowInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom),
         bottomBar = { BottomBar(
             if (selected.isNotEmpty()) selected.size else gestureDataInfos.size,

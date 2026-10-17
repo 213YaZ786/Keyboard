@@ -3,8 +3,6 @@ package helium314.keyboard.settings.screens
 
 import android.content.Context
 import android.content.Intent
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
@@ -24,7 +22,8 @@ import helium314.keyboard.settings.SearchSettingsScreen
 import helium314.keyboard.settings.preferences.SwitchPreference
 import helium314.keyboard.latin.utils.Theme
 import helium314.keyboard.settings.initPreview
-import helium314.keyboard.settings.preferences.PreferenceCategory
+import helium314.keyboard.settings.SettingsPage
+import helium314.keyboard.settings.SettingsSections
 import helium314.keyboard.latin.utils.previewDark
 import androidx.core.content.edit
 
@@ -56,11 +55,10 @@ fun DebugScreen(
         settings = emptyList()
     ) {
         // the preferences are not in SettingsContainer, so set content instead
-        LazyColumn {
-            items(items, key = { it }) { item ->
-                if (item is Int) PreferenceCategory(stringResource(item))
-                else settings.first { it.key == item }.Preference()
-            }
+        // Keyboard: the categories as Sections of one page, SettingsSections in settings/SearchScreen.kt
+        // (Calculator's settings, https://github.com/213YaZ786/Calculator/blob/main/app/src/main/java/com/yaz/calculator/feature/settings/SettingsScreen.kt)
+        SettingsPage {
+            SettingsSections(items) { item -> settings.first { it.key == item }.Preference() }
         }
     }
 }

@@ -9,21 +9,25 @@ import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import androidx.activity.ComponentActivity
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -36,6 +40,8 @@ import helium314.keyboard.latin.R
 import helium314.keyboard.latin.common.FileUtils
 import helium314.keyboard.latin.define.DebugFlags
 import helium314.keyboard.latin.settings.Settings
+import helium314.keyboard.latin.ui.glass.LocalGlass
+import helium314.keyboard.latin.ui.glass.glassGround
 import helium314.keyboard.latin.utils.BackButton
 import helium314.keyboard.latin.utils.DeviceProtectedUtils
 import helium314.keyboard.latin.utils.ExecutorUtils
@@ -93,20 +99,27 @@ open class SettingsActivity : ComponentActivity(), SharedPreferences.OnSharedPre
         setContentView(cv)
         cv.setContent {
             Theme {
-                Surface {
+                // Keyboard: the window paints the glass ground (wallpaper tones and halos), as Calculator's AppSurface
+                // (ui/theme/AppSurface.kt: Box with glassGround); the screens above it are transparent.
+                Box(Modifier.fillMaxSize().glassGround(LocalGlass.current, MaterialTheme.colorScheme.background)) {
                     val dictUri by dictUriFlow.collectAsState()
                     val crashReports by crashReportFiles.collectAsState()
                     val crashFilePicker = filePicker { saveCrashReports(it) }
                     var showWelcomeWizard by rememberSaveable { mutableStateOf(
-                        !UncachedInputMethodManagerUtils.isThisImeCurrent(this, imm)
-                                || !UncachedInputMethodManagerUtils.isThisImeEnabled(this, imm)
+                        !UncachedInputMethodManagerUtils.isThisImeCurrent(this@SettingsActivity, imm)
+                                || !UncachedInputMethodManagerUtils.isThisImeEnabled(this@SettingsActivity, imm)
                     ) }
                     if (spellchecker)
-                        Scaffold(contentWindowInsets = WindowInsets.safeDrawing) { innerPadding ->
+                        Scaffold(
+                            contentWindowInsets = WindowInsets.safeDrawing,
+                            containerColor = Color.Transparent, // Keyboard: glass ground behind
+                            contentColor = MaterialTheme.colorScheme.onBackground
+                        ) { innerPadding ->
                             Column(Modifier.padding(innerPadding)) {
                                 TopAppBar(
                                     title = { Text(stringResource(R.string.android_spell_checker_settings)) },
                                     windowInsets = WindowInsets(0),
+                                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
                                     navigationIcon = {
                                         BackButton { this@SettingsActivity.finish() }
                                     },
@@ -118,9 +131,9 @@ open class SettingsActivity : ComponentActivity(), SharedPreferences.OnSharedPre
                             }
                         }
                     else {
-                        SettingsNavHost(onClickBack = { this.finish() })
+                        SettingsNavHost(onClickBack = { this@SettingsActivity.finish() })
                         if (showWelcomeWizard) {
-                            WelcomeWizard(close = { showWelcomeWizard = false }, finish = this::finish)
+                            WelcomeWizard(close = { showWelcomeWizard = false }, finish = this@SettingsActivity::finish)
                         } else if (crashReports.isNotEmpty()) {
                             val ctx = LocalContext.current
                             ConfirmationDialog(

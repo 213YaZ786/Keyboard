@@ -3,6 +3,7 @@ package helium314.keyboard.latin.utils
 
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
@@ -10,10 +11,13 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.text.font.FontWeight
 import helium314.keyboard.latin.R
+import helium314.keyboard.latin.ui.glass.LocalGlass
+import helium314.keyboard.latin.ui.glass.rememberGlassLook
 
 @Composable
 fun Theme(dark: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) {
@@ -38,8 +42,15 @@ fun Theme(dark: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit
             titleSmall = material3.titleSmall.copy(fontWeight = FontWeight.Bold)
         ),
         //shapes = Shapes(),
-        content = content
-    )
+    ) {
+        // Keyboard: liquid glass over the colour scheme, as Calculator's AppSurface (ui/theme/AppSurface.kt):
+        // the glass for every zone, and the page's text colour for what sits on transparent surfaces.
+        // CompositionLocalProvider: https://developer.android.com/develop/ui/compose/compositionlocal
+        val look = rememberGlassLook(MaterialTheme.colorScheme, true)
+        CompositionLocalProvider(LocalGlass provides look, LocalContentColor provides MaterialTheme.colorScheme.onBackground) {
+            content()
+        }
+    }
 }
 
 const val previewDark = true

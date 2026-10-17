@@ -376,6 +376,8 @@ fun GestureDataScreen(
 
     val scrollState = rememberScrollState()
     Scaffold(
+        containerColor = androidx.compose.ui.graphics.Color.Transparent, // Keyboard: glass ground behind
+        contentColor = MaterialTheme.colorScheme.onBackground,
         contentWindowInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom),
         bottomBar = { BottomBar(sessionWordCount + dbActiveWordCount > 0) { dbActiveWordCount = dao?.count(activeMode = true) ?: 0 } }
     ) { innerPadding ->
