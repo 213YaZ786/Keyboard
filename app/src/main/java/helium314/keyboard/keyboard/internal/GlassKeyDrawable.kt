@@ -175,15 +175,9 @@ class GlassKeyDrawable(private val look: GlassLook, private val kind: Kind, cont
         paint.shader = null
         paint.color = tint.toArgb()
         canvas.drawRoundRect(rect, radius, radius, paint)
-        // rimBrush: Brush.verticalGradient(0 to strong, 0.3 to faint, 0.7 to faint, 1 to strong * 0.8)
-        // as an android.graphics.LinearGradient (https://developer.android.com/reference/android/graphics/LinearGradient).
-        val strongAlpha = if (look.dark) 0.20f else 0.30f
-        val strong = Color.White.copy(alpha = strongAlpha).toArgb()
-        val faint = Color.White.copy(alpha = 0.03f).toArgb()
-        val end = Color.White.copy(alpha = strongAlpha * 0.8f).toArgb()
-        val stroke = 1.2f * density
+        val stroke = RIM_STROKE_DP * density
         rimPaint.strokeWidth = stroke
-        rimPaint.shader = LinearGradient(0f, 0f, 0f, h, intArrayOf(strong, faint, faint, end), floatArrayOf(0f, 0.3f, 0.7f, 1f), Shader.TileMode.CLAMP)
+        rimPaint.shader = rimGradient(look, h) // Keyboard: the gradient moved to the companion, shared with GlassCalloutDrawable
         val inset = stroke / 2f
         rect.set(inset, inset, w - inset, h - inset)
         canvas.drawRoundRect(rect, radius - inset, radius - inset, rimPaint)
@@ -194,17 +188,33 @@ class GlassKeyDrawable(private val look: GlassLook, private val kind: Kind, cont
         private const val TAG = "Glass"
 
         /** The corner radius of HeliBoard's Rounded key, res/drawable/btn_keyboard_key_pressed_rounded_base.xml (10dp). */
-        private const val RADIUS_DP = 10f
+        internal const val RADIUS_DP = 10f // Keyboard: internal, GlassCalloutDrawable's key radius
 
         /** The corner radius of the pane behind popup keys and more suggestions: 16 dp, rounder than a key. */
         private const val PANEL_RADIUS_DP = 16f
 
         /** GlassZoneNode's lens default (glassZone(shape, look, lens = 0.7f)). */
-        private const val LENS = 0.7f
+        internal const val LENS = 0.7f // Keyboard: internal, GlassCalloutDrawable's lens
 
         /** Set once the shader failed, for every key (GlassZoneNode.shaderFailed). */
         @Volatile
-        private var shaderFailed = false
+        internal var shaderFailed = false // Keyboard: internal, GlassCalloutDrawable shares it
+
+        internal const val RIM_STROKE_DP = 1.2f
+
+        /**
+         * rimBrush (Modules glass/GlassZone.kt, latin/ui/glass/GlassZone.kt in the app) as an
+         * android.graphics.LinearGradient (https://developer.android.com/reference/android/graphics/LinearGradient):
+         * Brush.verticalGradient(0 to strong, 0.3 to faint, 0.7 to faint, 1 to strong * 0.8) over [h] pixels,
+         * every alpha scaled by [strength] (1 for a key, a third for GlassCalloutDrawable's curves).
+         */
+        internal fun rimGradient(look: GlassLook, h: Float, strength: Float = 1f): LinearGradient {
+            val strongAlpha = if (look.dark) 0.20f else 0.30f
+            val strong = Color.White.copy(alpha = strongAlpha * strength).toArgb()
+            val faint = Color.White.copy(alpha = 0.03f * strength).toArgb()
+            val end = Color.White.copy(alpha = strongAlpha * 0.8f * strength).toArgb()
+            return LinearGradient(0f, 0f, 0f, h, intArrayOf(strong, faint, faint, end), floatArrayOf(0f, 0.3f, 0.7f, 1f), Shader.TileMode.CLAMP)
+        }
 
         /**
          * The glass for the phone's Material You colours, by day or by night.

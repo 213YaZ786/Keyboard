@@ -8,6 +8,7 @@ package helium314.keyboard.keyboard.internal;
 
 import android.content.Context;
 import android.graphics.Rect;
+import android.graphics.Typeface;
 import android.graphics.drawable.Drawable;
 import android.text.TextPaint;
 import android.text.TextUtils;
@@ -44,6 +45,18 @@ public class KeyPreviewView extends TextView {
     }
 
     public void setPreviewVisual(final Key key, final KeyboardIconsSet iconsSet, final KeyDrawParams drawParams) {
+        // Keyboard: the Glass callout shows the label only, in iOS's input item font (largeTitle light, 34 sp:
+        // CalloutStyle.inputItemFont, KeyboardKit 9.9.1), in the key text colour
+        if (getBackground() instanceof GlassCalloutDrawable) {
+            final String label = key.getPreviewLabel();
+            setCompoundDrawables(null, null, null, null);
+            setTextColor(drawParams.mTextColor);
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, GlassCalloutDrawable.TEXT_SIZE_SP);
+            setTypeface(Typeface.create(KeyboardTypeface.resolve(label, Typeface.DEFAULT), GlassCalloutDrawable.TEXT_WEIGHT, false));
+            setTextScaleX(1.0f);
+            setText(label);
+            return;
+        }
         // What we show as preview should match what we show on a key top in onDraw().
         if (key.getIconName() != null) {
             setCompoundDrawables(key.getPreviewIcon(iconsSet), null, null, null);
@@ -125,7 +138,7 @@ public class KeyPreviewView extends TextView {
 
     public void setPreviewBackground(final boolean hasPopupKeys, final int position) {
         final Drawable background = getBackground();
-        if (background == null) {
+        if (background == null || background instanceof GlassCalloutDrawable) { // Keyboard: the callout has no states
             return;
         }
         final int hasPopupKeysState = hasPopupKeys ? STATE_HAS_POPUPKEYS : STATE_NORMAL;
