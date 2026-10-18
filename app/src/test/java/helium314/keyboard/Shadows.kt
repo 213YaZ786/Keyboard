@@ -145,6 +145,9 @@ class ShadowInputMethodService {
         var composingStart = -1
         var composingEnd = -1
         var currentInputType = InputType.TYPE_CLASS_TEXT
+        // Keyboard: EditorInfo.imeOptions as AOSP's InputTestsBase.enrichEditorInfo lets a test set it
+        // (IME_ACTION_NONE makes the enter key add a line, any other action is performed by the editor)
+        var currentImeOptions = 0
 
         // convenience for access
         val textBeforeCursor get() = text.substring(0, selectionStart)
@@ -164,12 +167,14 @@ class ShadowInputMethodService {
             composingStart = -1
             composingEnd = -1
             currentInputType = InputType.TYPE_CLASS_TEXT
+            currentImeOptions = 0
         }
     }
 
     @Implementation
     fun getCurrentInputEditorInfo() = EditorInfo().apply {
         inputType = currentInputType
+        imeOptions = currentImeOptions
         // anything else?
     }
     @Implementation
@@ -263,7 +268,11 @@ class ShadowInputMethodService {
         // delete beforeLength before cursor position, and afterLength after cursor position
         // chars, not codepoints or glyphs
         // todo: may delete only one half of a surrogate pair, but this should be avoided by RichInputConnection (maybe throw error)
-        override fun deleteSurroundingText(beforeLength: Int, afterLength: Int): Boolean {
+        override fun deleteSurroundingText(requestedBeforeLength: Int, requestedAfterLength: Int): Boolean {
+            // Keyboard: Android's BaseInputConnection.deleteSurroundingText stops at the bounds of the text, and
+            // AOSP LatinIME's backspace at the start of the field (InputLogic.handleBackspaceEvent) relies on it
+            val beforeLength = requestedBeforeLength.coerceAtMost(textBeforeCursor.length)
+            val afterLength = requestedAfterLength.coerceAtMost(textAfterCursor.length)
             // delete only before or after selection
             text = textBeforeCursor.substring(0, textBeforeCursor.length - beforeLength) +
                 text.substring(selectionStart, selectionEnd) +

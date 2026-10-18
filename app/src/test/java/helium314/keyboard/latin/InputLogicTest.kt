@@ -45,6 +45,8 @@ import kotlin.streams.asSequence
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 @RunWith(RobolectricTestRunner::class)
 @Config(shadows = [
@@ -722,6 +724,539 @@ class InputLogicTest {
         assertEquals(5, cursor)
     }
 
+    // ------- ported from AOSP LatinIME (Apache-2.0), tests/src/com/android/inputmethod/latin/ -------
+    // InputLogicTests.java, PunctuationTests.java, ShiftModeTests.java and LatinImeStressTests.java, in this file's style:
+    // the fake LatinIME of the tests above, no dictionary, so an autocorrection is set the way `revert autocorrect on delete`
+    // does it (getAutocorrectedWithSpaceAfter) instead of coming from "tgis" -> "this" in the main dictionary.
+    // Not ported: the tests needing the English main dictionary (testAutoCorrectByUserHistory, the testPredictions* with
+    // "Barack" -> "Obama", testWordThenSpaceDisplaysPredictions) and the Hindi ones (no Hindi subtype with a double space period).
+
+    // InputLogicTests.testPickSuggestionThenBackspace
+    @Test fun `AOSP pick suggestion then backspace`() {
+        chainInput("this")
+        pickSuggestion("this")
+        functionalKeyPress(KeyCode.DELETE)
+        assertEquals("thi", text)
+    }
+
+    // InputLogicTests.testPickAutoCorrectionThenBackspace
+    @Test fun `AOSP pick autocorrection then backspace`() {
+        chainInput("tgis")
+        pickSuggestion("this")
+        assertEquals("this", text)
+        functionalKeyPress(KeyCode.DELETE)
+        assertEquals("thi", text)
+    }
+
+    // InputLogicTests.testPickTypedWordOverAutoCorrectionThenBackspace
+    @Test fun `AOSP pick typed word over autocorrection then backspace`() {
+        chainInput("tgis")
+        pickSuggestion("tgis")
+        assertEquals("tgis", text)
+        functionalKeyPress(KeyCode.DELETE)
+        assertEquals("tgi", text)
+    }
+
+    // InputLogicTests.testPickDifferentSuggestionThenBackspace
+    @Test fun `AOSP pick different suggestion then backspace`() {
+        chainInput("tgis")
+        pickSuggestion("thus")
+        assertEquals("thus", text)
+        functionalKeyPress(KeyCode.DELETE)
+        assertEquals("thu", text)
+    }
+
+    // InputLogicTests.testDeleteSelection
+    @Test fun `AOSP delete selection`() {
+        setText("some text delete me some text")
+        setCursorPosition(10, 19)
+        functionalKeyPress(KeyCode.DELETE)
+        assertEquals("some text  some text", text)
+    }
+
+    // InputLogicTests.testDeleteSelectionTwice
+    @Test fun `AOSP delete selection twice`() {
+        setText("some text delete me some text")
+        setCursorPosition(10, 19)
+        functionalKeyPress(KeyCode.DELETE)
+        functionalKeyPress(KeyCode.DELETE)
+        assertEquals("some text some text", text)
+    }
+
+    // InputLogicTests.testAutoCorrect
+    @Test fun `AOSP autocorrect`() {
+        autocorrect("tgis", "this", ' ')
+        assertEquals("this ", text)
+    }
+
+    // InputLogicTests.testAutoCorrectWithQuote
+    @Test fun `AOSP autocorrect with quote`() {
+        autocorrect("didn'", "didn't", ' ')
+        assertEquals("didn't ", text)
+    }
+
+    // InputLogicTests.testAutoCorrectWithPeriod
+    @Test fun `AOSP autocorrect with period`() {
+        autocorrect("tgis", "this", '.')
+        assertEquals("this.", text)
+    }
+
+    // InputLogicTests.testAutoCorrectWithPeriodThenRevert
+    @Test fun `AOSP autocorrect with period then revert`() {
+        autocorrect("tgis", "this", '.')
+        functionalKeyPress(KeyCode.DELETE)
+        assertEquals("tgis.", text)
+    }
+
+    // InputLogicTests.testAutoCorrectWithSpaceThenRevert
+    @Test fun `AOSP autocorrect with space then revert`() {
+        autocorrect("tgis", "this", ' ')
+        functionalKeyPress(KeyCode.DELETE)
+        assertEquals("tgis", text)
+    }
+
+    // InputLogicTests.testAutoCorrectWithSpaceThenRevertThenTypeMore: a phantom space, so one space only
+    @Test fun `AOSP autocorrect with space then revert then type more`() {
+        autocorrect("tgis", "this", ' ')
+        functionalKeyPress(KeyCode.DELETE)
+        input('a')
+        assertEquals("tgis a", text)
+    }
+
+    // InputLogicTests.testAutoCorrectToSelfDoesNotRevert
+    @Test fun `AOSP autocorrect to self does not revert`() {
+        chainInput("this ")
+        functionalKeyPress(KeyCode.DELETE)
+        assertEquals("this", text)
+    }
+
+    // InputLogicTests.testDoubleSpace (English strings)
+    @Test fun `AOSP double space`() {
+        val typed = listOf("this   ", "a+  ", "😇  ", "..  ", ")  ", "(  ", "%  ")
+        val expected = listOf("this.  ", "a+. ", "😇. ", "..  ", "). ", "(  ", "%. ")
+        typed.zip(expected).forEach { (t, e) ->
+            reset()
+            typeText(t)
+            assertEquals(e, text)
+        }
+    }
+
+    // InputLogicTests.testCancelDoubleSpaceEnglish
+    @Test fun `AOSP cancel double space`() {
+        typeText("this  ")
+        functionalKeyPress(KeyCode.DELETE)
+        assertEquals("this ", text)
+    }
+
+    // InputLogicTests.testDoubleSpacePeriod: the preference off keeps both spaces
+    @Test fun `AOSP double space period setting`() {
+        typeText("this  ")
+        assertEquals("this. ", text)
+        reset()
+        latinIME.prefs().edit { putBoolean(Settings.PREF_KEY_USE_DOUBLE_SPACE_PERIOD, false) }
+        typeText("this  ")
+        assertEquals("this  ", text)
+    }
+
+    // InputLogicTests.testBackspaceAtStartAfterAutocorrect
+    @Test fun `AOSP backspace at start after autocorrect`() {
+        autocorrect("tgis", "this", ' ')
+        setCursorPosition(0)
+        functionalKeyPress(KeyCode.DELETE)
+        assertEquals("this ", text)
+    }
+
+    // InputLogicTests.testAutoCorrectThenMoveCursorThenBackspace
+    @Test fun `AOSP autocorrect then move cursor then backspace`() {
+        chainInput("and ")
+        autocorrect("tgis", "this", ' ')
+        setCursorPosition(4)
+        functionalKeyPress(KeyCode.DELETE)
+        assertEquals("andthis ", text)
+    }
+
+    // InputLogicTests.testNoSpaceAfterManualPick
+    @Test fun `AOSP no space after manual pick`() {
+        chainInput("this")
+        pickSuggestion("this")
+        assertEquals("this", text)
+    }
+
+    // InputLogicTests.testManualPickThenType
+    @Test fun `AOSP manual pick then type`() {
+        chainInput("this")
+        pickSuggestion("this")
+        chainInput("is")
+        assertEquals("this is", text)
+    }
+
+    // InputLogicTests.testManualPickThenSeparator
+    @Test fun `AOSP manual pick then separator`() {
+        chainInput("this")
+        pickSuggestion("this")
+        input('!')
+        assertEquals("this!", text)
+    }
+
+    // InputLogicTests.testClusteringPunctuation
+    @Test fun `AOSP clustering punctuation`() {
+        chainInput("test")
+        pickSuggestion("test")
+        chainInput("!!?!:!")
+        assertEquals("test!!?!:!", text)
+    }
+
+    // InputLogicTests.testManualPickThenStripperThenPick
+    @Test fun `AOSP manual pick then newline then pick`() {
+        ShadowInputMethodService.currentImeOptions = EditorInfo.IME_ACTION_NONE // enter adds a line
+        setInputType(InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE)
+        chainInput("this")
+        pickSuggestion("this")
+        input('\n')
+        chainInput("this")
+        pickSuggestion("this")
+        assertEquals("this\nthis", text)
+    }
+
+    // InputLogicTests.testManualPickThenSpaceThenType
+    @Test fun `AOSP manual pick then space then type`() {
+        chainInput("this")
+        pickSuggestion("this")
+        chainInput(" is")
+        assertEquals("this is", text)
+    }
+
+    // InputLogicTests.testManualPickThenManualPick (a next word prediction picked)
+    @Test fun `AOSP manual pick then manual pick`() {
+        chainInput("this")
+        pickSuggestion("this")
+        pickSuggestion("is")
+        assertEquals("this is", text)
+    }
+
+    // InputLogicTests.testDeleteWholeComposingWord
+    @Test fun `AOSP delete whole composing word`() {
+        chainInput("this")
+        repeat(4) { functionalKeyPress(KeyCode.DELETE) }
+        assertEquals("", text)
+    }
+
+    // InputLogicTests.testResumeSuggestionOnBackspace: after "and this " a backspace composes "this" again
+    @Test fun `AOSP resume suggestion on backspace`() {
+        chainInput("and this ")
+        assertEquals("", composingText)
+        functionalKeyPress(KeyCode.DELETE)
+        assertEquals("this", composingText)
+        assertEquals(4, composingStart)
+        assertEquals(8, composingEnd)
+    }
+
+    // InputLogicTests.testStartComposing: composing starts on a letter, not on a quote or a dash
+    @Test fun `AOSP start composing`() {
+        listOf("a" to true, "'" to false, "'-" to false, "-" to false, "-'" to false, "a-" to true, "a'" to true).forEach { (word, composing) ->
+            reset()
+            chainInput(word)
+            assertEquals(if (composing) word else "", composingText, "composing '$word'")
+        }
+    }
+
+    // InputLogicTests.testComposingMultipleBackspace
+    @Test fun `AOSP composing multiple backspace`() {
+        val word = "radklro"
+        chainInput(word)
+        repeat(3) { functionalKeyPress(KeyCode.DELETE) }
+        chainInput(word)
+        repeat(2) { functionalKeyPress(KeyCode.DELETE) }
+        chainInput(word)
+        repeat(3) { functionalKeyPress(KeyCode.DELETE) }
+        assertEquals(word.length * 3 - 8, text.length)
+    }
+
+    // InputLogicTests.testManySingleQuotesOneByOne and testTypingSingleQuotesOneByOne (no autocorrection without a dictionary)
+    @Test fun `AOSP single quotes one by one`() {
+        typeText("i" + "'".repeat(20) + " ")
+        assertEquals("i" + "'".repeat(20) + " ", text)
+        reset()
+        typeText("it's ")
+        assertEquals("it's ", text)
+    }
+
+    // InputLogicTests.testBasicGesture and testGestureGesture
+    @Test fun `AOSP gesture then gesture`() {
+        glideTypingInput("got")
+        inputLogic.onStartBatchInput(settingsValues, KeyboardSwitcher.getInstance(), latinIME.mHandler)
+        handleMessages()
+        glideTypingInput("milk")
+        assertEquals("got milk", text)
+    }
+
+    // InputLogicTests.testTypeWithinComposing: a space inside a word ends the composition (the delete inside a word of the
+    // AOSP test is left out: HeliBoard keeps composing there, see deleteInsideWord)
+    @Test fun `AOSP type within composing`() {
+        chainInput("something")
+        setCursorPosition(4)
+        input(' ')
+        assertEquals("some thing", text)
+        assertEquals(-1, composingStart)
+        setCursorPosition(text.length)
+        input(' ')
+        assertEquals("some thing ", text)
+    }
+
+    // PunctuationTests.testWordThenSpaceThenPunctuationFromKeyboardTwice
+    @Test fun `AOSP word then space then punctuation from keyboard twice`() {
+        typeText("this !!")
+        assertEquals("this !!", text)
+    }
+
+    // PunctuationTests.testWordThenSpaceThenPunctuationFromStripTwice
+    @Test fun `AOSP word then space then punctuation from strip twice`() {
+        typeText("test ")
+        pickPunctuation("!")
+        pickPunctuation("!")
+        assertEquals("test!! ", text)
+    }
+
+    // PunctuationTests.testManualPickThenPunctuationFromStripTwiceThenType
+    @Test fun `AOSP manual pick then punctuation from strip twice then type`() {
+        chainInput("this")
+        pickSuggestion("this")
+        pickPunctuation("!")
+        pickPunctuation("!")
+        chainInput("is")
+        assertEquals("this!! is", text)
+    }
+
+    // PunctuationTests.testManualPickThenManualPickWithPunctAtStart
+    @Test fun `AOSP manual pick then pick with punctuation at start`() {
+        chainInput("this")
+        pickSuggestion("this")
+        pickSuggestion("!is")
+        assertEquals("this!is", text)
+    }
+
+    // PunctuationTests.testManuallyPickedWordThenColon, ...OpenParen, ...CloseParen
+    @Test fun `AOSP manually picked word then colon and parentheses`() {
+        listOf(":" to "this:", "(" to "this (", ")" to "this)").forEach { (punctuation, expected) ->
+            reset()
+            chainInput("this")
+            pickSuggestion("this")
+            chainInput(punctuation)
+            assertEquals(expected, text)
+        }
+    }
+
+    // PunctuationTests.testManuallyPickedWordThenSmiley, ...DotCom
+    @Test fun `AOSP manually picked word then smiley and dot com`() {
+        listOf(":-)" to "this :-)", ".com" to "this.com").forEach { (key, expected) ->
+            reset()
+            chainInput("this")
+            pickSuggestion("this")
+            input(key)
+            assertEquals(expected, text)
+        }
+    }
+
+    // PunctuationTests.testTypeWordTypeDotThenPressDotCom
+    @Test fun `AOSP type word type dot then dot com`() {
+        chainInput("this.")
+        latinIME.onTextInput(".com") // input(String) expects the whole text to be added, here the doubled dot is dropped
+        handleMessages()
+        assertEquals("this.com", text)
+    }
+
+    // PunctuationTests.testAutoCorrectionWithSingleQuoteInside and ...SingleQuotesAround
+    @Test fun `AOSP autocorrection with single quotes`() {
+        autocorrect("you'f", "you'd", ' ')
+        assertEquals("you'd ", text)
+        reset()
+        autocorrect("'tgis'", "this'", ' ', "tgis'")
+        assertEquals("'this' ", text)
+    }
+
+    // PunctuationTests.testAutoSpaceWithDoubleQuotes
+    @Test fun `AOSP autospace with double quotes`() {
+        // AOSP's text goes on with `Then, 5"passed. He said"bye"and left.`, expecting a space after `5"`: that needs the 5 to
+        // be a composing word (the space after a quote is set only when a word was composing), and digits are not composed
+        val toType = "He said\"hello\"to me. I replied,\"hi\"."
+        val expected = "He said \"hello\" to me. I replied, \"hi\". \""
+        for (part in toType.split("\"")) {
+            for (word in part.split(Regex("(?<=\\w)(?!\\w)|(?<!\\w)(?=\\w)"))) {
+                typeText(word)
+                if (composingText.isNotEmpty()) pickSuggestion(word) // only a composing word can be picked (digits are not composed)
+            }
+            input('"')
+        }
+        assertEquals(expected, text)
+    }
+
+    // like InputTestsBase.type(String): one key press per code point
+    private fun typeText(s: String) {
+        var i = 0
+        while (i < s.length) {
+            val codePoint = s.codePointAt(i)
+            input(codePoint)
+            i += Character.charCount(codePoint)
+        }
+    }
+
+    // a word typed with autocorrection on, then its separator: the engine's suggestion is set as in `revert autocorrect on delete`
+    // (a leading quote is not part of the composing word, so the engine's typed word is given without it)
+    private fun autocorrect(typed: String, corrected: String, separator: Char, composed: String = typed) {
+        setInputType(InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_AUTO_CORRECT)
+        chainInput(typed)
+        getAutocorrectedWithSpaceAfter(corrected, composed, separator)
+    }
+
+    // Source: AOSP PunctuationTests.testWordThenSpaceThenPunctuationFromStripTwice
+    // (https://android.googlesource.com/platform/packages/inputmethods/LatinIME/+/refs/heads/main/tests/src/com/android/inputmethod/latin/PunctuationTests.java):
+    // the strip right after a word and a space shows the punctuation list, which AOSP's test checks with
+    // isPunctuationSuggestions; here LatinIME's own list (mPunctuationSuggestions) is set before the pick
+    private fun pickPunctuation(punctuation: String) {
+        latinIME.mInputLogic.setSuggestedWords(settingsValues.mPunctuationSuggestions)
+        pickSuggestion(punctuation)
+    }
+
+    // ShiftModeTests: auto caps is the caps mode the keyboard asks the input logic for (KeyboardSwitcher.getKeyboardShiftMode)
+    private fun capsSentences() = setInputType(InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES)
+    private fun isCapsModeAutoShifted() = inputLogic.getCurrentAutoCapsState(settingsValues) != Constants.TextUtils.CAP_MODE_OFF
+
+    // ShiftModeTests.testTypicalSentence
+    @Test fun `AOSP shift typical sentence`() {
+        capsSentences()
+        assertTrue(isCapsModeAutoShifted(), "initial")
+        typeText("Test")
+        assertFalse(isCapsModeAutoShifted(), "after letter")
+        typeText(" ")
+        assertFalse(isCapsModeAutoShifted(), "after space")
+        typeText("some,")
+        assertFalse(isCapsModeAutoShifted(), "after comma")
+        typeText(" ")
+        assertFalse(isCapsModeAutoShifted(), "after comma space")
+        typeText("words.")
+        assertFalse(isCapsModeAutoShifted(), "directly after period")
+        typeText(" ")
+        assertTrue(isCapsModeAutoShifted(), "after period space")
+    }
+
+    // ShiftModeTests.testBackspace
+    @Test fun `AOSP shift backspace`() {
+        capsSentences()
+        assertTrue(isCapsModeAutoShifted())
+        typeText("A")
+        assertFalse(isCapsModeAutoShifted())
+        functionalKeyPress(KeyCode.DELETE)
+        assertTrue(isCapsModeAutoShifted())
+    }
+
+    // ShiftModeTests.testRepeatingBackspace (the delay of the key repeat is a UI timer, not ported)
+    @Test fun `AOSP shift repeating backspace`() {
+        capsSentences()
+        typeText("Test sentence. Another.")
+        assertFalse(isCapsModeAutoShifted())
+        repeat("Another.".length) { functionalKeyPress(KeyCode.DELETE) }
+        assertEquals("Test sentence. ", text)
+        assertTrue(isCapsModeAutoShifted())
+    }
+
+    // ShiftModeTests.testAutoCapsAfterDigitsPeriod (English; French and German through their subtype)
+    @Test fun `AOSP shift after digits and period`() {
+        capsSentences()
+        typeText("On 22.11.")
+        assertFalse(isCapsModeAutoShifted(), "en after digits-period")
+        typeText(" ")
+        assertTrue(isCapsModeAutoShifted(), "en after digits-period-space")
+        listOf("fr" to ("Le 22." to true), "de" to ("Am 22." to false)).forEach { (language, case) ->
+            reset()
+            capsSentences()
+            latinIME.switchToSubtype(SubtypeSettings.getResourceSubtypesForLocale(language.constructLocale()).first())
+            typeText(case.first)
+            assertFalse(isCapsModeAutoShifted(), "$language after digits-period")
+            typeText(" ")
+            assertEquals(case.second, isCapsModeAutoShifted(), "$language after digits-period-space")
+        }
+    }
+
+    // ShiftModeTests.testAutoCapsAfterInvertedMarks
+    @Test fun `AOSP shift after inverted marks`() {
+        capsSentences()
+        latinIME.switchToSubtype(SubtypeSettings.getResourceSubtypesForLocale("es".constructLocale()).first())
+        assertTrue(isCapsModeAutoShifted())
+        typeText("Hey. ¿")
+        assertTrue(isCapsModeAutoShifted())
+        reset()
+        capsSentences()
+        typeText("¡")
+        assertTrue(isCapsModeAutoShifted())
+    }
+
+    // InputLogicTests.testManualPickThenSeparatorForFrench
+    @Test fun `AOSP manual pick then separator for French`() {
+        latinIME.switchToSubtype(SubtypeSettings.getResourceSubtypesForLocale("fr".constructLocale()).first())
+        chainInput("test")
+        pickSuggestion("test")
+        input('!')
+        assertEquals("test !", text)
+    }
+
+    // InputLogicTests.testClusteringPunctuationForFrench
+    @Test fun `AOSP clustering punctuation for French`() {
+        latinIME.switchToSubtype(SubtypeSettings.getResourceSubtypesForLocale("fr".constructLocale()).first())
+        chainInput("test")
+        pickSuggestion("test")
+        chainInput("!!?!:!")
+        assertEquals("test !!?! : !", text)
+    }
+
+    // LatinImeStressTests.testSwitchLanguagesAndInputLatinRandomCodePoints and ...InputRandomCodePoints: random words
+    // with language switches must not crash. The code point helpers are CodePointUtils (common/src/.../latin/common/),
+    // the same file of AOSP; the seed is fixed here (AOSP uses the clock) so a failure repeats.
+    @Test fun `AOSP stress switch languages and input random latin code points`() = stress(false)
+    @Test fun `AOSP stress switch languages and input random code points`() = stress(true)
+
+    private fun stress(anyCodePoint: Boolean) {
+        val locales = listOf("en_US", "de", "el", "es", "fi", "it", "nl", "pt", "ru")
+        val random = Random(if (anyCodePoint) 20261018L else 20261017L)
+        val codePointSet = if (anyCodePoint) generateCodePointSet(30, random) else LATIN_ALPHABETS_LOWER
+        repeat(50) {
+            val locale = locales[random.nextInt(locales.size)].replace('_', '-').constructLocale()
+            SubtypeSettings.getResourceSubtypesForLocale(locale).firstOrNull()?.let { latinIME.switchToSubtype(it) }
+            repeat(random.nextInt(20)) {
+                val word = generateWord(random, codePointSet)
+                var i = 0
+                while (i < word.length) { // like InputTestsBase.type: one event per code point, no assertion on the text
+                    val codePoint = word.codePointAt(i)
+                    latinIME.onEvent(Event.createEventForCodePointFromUnknownSource(codePoint))
+                    handleMessages()
+                    i += Character.charCount(codePoint)
+                }
+            }
+        }
+    }
+
+    // CodePointUtils.generateCodePointSet and generateWord (AOSP LatinIME, Apache-2.0)
+    private val LATIN_ALPHABETS_LOWER = (('a'..'z').map { it.code } + (0xE0..0xFF).filter { it != 0xF8 }).toIntArray()
+
+    private fun generateCodePointSet(size: Int, random: Random): IntArray {
+        val set = IntArray(size)
+        var i = size - 1
+        while (i >= 0) {
+            val r = Math.abs(random.nextInt())
+            if (r < 0) continue
+            val candidate = 0x20 + r % (Character.MAX_CODE_POINT - 0x20)
+            if (candidate in Character.MIN_SURROGATE.code..Character.MAX_SURROGATE.code) continue
+            set[i--] = candidate
+        }
+        return set
+    }
+
+    private fun generateWord(random: Random, codePointSet: IntArray): String {
+        val count = 1 + (1..8).sumOf { Math.abs(random.nextInt()) % 5 }
+        val builder = StringBuilder()
+        while (builder.length < count) builder.appendCodePoint(codePointSet[Math.abs(random.nextInt()) % codePointSet.size])
+        return builder.toString()
+    }
+
     // ------- helper functions ---------
 
     // should be called before every test, so the same state is guaranteed
@@ -864,12 +1399,16 @@ class InputLogicTest {
     }
 
     // only works when autocorrect is on, separator after word is required
-    private fun getAutocorrectedWithSpaceAfter(suggestion: String, typedWord: String?) {
+    private fun getAutocorrectedWithSpaceAfter(suggestion: String, typedWord: String?, separator: Char = ' ') {
         val info = SuggestedWordInfo(suggestion, "", 0, 0, null, 0, 0)
         val typedInfo = SuggestedWordInfo(typedWord, "", 0, 0, null, 0, 0)
         val sw = SuggestedWords(ArrayList(listOf(typedInfo, info)), null, typedInfo, false, true, false, 0, 0)
         latinIME.mInputLogic.setSuggestedWords(sw) // this prepares for autocorrect
-        input(' ')
+        if (separator == ' ') input(separator)
+        else { // input() cannot check the text: the suggestions are reset by a separator other than space
+            latinIME.onEvent(Event.createEventForCodePointFromUnknownSource(separator.code))
+            handleMessages()
+        }
         checkConnectionConsistency()
     }
 
