@@ -140,6 +140,12 @@ public interface DictionaryFacilitator {
 
     boolean isValidSpellingWord(final String word);
 
+    /**
+     * Keyboard: saves the word in the personal dictionary (Android's user dictionary) for the language most trusted now,
+     * as AOSP LatinIME's addWordToUserDictionary does (jb-mr2-release) at the one tap on an unknown typed word
+     */
+    void addToPersonalDictionary(final String word);
+
     boolean isValidSuggestionWord(final String word);
 
     void clearUserHistoryDictionary(final Context context);

@@ -28,6 +28,7 @@ import android.text.style.StyleSpan;
 import android.text.style.UnderlineSpan;
 import android.util.AttributeSet;
 import android.view.Gravity;
+import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.LinearLayout;
@@ -46,6 +47,7 @@ import helium314.keyboard.latin.SuggestedWords;
 import helium314.keyboard.latin.SuggestedWords.SuggestedWordInfo;
 import helium314.keyboard.latin.common.ColorType;
 import helium314.keyboard.latin.common.Colors;
+import helium314.keyboard.latin.dictionary.Dictionary;
 import helium314.keyboard.latin.settings.Settings;
 import helium314.keyboard.latin.settings.SettingsValues;
 import helium314.keyboard.latin.utils.ResourceUtils;
@@ -92,6 +94,13 @@ final class SuggestionStripLayoutHelper {
     private final Drawable mMoreSuggestionsHint;
     private static final String MORE_SUGGESTIONS_HINT = "…";
 
+    // Keyboard: the word view of the saved-word confirmation, AOSP LatinIME's SuggestionStripView.Params.mWordToSaveView
+    // https://android.googlesource.com/platform/packages/inputmethods/LatinIME/+/refs/heads/jb-mr2-release/java/src/com/android/inputmethod/latin/suggestions/SuggestionStripView.java
+    private static final String CHECK_MARK = " ✓";
+    private static final String OPENING_QUOTE = "“"; // iOS shows an unknown typed word in quotes
+    private static final String CLOSING_QUOTE = "”";
+    private final TextView mWordToSaveView;
+
     private static final CharacterStyle BOLD_SPAN = new StyleSpan(Typeface.BOLD);
     private static final CharacterStyle UNDERLINE_SPAN = new UnderlineSpan();
 
@@ -108,6 +117,9 @@ final class SuggestionStripLayoutHelper {
         mWordViews = wordViews;
         mDividerViews = dividerViews;
         mDebugInfoViews = debugInfoViews;
+
+        final LayoutInflater inflater = LayoutInflater.from(context);
+        mWordToSaveView = (TextView) inflater.inflate(R.layout.suggestion_saved_word, null);
 
         final TextView wordView = wordViews.get(0);
         final View dividerView = dividerViews.get(0);
@@ -203,6 +215,11 @@ final class SuggestionStripLayoutHelper {
             return null;
         }
         final String word = suggestedWords.getLabel(indexInSuggestedWords);
+        // Keyboard: an unknown typed word in quotes, as iOS (a tap keeps and saves it)
+        if (suggestedWords.getInfo(indexInSuggestedWords).isKindOf(SuggestedWordInfo.KIND_TYPED)
+                && isUnknownTypedWord(suggestedWords)) {
+            return OPENING_QUOTE + word + CLOSING_QUOTE;
+        }
         // TODO: don't use the index to decide whether this is the auto-correction/typed word, as
         // this is brittle
         final boolean isAutoCorrection = suggestedWords.mWillAutoCorrect
@@ -232,11 +249,32 @@ final class SuggestionStripLayoutHelper {
      * @return Non-negative integer of the position in the suggestion strip.
      *         Negative integer if the word of the index shouldn't be shown on the suggestion strip.
      */
+    /**
+     * Keyboard: while typing, a word that is in no dictionary stays in the strip, as AOSP LatinIME's phone strip
+     * (shouldOmitTypedWord with mShouldShowUiToAcceptTypedWord false, branch jb-mr2-release) and as iOS's quoted word,
+     * so one tap can keep and save it; a word in a dictionary stays omitted as in HeliBoard
+     * https://android.googlesource.com/platform/packages/inputmethods/LatinIME/+/refs/heads/jb-mr2-release/java/src/com/android/inputmethod/latin/suggestions/SuggestionStripLayoutHelper.java
+     * Unknown = the typed word came back from no dictionary, or only from the learned history (mTypedWordValid is true
+     * with auto-correction off and for a learned word, so it cannot tell).
+     */
+    private static boolean isUnknownTypedWord(final SuggestedWords suggestedWords) {
+        return suggestedWords.mInputStyle == SuggestedWords.INPUT_STYLE_TYPING
+                && suggestedWords.mTypedWordInfo != null
+                && (Dictionary.TYPE_USER_TYPED.equals(suggestedWords.mTypedWordInfo.mSourceDict.mDictType)
+                    || Dictionary.TYPE_USER_HISTORY.equals(suggestedWords.mTypedWordInfo.mSourceDict.mDictType));
+    }
+
     private int getPositionInSuggestionStrip(final int indexInSuggestedWords,
             final SuggestedWords suggestedWords) {
         final SettingsValues settingsValues = Settings.getValues();
+        final boolean showUnknownTypedWord = isUnknownTypedWord(suggestedWords);
+        // with an auto-correction coming Suggest.kt adds a second copy of the typed word, which would show twice
+        if (showUnknownTypedWord && indexInSuggestedWords != SuggestedWords.INDEX_OF_TYPED_WORD
+                && suggestedWords.getInfo(indexInSuggestedWords).isKindOf(SuggestedWordInfo.KIND_TYPED)) {
+            return -1;
+        }
         final boolean shouldOmitTypedWord = shouldOmitTypedWord(suggestedWords.mInputStyle,
-                settingsValues.mGestureFloatingPreviewTextEnabled, true);
+                settingsValues.mGestureFloatingPreviewTextEnabled, !showUnknownTypedWord);
         return getPositionInSuggestionStrip(indexInSuggestedWords, suggestedWords.mWillAutoCorrect,
                 shouldOmitTypedWord, mCenterPositionInStrip, mTypedWordPositionWhenAutocorrect);
     }
@@ -540,6 +578,35 @@ final class SuggestionStripLayoutHelper {
         }
         mMoreSuggestionsAvailable = (punctuationSuggestions.size() > countInStrip);
         return countInStrip;
+    }
+
+    /**
+     * Keyboard: the saved word alone in the strip with a check mark, for a moment. One tap on an unknown typed word keeps
+     * it and saves it, as iOS 26's keyboard does (the idea: the quoted word in the bar, nothing said); the word view and
+     * the path are AOSP LatinIME's (SuggestionStripView.Params, layoutAddToDictionaryHint, URL at the fields above).
+     * It takes the strip's text colour, 8 dp of air on each side, and cannot be touched.
+     */
+    void layoutSavedWord(final String word, final ViewGroup stripView, final int stripWidth) {
+        final int pad = (int) (8 * stripView.getResources().getDisplayMetrics().density);
+        final TextView wordView = mWordToSaveView;
+        wordView.setTextColor(mColorTypedWord);
+        wordView.setPadding(pad, 0, pad, 0);
+        final int checkWidth = (int) wordView.getPaint().measureText(CHECK_MARK);
+        final CharSequence shortWord = getEllipsizedTextWithSettingScaleX(
+                word, stripWidth - pad * 2 - checkWidth, wordView.getPaint());
+        final float wordScaleX = wordView.getTextScaleX();
+        wordView.setTag(word);
+        wordView.setText(shortWord + CHECK_MARK);
+        wordView.setTextScaleX(wordScaleX);
+        wordView.setContentDescription(word);
+        wordView.setOnClickListener(null);
+        wordView.setClickable(false);
+        stripView.addView(wordView);
+        setLayoutWeight(wordView, 1.0f, ViewGroup.LayoutParams.MATCH_PARENT);
+    }
+
+    boolean isSavedWordShowing(@Nullable final View v) {
+        return v != null && v == mWordToSaveView;
     }
 
     static void setLayoutWeight(final View v, final float weight, final int height) {

@@ -15,4 +15,6 @@ public interface SuggestionStripViewAccessor {
     void setNeutralSuggestionStrip();
     void setSuggestions(final SuggestedWords suggestedWords);
     void showSuggestionStrip();
+    /** Keyboard: saves the word in the personal dictionary and shows it with a check mark for a moment (iOS 26's idea, AOSP LatinIME's showAddToDictionaryHint path) */
+    void addWordAndConfirm(final String word);
 }

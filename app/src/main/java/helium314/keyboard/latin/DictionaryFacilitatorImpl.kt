@@ -409,17 +409,33 @@ class DictionaryFacilitatorImpl : DictionaryFacilitator {
             return // should never happen, but better be safe
 
         // User history always reports words as invalid, so we check the frequency instead.
-        // Testing shows that after 2 times adding, the frequency is 111, and then rises slowly with usage (values vary slightly).
-        // 120 is after 3 uses of the word, so we simply require more than that. todo: Could be made configurable.
+        // The frequency is read before the word being committed is added to the history. Keyboard, measured 2026-10-18 on the
+        // emulator (two words, followed by a space and by a period): at the 1st and the 2nd use it reads -1 (not found yet),
+        // at the 3rd 111, at the 4th 120, at the 5th 125. HeliBoard required more than 120, so the word was added at the 5th use;
+        // more than 110 adds it at the 3rd use, the 2nd never. todo: Could be made configurable.
         // Words added to dictionaries (user and history) seem to be found only after some delay.
         // This is not too bad, but it delays adding in case a user wants to fill a dictionary using this functionality
-        if (userHistoryDict.getFrequency(word) > 120) {
+        if (userHistoryDict.getFrequency(word) > 110) {
             scope.launch {
                 // adding can throw IllegalArgumentException: Unknown URL content://user_dictionary/words
                 // https://stackoverflow.com/q/41474623 https://github.com/AnySoftKeyboard/AnySoftKeyboard/issues/490
                 // apparently some devices don't have a dictionary? or it's just sporadic hiccups?
                 runCatching { UserDictionary.Words.addWord(userDict.mContext, word, 250, null, dictionaryGroup.locale) }
             }
+        }
+    }
+
+    /**
+     * Keyboard: the tap on an unknown typed word (iOS 26's one tap), AOSP LatinIME's addWordToUserDictionary (jb-mr2-release,
+     * https://android.googlesource.com/platform/packages/inputmethods/LatinIME/+/refs/heads/jb-mr2-release/java/src/com/android/inputmethod/latin/LatinIME.java)
+     * written to Android's user dictionary as addToPersonalDictionaryIfInvalidButInHistory above, weight and runCatching included
+     */
+    override fun addToPersonalDictionary(word: String) {
+        if (word.isEmpty()) return
+        val dictionaryGroup = currentlyPreferredDictionaryGroup
+        val userDict = dictionaryGroup.getSubDict(Dictionary.TYPE_USER) ?: return
+        scope.launch {
+            runCatching { UserDictionary.Words.addWord(userDict.mContext, word, 250, null, dictionaryGroup.locale) }
         }
     }
 
@@ -621,6 +637,20 @@ class DictionaryFacilitatorImpl : DictionaryFacilitator {
     override fun removeWord(word: String) {
         for (dictionaryGroup in dictionaryGroups) {
             dictionaryGroup.removeWord(word)
+        }
+        // Keyboard: the long press on a suggestion also takes the word out of Android's personal dictionary, else the
+        // personal dictionary reloads it at once; AOSP Settings' UserDictionarySettings.deleteWord (Apache-2.0), with the
+        // shortcut test in brackets (AOSP's DELETE_SELECTION_WITHOUT_SHORTCUT lets its OR reach every word with no shortcut)
+        // https://android.googlesource.com/platform/packages/apps/Settings/+/refs/heads/main/src/com/android/settings/inputmethod/UserDictionarySettings.java
+        val context = dictionaryGroups.firstNotNullOfOrNull { it.getSubDict(Dictionary.TYPE_USER)?.mContext } ?: return
+        scope.launch {
+            runCatching {
+                context.contentResolver.delete(
+                    UserDictionary.Words.CONTENT_URI,
+                    UserDictionary.Words.WORD + "=? AND (" + UserDictionary.Words.SHORTCUT + " is null OR " + UserDictionary.Words.SHORTCUT + "=?)",
+                    arrayOf(word, "")
+                )
+            }
         }
     }
 

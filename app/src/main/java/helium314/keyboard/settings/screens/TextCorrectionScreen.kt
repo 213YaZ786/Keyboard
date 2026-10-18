@@ -36,6 +36,7 @@ import helium314.keyboard.settings.SettingsDestination
 import helium314.keyboard.settings.SettingsWithoutKey
 import helium314.keyboard.latin.utils.Theme
 import helium314.keyboard.settings.dialogs.ConfirmationDialog
+import helium314.keyboard.settings.dialogs.DeleteLearnedWordsDialog
 import helium314.keyboard.settings.initPreview
 import helium314.keyboard.settings.preferences.Preference
 import helium314.keyboard.settings.preferences.SwitchPreference
@@ -97,6 +98,7 @@ fun TextCorrectionScreen(
             Settings.PREF_ADD_TO_PERSONAL_DICTIONARY else null,
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
             Settings.PREF_SPELLCHECK_SUGGEST else null,
+        SettingsWithoutKey.DELETE_LEARNED_WORDS,
     )
     SearchSettingsScreen(
         onClickBack = onClickBack,
@@ -111,6 +113,15 @@ fun createCorrectionSettings(context: Context) = listOf(
             name = stringResource(R.string.edit_personal_dictionary),
             onClick = { SettingsDestination.navigateTo(SettingsDestination.PersonalDictionaries) },
         ) { NextScreenIcon() }
+    },
+    // Keyboard: a row opening the confirmation (DeleteLearnedWordsDialog), as HeliBoard's EDIT_PERSONAL_DICTIONARY row above
+    Setting(context, SettingsWithoutKey.DELETE_LEARNED_WORDS, R.string.delete_learned_words) {
+        var showDialog by rememberSaveable { mutableStateOf(false) }
+        Preference(
+            name = stringResource(R.string.delete_learned_words),
+            onClick = { showDialog = true },
+        )
+        if (showDialog) DeleteLearnedWordsDialog { showDialog = false }
     },
     Setting(context, Settings.PREF_BLOCK_POTENTIALLY_OFFENSIVE,
         R.string.prefs_block_potentially_offensive_title, R.string.prefs_block_potentially_offensive_summary

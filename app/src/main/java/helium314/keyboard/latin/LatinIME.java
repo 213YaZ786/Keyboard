@@ -63,6 +63,7 @@ import helium314.keyboard.latin.common.ColorType;
 import helium314.keyboard.latin.common.Constants;
 import helium314.keyboard.latin.common.CoordinateUtils;
 import helium314.keyboard.latin.common.InputPointers;
+import helium314.keyboard.latin.common.StringUtils;
 import helium314.keyboard.latin.common.ViewOutlineProviderUtilsKt;
 import helium314.keyboard.latin.define.DebugFlags;
 import helium314.keyboard.latin.inputlogic.InputLogic;
@@ -1454,6 +1455,10 @@ public class LatinIME extends InputMethodService implements
         // Keyboard: a typed key ends a dictation (the shift and layout keys do not)
         if (mDictation != null && DictationController.Companion.endsDictation(event.getKeyCode()))
             mDictation.onTyping();
+        // Keyboard: a typed key puts the saved word's check mark away, as AOSP LatinIME's handleCharacter did for its hint
+        // (dismissAddToDictionaryHint); the shift and layout keys leave it
+        if (hasSuggestionStripView() && DictationController.Companion.endsDictation(event.getKeyCode()))
+            mSuggestionStripView.dismissSavedWord();
         final InputTransaction completeInputTransaction =
                 mInputLogic.onCodeInput(mSettings.getCurrent(), event,
                         mKeyboardSwitcher.getKeyboardCapsMode(),
@@ -1665,6 +1670,29 @@ public class LatinIME extends InputMethodService implements
     @Override
     public void removeSuggestion(final String word) {
         mDictionaryFacilitator.removeWord(word);
+    }
+
+    // Keyboard: one tap on an unknown typed word keeps it and saves it, with a check mark for a moment (iOS 26's keyboard,
+    // the idea). The path is AOSP LatinIME's: showAddToDictionaryHint in pickSuggestionManually, then
+    // addWordToUserDictionary, branch jb-mr2-release; the saving is HeliBoard's UserDictionary.Words.addWord
+    // https://android.googlesource.com/platform/packages/inputmethods/LatinIME/+/refs/heads/jb-mr2-release/java/src/com/android/inputmethod/latin/LatinIME.java
+    @Override
+    public void addWordAndConfirm(final String word) {
+        if (word == null || word.isEmpty()) return;
+        // As AOSP: a word capitalised only by the automatic capitals is saved in lower case
+        final Locale locale = mDictionaryFacilitator.getCurrentLocale();
+        final CapsMode capsMode = mInputLogic.mLastComposedWord.mCapitalizedMode;
+        final boolean autoCaps = capsMode == CapsMode.AUTO || capsMode == CapsMode.AUTO_LOCKED;
+        final boolean onlyFirstCapital = word.equals(StringUtils.capitalizeFirstAndDowncaseRest(word, locale));
+        mDictionaryFacilitator.addToPersonalDictionary(autoCaps && onlyFirstCapital ? word.toLowerCase(locale) : word);
+        if (hasSuggestionStripView()) mSuggestionStripView.showSavedWord(word);
+    }
+
+    // After the check mark the strip shows the suggestions again, as AOSP LatinIME's pickSuggestionManually does when it
+    // shows no hint (mHandler.postUpdateSuggestionStrip, branch jb-mr2-release, LatinIME.java URL above)
+    @Override
+    public void onSavedWordEnd() {
+        mHandler.postUpdateSuggestionStrip(SuggestedWords.INPUT_STYLE_NONE);
     }
 
     @Override

@@ -129,6 +129,10 @@ class SingleDictionaryFacilitator(private val dict: Dictionary) : DictionaryFaci
 
     override fun isValidSuggestionWord(word: String) = isValidSpellingWord(word)
 
+    // Keyboard: nothing to save here, this facilitator has no user dictionary
+    // (DictionaryFacilitatorImpl.addToPersonalDictionary, https://github.com/HeliBorg/HeliBoard/blob/main/app/src/main/java/helium314/keyboard/latin/DictionaryFacilitatorImpl.kt)
+    override fun addToPersonalDictionary(word: String) {}
+
     override fun removeWord(word: String) {}
 
     override fun clearUserHistoryDictionary(context: Context) {}

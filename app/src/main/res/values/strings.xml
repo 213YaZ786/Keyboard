@@ -226,6 +226,11 @@
     <string name="clipboard_sensitive_expiry">Remove sensitive items after 20 seconds</string>
     <string name="clipboard_clean_links">Clean links when pasting</string>
     <string name="clipboard_clean_links_summary">Drops tracking parameters and redirects from pasted links</string>
+    <!-- Keyboard: Settings > Advanced > Text correction, Delete learned words -->
+    <string name="delete_learned_words">Delete learned words</string>
+    <string name="delete_learned_words_message">The words learned from your typing will be deleted.</string>
+    <string name="delete_learned_words_personal">Also the words of the personal dictionary</string>
+    <string name="learned_words_deleted">Deleted</string>
     <!-- Keyboard: dictation, the stop button and the speech engine of the Dictation settings -->
     <string name="dictation_stop">Stop dictation</string>
     <string name="dictation_engine">Speech engine</string>

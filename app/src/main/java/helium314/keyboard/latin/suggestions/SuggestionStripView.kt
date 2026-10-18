@@ -92,6 +92,9 @@ class SuggestionStripView(context: Context, attrs: AttributeSet?, defStyle: Int)
         fun removeSuggestion(word: String?)
         fun removeExternalSuggestions()
         fun onSwipeDownOnToolbar()
+        // Keyboard: the saved word's check mark is over, the strip shows the suggestions again; the callback of AOSP
+        // LatinIME's Listener (jb-mr2-release, SuggestionStripView.java) that followed the hint, now after the check mark
+        fun onSavedWordEnd()
     }
 
     private val moreSuggestionsContainer: View
@@ -330,6 +333,32 @@ class SuggestionStripView(context: Context, attrs: AttributeSet?, defStyle: Int)
         updateKeys()
     }
 
+    /**
+     * Keyboard: the saved word shown alone with a check mark for 1.2 s, then the suggestions again. The idea is iOS 26's
+     * keyboard (one tap on the quoted unknown word keeps it and learns it, no text); the strip's calls are AOSP LatinIME's
+     * SuggestionStripView.showAddToDictionaryHint, isShowingAddToDictionaryHint and dismissAddToDictionaryHint (branch
+     * jb-mr2-release)
+     * https://android.googlesource.com/platform/packages/inputmethods/LatinIME/+/refs/heads/jb-mr2-release/java/src/com/android/inputmethod/latin/suggestions/SuggestionStripView.java
+     */
+    fun showSavedWord(word: String) {
+        clear()
+        suggestedWords = SuggestedWords.getEmptyInstance() // nothing to pull up as more suggestions
+        startIndexOfMoreSuggestions = 0
+        isExternalSuggestionVisible = false
+        layoutHelper.layoutSavedWord(word, suggestionsStrip, suggestionsStrip.width)
+        postDelayed(savedWordEnd, 1200)
+    }
+
+    val isShowingSavedWord get() = layoutHelper.isSavedWordShowing(suggestionsStrip.getChildAt(0))
+
+    fun dismissSavedWord(): Boolean {
+        if (!isShowingSavedWord) return false
+        clear()
+        return true
+    }
+
+    private val savedWordEnd = Runnable { if (isShowingSavedWord) listener.onSavedWordEnd() }
+
     fun setExternalSuggestionView(view: View?, addCloseButton: Boolean) {
         clear()
         isExternalSuggestionVisible = true
@@ -383,6 +412,7 @@ class SuggestionStripView(context: Context, attrs: AttributeSet?, defStyle: Int)
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
         dismissMoreSuggestionsPanel()
+        removeCallbacks(savedWordEnd)
         voicePulse?.cancel() // Keyboard: no animation left running with the bar gone
         voicePulse = null
     }
@@ -524,8 +554,10 @@ class SuggestionStripView(context: Context, attrs: AttributeSet?, defStyle: Int)
         if (showIcon) {
             val icon = KeyboardIconsSet.instance.getNewDrawable(KeyboardIconsSet.NAME_BIN, context)!!
             Settings.getValues().mColors.setColor(icon, ColorType.REMOVE_SUGGESTION_ICON)
-            val w = icon.intrinsicWidth
-            val h = icon.intrinsicHeight
+            // Keyboard: the bin's tap target is the strip's whole height and at least 48 dp wide (Material's minimum touch
+            // target, https://developer.android.com/develop/ui/compose/accessibility/key-steps#touch-target-size), not the
+            // icon's own box, which sits in the middle of the 48 dp strip and left half of it out of the test
+            val hitWidth = maxOf(icon.intrinsicWidth, 48.dpToPx(resources))
             wordView.setCompoundDrawablesWithIntrinsicBounds(icon, null, null, null)
             wordView.ellipsize = TextUtils.TruncateAt.END
             val downOk = AtomicBoolean(false)
@@ -533,7 +565,7 @@ class SuggestionStripView(context: Context, attrs: AttributeSet?, defStyle: Int)
                 if (motionEvent.action == MotionEvent.ACTION_UP && downOk.get()) {
                     val x = motionEvent.x
                     val y = motionEvent.y
-                    if (0 < x && x < w && 0 < y && y < h) {
+                    if (0 < x && x < hitWidth && 0 < y && y < wordView.height) {
                         removeSuggestion(wordView)
                         wordView.cancelLongPress()
                         wordView.isPressed = false
@@ -542,7 +574,7 @@ class SuggestionStripView(context: Context, attrs: AttributeSet?, defStyle: Int)
                 } else if (motionEvent.action == MotionEvent.ACTION_DOWN) {
                     val x = motionEvent.x
                     val y = motionEvent.y
-                    if (0 < x && x < w && 0 < y && y < h) {
+                    if (0 < x && x < hitWidth && 0 < y && y < wordView.height) {
                         downOk.set(true)
                     }
                 }
@@ -585,7 +617,9 @@ class SuggestionStripView(context: Context, attrs: AttributeSet?, defStyle: Int)
     }
 
     private fun removeSuggestion(wordView: TextView) {
-        val word = wordView.text.toString()
+        // Keyboard: the word of the suggestion, not the text on screen (an unknown typed word shows in quotes)
+        val tag = wordView.tag
+        val word = if (tag is Int && tag < suggestedWords.size()) suggestedWords.getInfo(tag).word else wordView.text.toString()
         listener.removeSuggestion(word)
         moreSuggestionsView.dismissPopupKeysPanel()
         // show suggestions, but without the removed word
@@ -610,6 +644,7 @@ class SuggestionStripView(context: Context, attrs: AttributeSet?, defStyle: Int)
     }
 
     private fun clear() {
+        removeCallbacks(savedWordEnd)
         suggestionsStrip.removeAllViews()
         if (DEBUG_SUGGESTIONS) removeAllDebugInfoViews()
         if (!toolbarContainer.isVisible)

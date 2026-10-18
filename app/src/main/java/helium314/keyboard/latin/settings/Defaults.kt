@@ -172,7 +172,7 @@ object Defaults {
     const val PREF_CLIPBOARD_SENSITIVE_EXPIRY = true // Keyboard
     const val PREF_CLIPBOARD_CLEAN_LINKS = true // Keyboard
     const val PREF_CLIPBOARD_FILES_SIZE_LIMIT = 20 // megabytes
-    const val PREF_ADD_TO_PERSONAL_DICTIONARY = false
+    const val PREF_ADD_TO_PERSONAL_DICTIONARY = true // Keyboard: on by default (HeliBoard: off), after three uses of an unknown word
     @JvmField
     val PREF_NAVBAR_COLOR = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
     const val PREF_ENABLED_SUBTYPES = ""

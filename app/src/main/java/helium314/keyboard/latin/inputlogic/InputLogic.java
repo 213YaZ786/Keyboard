@@ -289,12 +289,14 @@ public final class InputLogic {
     // interface
     public InputTransaction onPickSuggestionManually(SettingsValues settingsValues, SuggestedWordInfo suggestionInfo,
             CapsMode keyboardCapsMode, String currentKeyboardScript, LatinIME.UIHandler handler) {
-        if (isInlineEmojiSearchAction()) {
+        final boolean wasEmojiSearch = isInlineEmojiSearchAction();
+        if (wasEmojiSearch) {
             deleteTextReplacedByEmoji();
         }
 
         SuggestedWords suggestedWords = mSuggestedWords;
         String suggestion = suggestionInfo.mWord;
+        final boolean wasBatchMode = mWordComposer.isBatchMode();
         // If this is a punctuation picked from the suggestion strip, pass it to onCodeInput
         if (suggestion.length() == 1 && suggestedWords.isPunctuationSuggestions()) {
             // We still want to log a suggestion click.
@@ -365,11 +367,41 @@ public final class InputLogic {
 
         // If we're not showing the "Touch again to save", then update the suggestion strip.
         // That's going to be predictions (or punctuation suggestions), so INPUT_STYLE_NONE.
-        handler.postUpdateSuggestionStrip(SuggestedWords.INPUT_STYLE_NONE);
+        if (!wasEmojiSearch && !wasBatchMode && shouldShowAddToDictionaryHint(settingsValues, suggestionInfo, suggestion)) {
+            mSuggestionStripViewAccessor.addWordAndConfirm(suggestion);
+        } else {
+            handler.postUpdateSuggestionStrip(SuggestedWords.INPUT_STYLE_NONE);
+        }
 
         StatsUtils.onPickSuggestionManually(mSuggestedWords, suggestionInfo, mDictionaryFacilitator);
         StatsUtils.onWordCommitSuggestionPickedManually(suggestionInfo.mWord, mWordComposer.isBatchMode());
         return inputTransaction;
+    }
+
+    /**
+     * Keyboard: AOSP LatinIME's test in pickSuggestionManually (branch jb-mr2-release, showingAddToDictionaryHint):
+     * the typed word was picked and it is in none of the dictionaries, so it is saved at that tap (iOS 26's one tap, the
+     * second tap of AOSP's hint is gone)
+     * https://android.googlesource.com/platform/packages/inputmethods/LatinIME/+/refs/heads/jb-mr2-release/java/src/com/android/inputmethod/latin/LatinIME.java
+     * Added: never in incognito mode nor in a password field (mIncognitoModeEnabled covers both), a word of one letter,
+     * without a letter (a number) or with a space is not offered.
+     */
+    private boolean shouldShowAddToDictionaryHint(final SettingsValues settingsValues,
+            final SuggestedWordInfo suggestionInfo, final String suggestion) {
+        if (!suggestionInfo.isKindOf(SuggestedWordInfo.KIND_TYPED) || settingsValues.mIncognitoModeEnabled)
+            return false;
+        if (suggestion.codePointCount(0, suggestion.length()) < 2) return false;
+        boolean hasLetter = false;
+        for (int i = 0; i < suggestion.length(); ) {
+            final int codePoint = suggestion.codePointAt(i);
+            if (Character.isWhitespace(codePoint)) return false;
+            hasLetter |= Character.isLetter(codePoint);
+            i += Character.charCount(codePoint);
+        }
+        if (!hasLetter) return false;
+        final Locale locale = mDictionaryFacilitator.getCurrentLocale();
+        return !mDictionaryFacilitator.isValidSpellingWord(suggestion)
+                && !mDictionaryFacilitator.isValidSpellingWord(suggestion.toLowerCase(locale));
     }
 
     /** indicates that the next selection update is expected to be a cursor move (though not needed for arrow keys) */
