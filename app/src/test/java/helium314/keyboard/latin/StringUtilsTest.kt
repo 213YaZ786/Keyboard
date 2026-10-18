@@ -11,6 +11,7 @@ import helium314.keyboard.latin.common.getFullEmojiAtEnd
 import helium314.keyboard.latin.common.getTouchedWordRange
 import helium314.keyboard.latin.common.isEmoji
 import helium314.keyboard.latin.common.isSingleGrapheme
+import helium314.keyboard.latin.common.lastWordsLengths
 import helium314.keyboard.latin.common.moveStepsToCharCount
 import helium314.keyboard.latin.common.nonWordCodePointAndNoSpaceBeforeCursor
 import helium314.keyboard.latin.common.splitOnWhitespace
@@ -23,6 +24,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import kotlin.test.Test
+import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 
 // todo: actually this test could/should be significantly expanded...
@@ -197,6 +199,50 @@ class StringUtilsTest {
         assertEquals(3, moveStepsToCharCount("abcd", 3))
         assertEquals(5, moveStepsToCharCount("\uD83C\uDFF4\u200D☠️\uD83C\uDFF3️\u200D\uD83C\uDF08", 1))
         assertEquals(-6, moveStepsToCharCount("\uD83C\uDFF4\u200D☠️\uD83C\uDFF3️\u200D\uD83C\uDF08", -1))
+    }
+
+    // Tests of lastWordsLengths, in the style of the moveStepsToCharCount test above (HeliBoard,
+    // https://github.com/HeliBorg/HeliBoard/blob/main/app/src/test/java/helium314/keyboard/latin/StringUtilsTest.kt),
+    // cases from FlorisBoard's measureLastUWords (words with the spaces and punctuation after them).
+    @Test fun lastWordsLengths() {
+        assertContentEquals(intArrayOf(5, 11), lastWordsLengths("hello world", 2))
+        assertContentEquals(intArrayOf(5, 11), lastWordsLengths("hello world", 3)) // fewer words than asked
+        assertContentEquals(intArrayOf(5), lastWordsLengths("hello world", 1))
+        assertContentEquals(intArrayOf(6), lastWordsLengths("hello ", 1))
+        assertContentEquals(intArrayOf(7, 13), lastWordsLengths("hello world, ", 2))
+        assertContentEquals(intArrayOf(4, 10), lastWordsLengths("don't stop", 2))
+        assertContentEquals(intArrayOf(2, 5), lastWordsLengths("ab\ncd\n\nef gh", 2))
+    }
+
+    @Test fun lastWordsLengthsEmptyAndWithoutWords() {
+        assertContentEquals(intArrayOf(), lastWordsLengths("", 2))
+        assertContentEquals(intArrayOf(), lastWordsLengths("hello", 0))
+        assertContentEquals(intArrayOf(3), lastWordsLengths("   ", 1))
+        assertContentEquals(intArrayOf(3), lastWordsLengths("   ", 5))
+        assertContentEquals(intArrayOf(3), lastWordsLengths("?!.", 2))
+        assertContentEquals(intArrayOf(7), lastWordsLengths("  hello", 2)) // spaces before the first word go with it
+    }
+
+    @Test fun lastWordsLengthsEmojiAndSurrogates() {
+        assertContentEquals(intArrayOf(5), lastWordsLengths("hi 😀", 1)) // an emoji is no word
+        assertContentEquals(intArrayOf(2, 8), lastWordsLengths("ab 😀 cd", 2))
+        val family = "👨‍👩‍👧" // ZWJ sequence, never cut
+        assertContentEquals(intArrayOf(3 + family.length), lastWordsLengths("ab $family", 1))
+        assertContentEquals(intArrayOf(3), lastWordsLengths("\uDE00 abc", 1)) // lone low surrogate at the start
+        assertContentEquals(intArrayOf(5), lastWordsLengths("\uDE00 abc", 2))
+    }
+
+    @Test fun lastWordsLengthsOtherScripts() {
+        assertContentEquals(intArrayOf(7, 13), lastWordsLengths("مرحبا بالعالم", 2)) // Arabic, logical order
+        assertContentEquals(intArrayOf(6, 11), lastWordsLengths("ⴰⵣⵓⵍ ⴼⵍⵍⴰⵡⵏ", 2)) // Tifinagh
+        assertContentEquals(intArrayOf(6, 11), lastWordsLengths("ⴰⵣⵓⵍ ⴼⵍⵍⴰⵡⵏ", 4))
+    }
+
+    @Test fun lastWordsLengthsLongText() {
+        val text = "word ".repeat(20000)
+        assertContentEquals(intArrayOf(5, 10, 15), lastWordsLengths(text, 3))
+        assertEquals(1000, lastWordsLengths(text, 1000).size)
+        assertEquals(100000, lastWordsLengths(text, 50000).last())
     }
 
     @Test fun isEmojiDetectsAllAvailableEmojis() {

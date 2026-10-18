@@ -312,6 +312,33 @@ fun moveStepsToCharCount(text: CharSequence, steps: Int): Int {
     }
 }
 
+/**
+ * Lengths in chars of the last 1, 2, ... [words] words at the end of [text], with the spaces and punctuation
+ * between and after them, so "hello world" gives [5, 11] and "hello " gives [6]. Stops early when [text] holds fewer
+ * words: the last length is then the whole of [text]. A boundary never splits an emoji or a surrogate pair.
+ * Ported from FlorisBoard BreakIterators.measureLastUWords, Apache-2.0,
+ * https://github.com/florisboard/florisboard/blob/main/app/src/main/kotlin/dev/patrickgold/florisboard/ime/nlp/BreakIterators.kt
+ * (a word is a segment whose ruleStatus is not WORD_NONE), one length per word as Gboard's delete swipe needs.
+ */
+fun lastWordsLengths(text: CharSequence, words: Int, locale: Locale = Locale.ROOT): IntArray {
+    if (words <= 0 || text.isEmpty()) return IntArray(0)
+    val iterator = android.icu.text.BreakIterator.getWordInstance(locale)
+    iterator.setText(text.toString())
+    val end = iterator.last()
+    val result = ArrayList<Int>(words)
+    var position = end
+    while (position > 0 && result.size < words) {
+        val isWord = iterator.ruleStatus != android.icu.text.BreakIterator.WORD_NONE
+        position = iterator.previous()
+        if (isWord) result.add(end - position)
+    }
+    // the start of text reached with fewer words than asked: what stands before the first word belongs to it
+    if (position == 0 && result.size < words) {
+        if (result.isEmpty()) result.add(end) else result[result.lastIndex] = end
+    }
+    return result.toIntArray()
+}
+
 fun String.splitOnWhitespace() = SpacedTokens(this).toList()
 
 fun stripTrailingSeparatorsAndConnectors(word: String, spacingAndPunctuations: SpacingAndPunctuations): String {

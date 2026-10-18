@@ -22,6 +22,7 @@ import helium314.keyboard.latin.RichInputMethodManager
 import helium314.keyboard.latin.common.Constants
 import helium314.keyboard.latin.common.InputPointers
 import helium314.keyboard.latin.common.combiningRange
+import helium314.keyboard.latin.common.lastWordsLengths
 import helium314.keyboard.latin.common.moveStepsToCharCount
 import helium314.keyboard.latin.inputlogic.InputLogic
 import helium314.keyboard.latin.settings.Settings
@@ -241,6 +242,7 @@ class KeyboardActionListenerImpl(private val latinIME: LatinIME, private val inp
     override fun onEndSpaceSwipe() {
         initialSubtype = null
         subtypeSwitchCount = 0
+        deleteSwipeStarts.clear() // also ends the delete swipe
     }
 
     override fun toggleLayout(layout: LayoutDirective.Utility, autoCapsFlags: Int, recapitalizeMode: RecapitalizeMode?) {
@@ -251,20 +253,56 @@ class KeyboardActionListenerImpl(private val latinIME: LatinIME, private val inp
         keyboardSwitcher.onLongPressAlphaSymbolForNumpad()
     }
 
+    // Delete swipe by words, as Gboard. Ported from FlorisBoard TextKeyboardLayout.handleDeleteSwipe, case
+    // DELETE_WORDS_PRECISELY (two swipe units a word), Apache-2.0,
+    // https://github.com/florisboard/florisboard/blob/main/app/src/main/kotlin/dev/patrickgold/florisboard/ime/text/keyboard/TextKeyboardLayout.kt
+    // Selection starts after 0, 1, 2... words of this swipe (the first is where the swipe began, a selection already
+    // there stays); swiping back right pops them, so the selection shrinks word by word.
+    private val deleteSwipeStarts = ArrayList<Int>()
+    private var deleteSwipeEnd = 0
+    private var deleteSwipeSteps = 0 // never above 0, left is negative
+
     override fun onMoveDeletePointer(steps: Int) {
         inputLogic.finishInput()
         val end = connection.expectedSelectionEnd
-        val actualSteps = actualSteps(steps)
-        val start = connection.expectedSelectionStart + actualSteps
-        if (start > end) return
+        val currentStart = connection.expectedSelectionStart
+        if (currentStart < 0 || end < currentStart) return
+        if (deleteSwipeStarts.isEmpty() || deleteSwipeStarts.last() != currentStart || deleteSwipeEnd != end) {
+            // new swipe, or the field changed under it
+            deleteSwipeStarts.clear()
+            deleteSwipeStarts.add(currentStart)
+            deleteSwipeEnd = end
+            deleteSwipeSteps = 0
+        }
+        deleteSwipeSteps = minOf(0, deleteSwipeSteps + steps)
+        val wanted = -deleteSwipeSteps / DELETE_SWIPE_STEPS_PER_WORD
+        if (wanted > deleteSwipeStarts.size - 1) {
+            for (length in wordLengthsBefore(currentStart, wanted - (deleteSwipeStarts.size - 1)))
+                deleteSwipeStarts.add(currentStart - length)
+            // no more text: swiping back shrinks at once
+            deleteSwipeSteps = maxOf(deleteSwipeSteps, -(deleteSwipeStarts.size - 1) * DELETE_SWIPE_STEPS_PER_WORD)
+        } else {
+            while (deleteSwipeStarts.size - 1 > wanted) deleteSwipeStarts.removeAt(deleteSwipeStarts.lastIndex)
+        }
+        val start = deleteSwipeStarts.last()
+        if (start == currentStart) return
         gestureMoveBackHaptics()
         connection.setSelection(start, end)
     }
 
-    private fun actualSteps(steps: Int): Int {
-        val text = if (steps > 0) connection.getSelectedText(0) ?: return steps
-        else connection.getTextBeforeCursor(-steps * 4, 0) ?: return steps
-        return moveStepsToCharCount(text, steps)
+    /** Lengths of the next [count] words before [position] (the selection start): reads a few hundred chars,
+     *  more only when the words are not all in them. */
+    private fun wordLengthsBefore(position: Int, count: Int): IntArray {
+        var size = DELETE_SWIPE_TEXT_CHARS
+        while (true) {
+            val text = connection.getTextBeforeCursor(size, 0) ?: return IntArray(0)
+            val lengths = lastWordsLengths(text, count)
+            val reachedStart = text.length < size || text.length >= position
+            // a length reaching the first char read may be a word cut short by the window
+            val whole = lengths.count { it < text.length }
+            if (reachedStart || whole >= count || size >= DELETE_SWIPE_TEXT_MAX) return lengths
+            size *= 4
+        }
     }
 
     override fun onUpWithDeletePointerActive() {
@@ -507,6 +545,10 @@ class KeyboardActionListenerImpl(private val latinIME: LatinIME, private val inp
     }
 
     companion object {
+        private const val DELETE_SWIPE_STEPS_PER_WORD = 2 // FlorisBoard: absUnitCountX / 2
+        private const val DELETE_SWIPE_TEXT_CHARS = 300 // read before the cursor, times 4 while the words are not all in it
+        private const val DELETE_SWIPE_TEXT_MAX = 16384
+
         private enum class MetaPressState {
             UNSET, // default state, not active
             SET, // enabled without onPressKey (e.g. in popup)
