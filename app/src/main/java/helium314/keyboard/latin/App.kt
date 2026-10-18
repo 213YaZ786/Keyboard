@@ -20,6 +20,8 @@ import kotlinx.coroutines.launch
 class App : Application() {
     override fun onCreate() {
         super.onCreate()
+        // The isolated picture decoder (safemedia kit's DecoderService, process :decoder) runs nothing of the app
+        if (android.os.Process.isIsolated()) return
         // The links kit's catalogs (ClearURLs rules, public suffixes) from the assets, for the paste cleaning.
         helium314.keyboard.latin.core.link.ClearUrls.attach(this)
         DebugFlags.init(this)

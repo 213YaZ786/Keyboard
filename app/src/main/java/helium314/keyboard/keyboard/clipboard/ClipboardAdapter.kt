@@ -22,6 +22,7 @@ import helium314.keyboard.latin.ClipboardHistoryManager
 import helium314.keyboard.latin.R
 import helium314.keyboard.latin.common.ColorType
 import helium314.keyboard.latin.settings.Settings
+import kotlinx.coroutines.Job
 
 class ClipboardAdapter(
        val clipboardLayoutParams: ClipboardLayoutParams,
@@ -39,6 +40,7 @@ class ClipboardAdapter(
     var itemTypeFace: Typeface? = null
     var itemTextColor = 0
     var itemTextSize = 0f
+    var thumbnailSidePx = 0 // Keyboard: the width of a column, set by the history view
 
     // Keyboard: the Glass style shows cards under the headers "Pinned" and "Recent", as FlorisBoard's
     // ClipboardInputLayout.kt (HistoryMainView: clipboardItems, ClipCategoryTitle, StaggeredGridItemSpan.FullLine,
@@ -123,6 +125,11 @@ class ClipboardAdapter(
         }
     }
 
+    // Keyboard: a card leaving the screen stops its decoding (https://developer.android.com/topic/performance/graphics/process-bitmap)
+    override fun onViewRecycled(holder: RecyclerView.ViewHolder) {
+        (holder as? ViewHolder)?.cancelThumbnail()
+    }
+
     private fun getItem(position: Int) = clipboardHistoryManager?.getHistoryEntry(position)
 
     override fun getItemCount(): Int {
@@ -166,23 +173,71 @@ class ClipboardAdapter(
             if (glass) makeCard(view, colors)
         }
 
+        // Keyboard: the job decoding this card's picture, cancelled when the card is bound to another entry
+        private var thumbnailJob: Job? = null
+
+        // stops the decoding of a card that leaves the screen (https://developer.android.com/topic/performance/graphics/process-bitmap)
+        fun cancelThumbnail() {
+            thumbnailJob?.cancel()
+            thumbnailJob = null
+        }
+
+        // the longest side of a thumbnail: the card's column (160 dp when the view has not set it yet)
+        private val thumbnailSide get() = thumbnailSidePx.takeIf { it > 0 } ?: (160 * itemView.resources.displayMetrics.density).toInt()
+
         fun setContent(historyEntry: ClipboardHistoryEntry?) {
             if (historyEntry == null) return
             itemView.tag = historyEntry.id
+            thumbnailJob?.cancel()
+            thumbnailJob = null
+            contentImageView.setImageDrawable(null)
+            contentImageView.minimumHeight = 0
             // Keyboard: a sensitive item shows "Sensitive content", never its text or picture; a tap still pastes it
             // (FlorisBoard's ClipboardItem.displayText, ClipboardPrivacy.shown)
             val masked = historyEntry.isSensitive
             if (masked) {
                 contentTextView.text = ClipboardPrivacy.shown(null, true, itemView.context.getString(R.string.clipboard_sensitive_content))
             } else if (historyEntry.filename != null) {
-                historyEntry.setImageAndDescription(contentImageView, contentTextView)
+                showFile(historyEntry)
             } else {
                 contentTextView.text = historyEntry.text?.take(1000) // truncate displayed text for performance reasons
             }
             pinnedIconView.visibility = if (historyEntry.isPinned) View.VISIBLE else View.GONE
             contentImageView.visibility = if (historyEntry.filename != null && !masked) View.VISIBLE else View.GONE
             if (masked) contentImageView.setImageDrawable(null)
+            updateTextVisibility()
+        }
+
+        // HeliBoard's line of setContent, kept as it was
+        // (https://github.com/HeliBorg/HeliBoard/blob/main/app/src/main/java/helium314/keyboard/keyboard/clipboard/ClipboardAdapter.kt)
+        private fun updateTextVisibility() {
             contentTextView.visibility = if (contentTextView.text.isNullOrEmpty()) View.GONE else View.VISIBLE
+        }
+
+        // Keyboard: a picture is a thumbnail at the size of the card (FlorisBoard's ClipboardInputLayout IMAGE items,
+        // https://github.com/florisboard/florisboard/blob/main/app/src/main/kotlin/dev/patrickgold/florisboard/ime/clipboard/ClipboardInputLayout.kt),
+        // decoded off the main thread in the isolated decoder (ClipThumbnails, the recycled card not filled by an old job as
+        // https://developer.android.com/topic/performance/graphics/process-bitmap); a file, or a "picture" whose bytes are none,
+        // shows its type as in HeliBoard. While the decoder works the card keeps room for the picture.
+        private fun showFile(entry: ClipboardHistoryEntry) {
+            val side = thumbnailSide
+            val cached = ClipThumbnails.cached(entry, side)
+            if (cached != null) {
+                contentImageView.setImageBitmap(cached)
+                contentTextView.text = null
+                return
+            }
+            if (entry.mimeTypes?.any { it.startsWith("image/") } != true || ClipThumbnails.isFile(entry)) {
+                entry.setFileDescription(contentImageView, contentTextView)
+                return
+            }
+            contentTextView.text = null
+            contentImageView.minimumHeight = side * 3 / 4
+            thumbnailJob = ClipThumbnails.load(itemView.context, entry, side) { bitmap ->
+                contentImageView.minimumHeight = 0
+                if (bitmap != null) contentImageView.setImageBitmap(bitmap) else entry.setFileDescription(contentImageView, contentTextView)
+                updateTextVisibility()
+            }
         }
 
         // Keyboard: the clipboard-item of FlorisBoard's stylesheet

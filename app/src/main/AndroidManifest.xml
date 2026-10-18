@@ -161,6 +161,14 @@ SPDX-License-Identifier: Apache-2.0 AND GPL-3.0-only
                 android:resource="@xml/gesture_data_path"/>
         </provider>
 
+        <!-- Keyboard: copied pictures are decoded here, in a process of its own with no permission, no files and no network
+             (Modules' safemedia kit, core/security/DecoderService) -->
+        <service
+            android:name=".core.security.DecoderService"
+            android:exported="false"
+            android:isolatedProcess="true"
+            android:process=":decoder" />
+
         <!-- Keyboard: the animated emoji sent as images (InputConnectionCompat.commitContent), only the animated folder,
              read by the app receiving it through the one-time grant of the input content, never exported
              (https://developer.android.com/develop/ui/views/touch-and-input/image-keyboard;

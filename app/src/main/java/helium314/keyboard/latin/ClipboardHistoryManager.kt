@@ -35,7 +35,9 @@ import helium314.keyboard.latin.databinding.ClipboardSuggestionBinding
 import helium314.keyboard.latin.settings.Defaults
 import helium314.keyboard.latin.settings.Settings
 import helium314.keyboard.latin.utils.InputTypeUtils
+import helium314.keyboard.keyboard.clipboard.ClipThumbnails
 import helium314.keyboard.latin.utils.Log
+import helium314.keyboard.latin.utils.ResourceUtils
 import helium314.keyboard.latin.utils.ToolbarKey
 import helium314.keyboard.latin.utils.prefs
 import kotlinx.coroutines.GlobalScope
@@ -261,15 +263,31 @@ class ClipboardHistoryManager(
         }
         textView.setOnClickListener(onClickListener)
 
+        var loadThumbnail: (() -> Unit)? = null
         if (hasImage) {
             if (InputTypeUtils.isNumberInputType(inputType)) return null
             val imageView = binding.clipboardSuggestionImage
-            imageView.isVisible = true
-            try {
-                imageView.setImageURI(clipItem.uri)
-            } catch (e: Exception) {
-                Log.w(TAG, "error setting clipboard image", e) // happens with SecurityException: Permission Denial
-                return null
+            val uri = clipItem.uri!!
+            if (isClipSensitive(inputType)) {
+                // Keyboard: a sensitive picture is never drawn, as the sensitive text is not (ClipboardPrivacy.shown)
+                textView.text = ClipboardPrivacy.shown(null, true, latinIME.getString(R.string.clipboard_sensitive_content))
+            } else {
+                // Keyboard: the picture comes from another app, so it is decoded in the isolated decoder, off the main thread, at
+                // the size shown (ClipThumbnails, Modules' safemedia kit); the chip appears with it, and stays away when the
+                // bytes are no picture or the clip cannot be read (SecurityException: Permission Denial, as HeliBoard returned null)
+                binding.root.visibility = View.INVISIBLE
+                loadThumbnail = {
+                    ClipThumbnails.loadUri(latinIME, uri, ResourceUtils.getSuggestionStripHeight(latinIME.resources)) { bitmap ->
+                        if (clipboardSuggestionView === binding.root) {
+                            if (bitmap == null) removeClipboardSuggestion()
+                            else {
+                                imageView.setImageBitmap(bitmap)
+                                imageView.isVisible = true
+                                binding.root.visibility = View.VISIBLE
+                            }
+                        }
+                    }
+                }
             }
             imageView.setOnClickListener(onClickListener)
         }
@@ -291,6 +309,7 @@ class ClipboardHistoryManager(
         } else colors.setBackground(binding.root, ColorType.CLIPBOARD_SUGGESTION_BACKGROUND)
 
         clipboardSuggestionView = binding.root
+        loadThumbnail?.invoke()
         return clipboardSuggestionView
     }
 

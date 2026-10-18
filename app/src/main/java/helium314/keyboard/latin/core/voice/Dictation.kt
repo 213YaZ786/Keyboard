@@ -17,7 +17,10 @@ import java.util.concurrent.LinkedBlockingQueue
 interface PcmSource {
     /** Opens the source; throws when it cannot be (no right to the microphone). */
     fun start()
-    /** Fills [buffer] with the next sound and gives how many samples, -1 when the source is over. */
+    /**
+     * Fills [buffer] with the next sound and gives how many samples: -1 when the source is over (the end of a file:
+     * the words still held are written out), another negative number when it failed.
+     */
     fun read(buffer: ShortArray): Int
     fun release()
 }
@@ -26,9 +29,11 @@ interface PcmSource {
  * The microphone, read the way Transcribro reads it: AudioRecord built with an AudioFormat of 16 kHz, mono, 16 bits
  * https://github.com/soupslurpr/Transcribro/blob/main/app/src/main/kotlin/dev/soupslurpr/transcribro/recognitionservice/MainRecognitionService.kt
  * (onStartListening, AudioRecord.Builder().setAudioFormat(...).build(), startRecording, read, stop, release).
- * A second of room in its buffer, so the voice detector's work never loses sound.
+ * A second of room in its buffer, so the voice detector's work never loses sound. [attribution]: a context whose
+ * attribution source names another app (a recognition service listening for it), given to the recorder with
+ * setContext as Transcribro does, so Android's microphone light names that app; null for the app itself.
  */
-internal class MicSource : PcmSource {
+class MicSource(private val attribution: Context? = null) : PcmSource {
     private var record: AudioRecord? = null
 
     override fun start() {
@@ -39,6 +44,7 @@ internal class MicSource : PcmSource {
             .build()
         val minimum = AudioRecord.getMinBufferSize(Dictation.SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
         val made = AudioRecord.Builder()
+            .apply { attribution?.let { setContext(it) } }
             .setAudioFormat(format)
             .setBufferSizeInBytes(maxOf(minimum, Dictation.SAMPLE_RATE * 2))
             .build()
@@ -50,7 +56,8 @@ internal class MicSource : PcmSource {
         made.startRecording()
     }
 
-    override fun read(buffer: ShortArray): Int = record?.read(buffer, 0, buffer.size) ?: -1
+    // AudioRecord's errors are negative (ERROR is -1): any of them is a failure here, never the end of a source
+    override fun read(buffer: ShortArray): Int = (record?.read(buffer, 0, buffer.size) ?: -2).let { if (it < 0) -2 else it }
 
     override fun release() {
         record?.let {
@@ -133,6 +140,14 @@ class Dictation(private val context: Context) {
         fun committed(text: String)
         /** The dictation is over, everything released. */
         fun stopped(why: Why)
+        /**
+         * The loudness now, in dB, as Android's RecognitionListener.onRmsChanged gives it; for whisper, Kõnele's
+         * getRmsdb (10 log10 of the root mean square of the 16-bit samples just read)
+         * https://github.com/Kaljurand/speechutils/blob/master/app/src/main/java/ee/ioc/phon/android/speechutils/AbstractAudioRecorder.java
+         */
+        fun level(rmsDb: Float) = Unit
+        /** The language heard (whisper's code, "fr"), after the first phrase written out: whisper_full_lang_id. */
+        fun language(code: String) = Unit
     }
 
     private val main = Handler(Looper.getMainLooper())
@@ -144,17 +159,27 @@ class Dictation(private val context: Context) {
     /**
      * Starts listening. SYSTEM asks the phone's recognizer for [language]; WHISPER needs [model] (the file of
      * SpeechModel) and writes [language] when whisper knows it, else finds it from the sound. [source] is the sound,
-     * the microphone when null. False when one is already running; otherwise the answer comes to [listener].
+     * the microphone when null. [silenceMs]: silence after speech that ends it (an app asking for another length:
+     * RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS). [prompt]: words the speech likely holds,
+     * given to whisper (Whisper.transcribe). False when one is already running; otherwise the answer comes to [listener].
      */
-    fun start(engine: Engine, language: Locale, model: File?, listener: Listener, source: PcmSource? = null): Boolean {
+    fun start(
+        engine: Engine,
+        language: Locale,
+        model: File?,
+        listener: Listener,
+        source: PcmSource? = null,
+        silenceMs: Long = SILENCE_MS,
+        prompt: String? = null,
+    ): Boolean {
         if (session != null) return false
         if (source == null && context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             main.post { listener.stopped(Why.NO_MICROPHONE_RIGHT) }
             return true
         }
         val made: Session = when (engine) {
-            Engine.SYSTEM -> SystemSession(language, listener)
-            Engine.WHISPER -> WhisperSession(language, model, listener, source ?: MicSource())
+            Engine.SYSTEM -> SystemSession(language, listener, silenceMs)
+            Engine.WHISPER -> WhisperSession(language, model, listener, source ?: MicSource(), silenceMs, prompt)
         }
         session = made
         if (!made.begin()) {
@@ -181,8 +206,9 @@ class Dictation(private val context: Context) {
         if (session === made) session = null
     }
 
-    private inner class SystemSession(language: Locale, private val listener: Listener) : Session, SystemSpeech.LiveCallback {
-        private val live = SystemSpeech.Live(context, language, SILENCE_MS, this)
+    private inner class SystemSession(language: Locale, private val listener: Listener, silenceMs: Long) :
+        Session, SystemSpeech.LiveCallback {
+        private val live = SystemSpeech.Live(context, language, silenceMs, this)
         private var userStopped = false
         private var heard = false
         private var cancelled = false
@@ -208,6 +234,12 @@ class Dictation(private val context: Context) {
             if (!cancelled) listener.committed(text)
         }
 
+        // The recognizer's onRmsChanged passed on
+        // https://developer.android.com/reference/android/speech/RecognitionListener#onRmsChanged(float)
+        override fun level(rmsDb: Float) {
+            if (!cancelled) listener.level(rmsDb)
+        }
+
         override fun ended(error: Int) {
             finished(this)
             if (cancelled) return
@@ -229,11 +261,14 @@ class Dictation(private val context: Context) {
         private val model: File?,
         private val listener: Listener,
         private val source: PcmSource,
+        private val silenceMs: Long,
+        private val prompt: String?,
     ) : Session {
         @Volatile private var stopRequested = false
         @Volatile private var flush = false
         @Volatile private var cancelled = false
         @Volatile private var why = Why.USER
+        @Volatile private var spoke = false
         private val phrases = LinkedBlockingQueue<Any>()
         private val end = Any()
 
@@ -270,7 +305,7 @@ class Dictation(private val context: Context) {
         private fun listen(vadFile: File) {
             val libDir = context.applicationInfo.nativeLibraryDir
             val vad = Whisper.vadOpen(libDir, vadFile.path)
-            val segmenter = VadSegmenter()
+            val segmenter = VadSegmenter(VadSegmenter.Params(stopSilenceMs = silenceMs.toInt()))
             val shorts = ShortArray(SAMPLE_RATE / 10)
             val chunk = FloatArray(CHUNK)
             var held = 0
@@ -278,7 +313,22 @@ class Dictation(private val context: Context) {
                 if (vad == 0L) fail(Why.FAILED)
                 while (!stopRequested) {
                     val n = source.read(shorts)
+                    if (n == -1) {
+                        // The source is over: what is held is written out, as when the user ends it
+                        if (!stopRequested) {
+                            flush = true
+                            why = if (spoke) Why.SILENCE else Why.NO_SPEECH
+                            stopRequested = true
+                        }
+                        break
+                    }
                     if (n < 0) { fail(Why.FAILED); break }
+                    // Kõnele's getRmsdb over the samples just read (see Listener.level)
+                    var squares = 0L
+                    for (k in 0 until n) squares += shorts[k].toLong() * shorts[k]
+                    val rms = if (n > 0) kotlin.math.sqrt(squares.toDouble() / n) else 0.0
+                    val db = if (rms > 1) (10 * kotlin.math.log10(rms)).toFloat() else 0f
+                    if (!cancelled) main.post { if (!cancelled) listener.level(db) }
                     var i = 0
                     while (i < n && !stopRequested) {
                         val take = minOf(n - i, CHUNK - held)
@@ -311,7 +361,7 @@ class Dictation(private val context: Context) {
                     why = if (event.reason == VadSegmenter.Reason.SILENCE) Why.SILENCE else Why.NO_SPEECH
                     stopRequested = true
                 }
-                VadSegmenter.Event.Speech -> Unit
+                VadSegmenter.Event.Speech -> spoke = true
             }
         }
 
@@ -330,11 +380,16 @@ class Dictation(private val context: Context) {
                 if (handle == 0L) { fail(Why.FAILED); return }
                 val threads = (Runtime.getRuntime().availableProcessors() / 2).coerceIn(2, 4)
                 val code = languageCode(language)
+                var told = false
                 while (true) {
                     val next = phrases.take()
                     if (next === end) break
                     if (cancelled) continue
-                    val bytes = Whisper.transcribe(handle, next as FloatArray, threads, code, true) ?: continue
+                    val bytes = Whisper.transcribe(handle, next as FloatArray, threads, code, true, prompt) ?: continue
+                    if (!told) {
+                        told = true
+                        Whisper.heardLanguage(handle)?.let { heard -> main.post { if (!cancelled) listener.language(heard) } }
+                    }
                     val text = String(bytes, StandardCharsets.UTF_8).trim()
                     if (text.isNotEmpty() && !cancelled) main.post { if (!cancelled) listener.committed(text) }
                 }

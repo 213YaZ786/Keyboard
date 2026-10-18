@@ -16,11 +16,18 @@ internal object Whisper {
     /**
      * The words in [pcm] (16 kHz mono, -1 to 1) as UTF-8, in [language] (a code whisper knows, else "auto": found from
      * the sound itself), never translated. [live]: dictation, which leaves out sound effects written as words.
+     * [prompt]: words the speech likely holds, whisper's initial prompt (cli.cpp's --prompt), or null.
      */
-    @JvmStatic external fun transcribe(handle: Long, pcm: FloatArray, threads: Int, language: String, live: Boolean): ByteArray?
+    @JvmStatic external fun transcribe(handle: Long, pcm: FloatArray, threads: Int, language: String, live: Boolean, prompt: String?): ByteArray?
 
     /** The words in [pcm], in whatever language they are spoken (SMS's voice messages). */
-    fun transcribe(handle: Long, pcm: FloatArray, threads: Int): ByteArray? = transcribe(handle, pcm, threads, "auto", false)
+    fun transcribe(handle: Long, pcm: FloatArray, threads: Int): ByteArray? = transcribe(handle, pcm, threads, "auto", false, null)
+
+    /**
+     * The language heard in the last sound written out with [handle] (its code, "fr"), or null: cli.cpp's
+     * whisper_lang_str(whisper_full_lang_id(ctx)) https://github.com/ggml-org/whisper.cpp/blob/v1.9.4/examples/cli/cli.cpp
+     */
+    @JvmStatic external fun heardLanguage(handle: Long): String?
 
     @JvmStatic external fun close(handle: Long)
 

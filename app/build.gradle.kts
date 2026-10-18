@@ -151,6 +151,7 @@ dependencies {
 
     // kotlin
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0")
+    implementation("com.github.bumptech.glide:gifdecoder:5.0.9") // run only inside the isolated DecoderService (safemedia kit), Modules' catalogue version
 
     // compose
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")

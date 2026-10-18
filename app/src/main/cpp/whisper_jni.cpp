@@ -48,7 +48,11 @@ jlong open_model(JNIEnv *env, jclass, jstring lib_dir, jstring model) {
     return reinterpret_cast<jlong>(ctx);
 }
 
-jbyteArray transcribe(JNIEnv *env, jclass, jlong handle, jfloatArray pcm, jint threads, jstring language, jboolean live) {
+// [prompt]: words the speech is likely to hold (the text before the cursor, names an app expects), given to whisper as
+// its initial prompt, as whisper.cpp's command line does with --prompt (examples/cli/cli.cpp, wparams.initial_prompt)
+// https://github.com/ggml-org/whisper.cpp/blob/v1.9.4/examples/cli/cli.cpp
+jbyteArray transcribe(JNIEnv *env, jclass, jlong handle, jfloatArray pcm, jint threads, jstring language, jboolean live,
+                      jstring prompt) {
     auto *ctx = reinterpret_cast<whisper_context *>(handle);
     if (ctx == nullptr) return nullptr;
     whisper_full_params params = whisper_full_default_params(WHISPER_SAMPLING_GREEDY);
@@ -58,6 +62,13 @@ jbyteArray transcribe(JNIEnv *env, jclass, jlong handle, jfloatArray pcm, jint t
     env->ReleaseStringUTFChars(language, lang);
     if (code != "auto" && whisper_lang_id(code.c_str()) < 0) code = "auto";
     params.language = code.c_str();
+    std::string hint;
+    if (prompt != nullptr) {
+        const char *p = env->GetStringUTFChars(prompt, nullptr);
+        hint = p;
+        env->ReleaseStringUTFChars(prompt, p);
+    }
+    if (!hint.empty()) params.initial_prompt = hint.c_str();
     params.translate = false;
     params.no_timestamps = true;
     params.print_progress = false;
@@ -82,6 +93,17 @@ jbyteArray transcribe(JNIEnv *env, jclass, jlong handle, jfloatArray pcm, jint t
     jbyteArray out = env->NewByteArray(static_cast<jsize>(text.size()));
     env->SetByteArrayRegion(out, 0, static_cast<jsize>(text.size()), reinterpret_cast<const jbyte *>(text.data()));
     return out;
+}
+
+// The language whisper heard in the last sound it wrote out (its code, "fr"), as cli.cpp reports it:
+// whisper_lang_str(whisper_full_lang_id(ctx)) https://github.com/ggml-org/whisper.cpp/blob/v1.9.4/examples/cli/cli.cpp
+jstring heard_language(JNIEnv *env, jclass, jlong handle) {
+    auto *ctx = reinterpret_cast<whisper_context *>(handle);
+    if (ctx == nullptr) return nullptr;
+    const int id = whisper_full_lang_id(ctx);
+    if (id < 0) return nullptr;
+    const char *code = whisper_lang_str(id);
+    return code == nullptr ? nullptr : env->NewStringUTF(code);
 }
 
 void close_model(JNIEnv *, jclass, jlong handle) {
@@ -142,7 +164,8 @@ const char kClass[] = "helium314.keyboard.latin.core.voice.Whisper";
 
 const JNINativeMethod kMethods[] = {
     {"open", "(Ljava/lang/String;Ljava/lang/String;)J", reinterpret_cast<void *>(open_model)},
-    {"transcribe", "(J[FILjava/lang/String;Z)[B", reinterpret_cast<void *>(transcribe)},
+    {"transcribe", "(J[FILjava/lang/String;ZLjava/lang/String;)[B", reinterpret_cast<void *>(transcribe)},
+    {"heardLanguage", "(J)Ljava/lang/String;", reinterpret_cast<void *>(heard_language)},
     {"close", "(J)V", reinterpret_cast<void *>(close_model)},
     {"abort", "(Z)V", reinterpret_cast<void *>(abort_work)},
     {"knows", "(Ljava/lang/String;)Z", reinterpret_cast<void *>(knows_language)},

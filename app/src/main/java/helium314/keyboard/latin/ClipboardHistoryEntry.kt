@@ -5,14 +5,14 @@ package helium314.keyboard.latin
 import android.annotation.SuppressLint
 import android.content.ClipDescription
 import android.content.Context
-import android.graphics.BitmapFactory
+import android.net.Uri
 import android.os.Build
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.core.content.FileProvider
 import helium314.keyboard.latin.common.ColorType
 import helium314.keyboard.latin.settings.Settings
-import helium314.keyboard.latin.utils.Log
+import helium314.keyboard.latin.core.security.MediaCheck
 import androidx.core.view.inputmethod.InputContentInfoCompat
 import helium314.keyboard.latin.database.ClipboardDao
 import java.io.File
@@ -36,8 +36,24 @@ class ClipboardHistoryEntry(
         return result
     }
 
+    // Keyboard: what the stored file really is, from its first bytes (Modules' safemedia kit, MediaCheck), read once
+    @Volatile private var realKind: MediaCheck.Kind? = null
+
+    fun mediaKind(context: Context): MediaCheck.Kind = realKind ?: (
+        if (filename == null) MediaCheck.Kind.OTHER
+        else MediaCheck.kind(context, Uri.fromFile(File(ClipboardDao.clipFilesDir, filename)))
+    ).also { realKind = it }
+
+    // Keyboard: the types given to the app receiving the file; a picture, film or sound type only when the bytes agree
+    // (MediaCheck.typeFor, WHATWG MIME Sniffing: https://mimesniff.spec.whatwg.org/#context-specific-sniffing),
+    // else application/octet-stream: a file that lies about its type reaches no viewer as a picture
+    fun safeMimeTypes(context: Context): List<String>? {
+        val real = mediaKind(context)
+        return mimeTypes?.map { MediaCheck.typeFor(real, it) }
+    }
+
     fun getContentInfo(context: Context): InputContentInfoCompat =
-        InputContentInfoCompat(getContentUri(context)!!, ClipDescription(text, mimeTypes?.toTypedArray()), null)
+        InputContentInfoCompat(getContentUri(context)!!, ClipDescription(text, safeMimeTypes(context)?.toTypedArray()), null)
 
     fun getContentUri(context: Context) = filename?.let { FileProvider.getUriForFile(
         context,
@@ -45,28 +61,14 @@ class ClipboardHistoryEntry(
         File(ClipboardDao.clipFilesDir, it)
     ) }
 
-    // todo: if slow we could decode images it in a coroutine, or use cached preview images
+    // Keyboard: HeliBoard's setImageAndDescription without its picture half
+    // (https://github.com/HeliBorg/HeliBoard/blob/main/app/src/main/java/helium314/keyboard/latin/ClipboardHistoryEntry.kt):
+    // a file that is no picture (or whose bytes are none) shows its type's icon and name; the picture itself is
+    // decoded in the isolated decoder (keyboard/clipboard/ClipThumbnails)
     @SuppressLint("SetTextI18n")
-    fun setImageAndDescription(imageView: ImageView, textView: TextView) {
+    fun setFileDescription(imageView: ImageView, textView: TextView) {
+        val mimeTypes = safeMimeTypes(imageView.context)
         if (mimeTypes == null || filename == null) return // should never happen
-        try {
-            val path = File(ClipboardDao.clipFilesDir, filename).absolutePath
-            val opt = BitmapFactory.Options()
-            opt.inJustDecodeBounds = true
-            BitmapFactory.decodeFile(path, opt)
-            // reduce size of images larger than the screen, only needs to fit half screen width
-            val scale = opt.outWidth / (imageView.resources.displayMetrics.widthPixels * 2)
-            opt.inSampleSize = scale
-            opt.inJustDecodeBounds = false
-            val bitmap = BitmapFactory.decodeFile(path, opt)
-            if (bitmap != null) {
-                imageView.setImageBitmap(bitmap)
-                textView.text = null
-                return
-            }
-        } catch (e: Exception) {
-            Log.w("ClipboardHistoryEntry", "could not load image for clip $id", e)
-        }
         val description = if (text.isNullOrBlank()) ""
             else "\n" + textView.context.getString(R.string.item_description, text)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {

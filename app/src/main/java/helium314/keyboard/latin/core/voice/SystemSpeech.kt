@@ -140,6 +140,9 @@ internal class SystemSpeech(private val context: Context) {
         fun segment(text: String)
         /** The session is over: [error] is a SpeechRecognizer.ERROR_* code, 0 when it ended by itself or on request. */
         fun ended(error: Int)
+        /** The loudness of the sound now, in the recognizer's dB: RecognitionListener.onRmsChanged
+         *  https://developer.android.com/reference/android/speech/RecognitionListener#onRmsChanged(float) */
+        fun level(rmsDb: Float) = Unit
     }
 
     /**
@@ -247,7 +250,9 @@ internal class SystemSpeech(private val context: Context) {
                 else -> end(error)
             }
             override fun onReadyForSpeech(params: Bundle?) = Unit
-            override fun onRmsChanged(rmsdB: Float) = Unit
+            override fun onRmsChanged(rmsdB: Float) {
+                if (!finished) callback.level(rmsdB)
+            }
             override fun onBufferReceived(buffer: ByteArray?) = Unit
             override fun onEvent(eventType: Int, params: Bundle?) = Unit
         }

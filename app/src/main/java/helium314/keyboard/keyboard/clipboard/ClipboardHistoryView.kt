@@ -203,6 +203,8 @@ class ClipboardHistoryView @JvmOverloads constructor(
                     maxOf(2, (keyboardWidth / (160 * resources.displayMetrics.density)).toInt())
             }
             layoutParams.width = keyboardWidth
+            // Keyboard: a picture is decoded at the width of its column
+            clipboardAdapter.thumbnailSidePx = keyboardWidth / (layoutManager as StaggeredGridLayoutManager).spanCount
             // new ClipboardLayoutParams means ClipboardAdapter has wrong gaps, but that's ok (only relevant when resizing floating keyboard)
             ClipboardLayoutParams(context).setListProperties(this)
 
