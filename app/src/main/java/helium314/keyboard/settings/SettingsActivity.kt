@@ -131,7 +131,7 @@ open class SettingsActivity : ComponentActivity(), SharedPreferences.OnSharedPre
                             }
                         }
                     else {
-                        SettingsNavHost(onClickBack = { this@SettingsActivity.finish() })
+                        SettingsNavHost(onClickBack = { this@SettingsActivity.finish() }, startDestination = startDestination())
                         if (showWelcomeWizard) {
                             WelcomeWizard(close = { showWelcomeWizard = false }, finish = this@SettingsActivity::finish)
                         } else if (crashReports.isNotEmpty()) {
@@ -249,7 +249,17 @@ open class SettingsActivity : ComponentActivity(), SharedPreferences.OnSharedPre
 
         var forceNight: Boolean? = null
         var forceTheme: String? = null
+
+        /**
+         * Keyboard: the screen to open at (the mic opens Dictation when no engine is ready). Only the screens listed
+         * here are taken from the intent, so another app cannot send the settings anywhere else.
+         * Intent extras as https://developer.android.com/reference/android/content/Intent#putExtra(java.lang.String,%20java.lang.String)
+         */
+        const val EXTRA_DESTINATION = "destination"
+        private val OPENABLE = setOf(SettingsDestination.Dictation)
     }
+
+    private fun startDestination(): String? = intent?.getStringExtra(EXTRA_DESTINATION)?.takeIf { it in OPENABLE }
 
     override fun onSharedPreferenceChanged(prefereces: SharedPreferences?, key: String?) {
         prefChanged()

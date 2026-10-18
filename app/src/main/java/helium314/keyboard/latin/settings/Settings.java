@@ -184,6 +184,7 @@ public final class Settings implements SharedPreferences.OnSharedPreferenceChang
     public static final String PREF_SELECTED_SUBTYPE = "selected_subtype";
     public static final String PREF_URL_DETECTION = "url_detection";
     public static final String PREF_NETWORK = "network"; // Keyboard: the Network switch, off = nothing of the app touches the network
+    public static final String PREF_SPEECH_MODEL = "speech_model"; // Keyboard: dictation's engine: "system", a model's file name, or empty (core/voice SpeechChoice)
     public static final String PREF_UPDATE_MODE = "update_mode"; // Keyboard: UpdateMode name (update kit)
     public static final String PREF_DONT_SHOW_MISSING_DICTIONARY_DIALOG = "dont_show_missing_dict_dialog";
     public static final String PREF_QUICK_PIN_TOOLBAR_KEYS = "quick_pin_toolbar_keys";

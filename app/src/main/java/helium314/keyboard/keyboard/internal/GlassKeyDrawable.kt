@@ -72,6 +72,17 @@ class GlassKeyDrawable(private val look: GlassLook, private val kind: Kind, cont
     private var pressed = false
     private var shader: Any? = null
 
+    /**
+     * Kept in its pressed look without a finger: the mic while it dictates (the stop button). Redrawn on change,
+     * Drawable.invalidateSelf https://developer.android.com/reference/android/graphics/drawable/Drawable#invalidateSelf()
+     */
+    var held = false
+        set(value) {
+            if (field == value) return
+            field = value
+            invalidateSelf()
+        }
+
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val shadowPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val rimPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
@@ -164,7 +175,7 @@ class GlassKeyDrawable(private val look: GlassLook, private val kind: Kind, cont
             if (w <= 0f || h <= 0f) return
             radius = min(pillRadiusDp * density, min(w, h) / 2f)
         }
-        val tint = if (pressed) pressedTint else normalTint
+        val tint = if (pressed || held) pressedTint else normalTint
         val savedX = originX
         val savedY = originY
         originX += dx; originY += dy

@@ -1,10 +1,18 @@
 import com.android.build.api.variant.ApplicationVariant
+import java.net.URI
+import java.security.MessageDigest
 
 plugins {
     id("com.android.application")
     kotlin("plugin.serialization") version "2.4.0"
     kotlin("plugin.compose") version "2.4.0"
 }
+
+// whisper.cpp, the engine that writes dictation out: see fetchWhisper below (SMS's app/build.gradle.kts, same pins).
+val whisperVersion = "1.9.4"
+val whisperSha = "57e280cee375ab02425b806ad5146b99f6eb9357e3c2b31357c8a6af2e2e44ae"
+val whisperRoot = layout.buildDirectory.dir("whisper").get().asFile
+val whisperSrc = File(whisperRoot, "whisper.cpp-$whisperVersion")
 
 android {
     compileSdk = 37
@@ -19,10 +27,12 @@ android {
             abiFilters.clear()
             abiFilters.addAll(listOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64"))
         }
-        // c++_static as Application.mk's APP_STL (HeliBoard), passed as Calculator does
+        // c++_shared since the app has several native libraries (the dictionary engine and whisper.cpp): one runtime for
+        // them all, as the NDK's guide says https://developer.android.com/ndk/guides/cpp-support#static_runtimes
+        // (HeliBoard's Application.mk had c++_static for its one library); WHISPER_SRC is where fetchWhisper unpacks the source
         externalNativeBuild {
             cmake {
-                arguments("-DANDROID_STL=c++_static")
+                arguments("-DANDROID_STL=c++_shared", "-DWHISPER_SRC=${whisperSrc.absolutePath}")
             }
         }
         proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
@@ -163,4 +173,31 @@ dependencies {
     testImplementation("org.robolectric:robolectric:4.16.1")
     testImplementation("androidx.test:runner:1.7.0")
     testImplementation("androidx.test:core:1.7.0")
+}
+
+// whisperVersion and its source's checksum are pinned at the top.
+// The engine that writes dictation out: whisper.cpp (MIT, github.com/ggml-org/whisper.cpp), its source fetched at the
+// pinned release and checked against its SHA-256, then compiled here; the speech model itself is fetched by the app,
+// only when the user asks for it. Copied from SMS's app/build.gradle.kts (fetchWhisper).
+val fetchWhisper by tasks.registering {
+    val root = whisperRoot
+    val src = whisperSrc
+    val version = whisperVersion
+    val sha = whisperSha
+    inputs.property("version", version)
+    outputs.dir(src)
+    doLast {
+        if (File(src, "CMakeLists.txt").exists()) return@doLast
+        val bytes = URI("https://github.com/ggml-org/whisper.cpp/archive/refs/tags/v$version.tar.gz").toURL().openStream().use { it.readBytes() }
+        val got = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
+        check(got == sha) { "whisper.cpp: checksum does not match" }
+        root.mkdirs()
+        val archive = File(root, "whisper.tar.gz").apply { writeBytes(bytes) }
+        val tar = ProcessBuilder("tar", "xzf", archive.path, "-C", root.path).inheritIO().start()
+        check(tar.waitFor() == 0) { "whisper.cpp: could not unpack" }
+        archive.delete()
+    }
+}
+tasks.configureEach {
+    if (name.startsWith("configureCMake") || name.startsWith("buildCMake") || name.startsWith("generateJsonModel")) dependsOn(fetchWhisper)
 }

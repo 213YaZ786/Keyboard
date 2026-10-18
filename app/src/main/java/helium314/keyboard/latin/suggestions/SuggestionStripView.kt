@@ -5,6 +5,9 @@
  */
 package helium314.keyboard.latin.suggestions
 
+import android.animation.ObjectAnimator
+import android.animation.PropertyValuesHolder
+import android.animation.ValueAnimator
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.SharedPreferences
@@ -23,6 +26,7 @@ import android.view.View
 import android.view.View.OnLongClickListener
 import android.view.ViewGroup
 import android.view.accessibility.AccessibilityEvent
+import android.view.animation.AccelerateDecelerateInterpolator
 import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.LinearLayout
@@ -56,6 +60,7 @@ import helium314.keyboard.latin.utils.createToolbarKey
 import helium314.keyboard.latin.utils.dpToPx
 import helium314.keyboard.latin.utils.getEnabledToolbarKeys
 import helium314.keyboard.latin.utils.getPinnedToolbarKeys
+import helium314.keyboard.latin.utils.getStringResourceOrName
 import helium314.keyboard.latin.utils.isTranslateKeyShown
 import helium314.keyboard.latin.utils.prefs
 import helium314.keyboard.latin.utils.removeFirst
@@ -378,6 +383,57 @@ class SuggestionStripView(context: Context, attrs: AttributeSet?, defStyle: Int)
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
         dismissMoreSuggestionsPanel()
+        voicePulse?.cancel() // Keyboard: no animation left running with the bar gone
+        voicePulse = null
+    }
+
+    private var voicePulse: ObjectAnimator? = null
+    private val micIcons = HashMap<View, Drawable>()
+
+    /**
+     * Keyboard: the mic while it dictates. As iOS 26's keyboard does, the mic becomes an animated stop button and the
+     * keys stay (Apple, "Dictate text on iPhone", https://support.apple.com/guide/iphone/dictate-text-iph2c0651d2/ios):
+     * the icon is Material Symbols' stop, the glass key keeps its pressed look (GlassKeyDrawable.held) and pulses with
+     * Android's property animation, PropertyValuesHolder scale on both axes, repeat and reverse
+     * https://developer.android.com/reference/android/animation/ObjectAnimator#ofPropertyValuesHolder(java.lang.Object,%20android.animation.PropertyValuesHolder...)
+     * Touched in the other styles too, where the mic is a tool among the others.
+     */
+    fun setDictating(on: Boolean) {
+        val colors = Settings.getValues().mColors
+        val keys = listOfNotNull(
+            glassVoiceKey,
+            toolbar.findViewWithTag<View>(ToolbarKey.VOICE) as? ImageButton,
+            pinnedKeys.findViewWithTag<View>(ToolbarKey.VOICE) as? ImageButton,
+        )
+        for (key in keys) {
+            if (on) {
+                micIcons.getOrPut(key) { key.drawable } // the mic as it was set up, put back as it was
+                key.setImageDrawable(context.getDrawable(R.drawable.ic_dictation_stop)?.mutate())
+                colors.setColor(key, ColorType.TOOL_BAR_KEY)
+            } else {
+                key.setImageDrawable(micIcons.remove(key) ?: KeyboardIconsSet.instance.getNewDrawable(ToolbarKey.VOICE.name, context))
+            }
+            key.contentDescription = if (on) context.getString(R.string.dictation_stop)
+                else ToolbarKey.VOICE.name.lowercase().getStringResourceOrName("", context)
+            (key.background as? GlassKeyDrawable)?.held = on
+            key.scaleX = 1f
+            key.scaleY = 1f
+        }
+        voicePulse?.cancel()
+        voicePulse = null
+        val pulsing = glassVoiceKey ?: return
+        if (!on) return
+        voicePulse = ObjectAnimator.ofPropertyValuesHolder(
+            pulsing,
+            PropertyValuesHolder.ofFloat(View.SCALE_X, 1f, 1.12f),
+            PropertyValuesHolder.ofFloat(View.SCALE_Y, 1f, 1.12f),
+        ).apply {
+            duration = 650
+            repeatCount = ValueAnimator.INFINITE
+            repeatMode = ValueAnimator.REVERSE
+            interpolator = AccelerateDecelerateInterpolator()
+            start()
+        }
     }
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
@@ -574,7 +630,8 @@ class SuggestionStripView(context: Context, attrs: AttributeSet?, defStyle: Int)
     }
 
     fun updateVoiceKey() {
-        val show = Settings.getValues().mShowsVoiceInputKey
+        // Keyboard: no mic in incognito mode nor in a password field (mIncognitoModeEnabled covers both)
+        val show = Settings.getValues().mShowsVoiceInputKey && !Settings.getValues().mIncognitoModeEnabled
         toolbar.findViewWithTag<View>(ToolbarKey.VOICE)?.isVisible = show
         pinnedKeys.findViewWithTag<View>(ToolbarKey.VOICE)?.isVisible = show
         glassVoiceKey?.isVisible = show // Keyboard: nothing at the right end when the voice key is hidden

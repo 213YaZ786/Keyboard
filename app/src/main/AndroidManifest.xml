@@ -24,6 +24,8 @@ SPDX-License-Identifier: Apache-2.0 AND GPL-3.0-only
     <uses-permission android:name="android.permission.UPDATE_PACKAGES_WITHOUT_USER_ACTION" />
     <!-- The note after an update and while one downloads. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Dictation: the microphone is read only while the user dictates; asked from DictationPermissionActivity. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
     <application android:label="@string/english_ime_name"
             android:name="helium314.keyboard.latin.App"
@@ -107,6 +109,10 @@ SPDX-License-Identifier: Apache-2.0 AND GPL-3.0-only
         <activity android:name="helium314.keyboard.keyboard.translate.TranslateActivity" android:exported="false"
             android:theme="@style/TransparentActivityTheme" android:excludeFromRecents="true" android:noHistory="true"
             android:windowSoftInputMode="adjustResize|stateAlwaysVisible" android:configChanges="orientation|screenSize"/>
+
+        <!-- Dictation: the transparent activity that asks for the microphone, an input method cannot -->
+        <activity android:name="helium314.keyboard.latin.dictation.DictationPermissionActivity" android:exported="false"
+            android:theme="@style/TransparentActivityTheme" android:excludeFromRecents="true"/>
 
         <!-- Broadcast receivers -->
         <receiver android:name="SystemBroadcastReceiver"

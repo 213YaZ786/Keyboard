@@ -46,6 +46,7 @@ import helium314.keyboard.keyboard.emoji.EmojiPalettesView;
 import helium314.keyboard.keyboard.emoji.EmojiSearchActivity;
 import helium314.keyboard.keyboard.emoji.EmojiSearchActivityKt;
 import helium314.keyboard.keyboard.translate.TranslateActivity;
+import helium314.keyboard.latin.dictation.DictationController;
 import helium314.keyboard.keyboard.internal.KeyboardIconsSet;
 import helium314.keyboard.keyboard.internal.keyboard_parser.floris.KeyCode;
 import helium314.keyboard.latin.common.InsetsOutlineProvider;
@@ -711,6 +712,7 @@ public class LatinIME extends InputMethodService implements
 
     @Override
     public void onDestroy() {
+        if (mDictation != null) mDictation.destroy(); // Keyboard: no microphone, recognizer or model left
         mClipboardHistoryManager.onDestroy();
         mDictionaryFacilitator.closeDictionaries();
         mSettings.onDestroy();
@@ -789,6 +791,8 @@ public class LatinIME extends InputMethodService implements
         if (hasSuggestionStripView()) {
             mSuggestionStripView.setRtl(mRichImm.getCurrentSubtype().isRtlSubtype());
             mSuggestionStripView.setListener(this, view);
+            // Keyboard: a bar made again while it dictates (a theme change) shows the stop button
+            if (mDictation != null && mDictation.getListening()) mSuggestionStripView.setDictating(true);
         }
     }
 
@@ -840,6 +844,7 @@ public class LatinIME extends InputMethodService implements
 
         if (DebugFlags.DEBUG_ENABLED)
             Log.d(TAG, "switching to subtype " + SettingsSubtype.Companion.toSettingsSubtype(subtype));
+        stopDictation(); // Keyboard: the language changes, a dictation in the old one ends
         mSubtypeState.onSubtypeChanged(oldSubtype, subtype);
         StatsUtils.onSubtypeChanged(oldSubtype, subtype);
         mRichImm.onSubtypeChanged(subtype);
@@ -875,6 +880,7 @@ public class LatinIME extends InputMethodService implements
 
     void onStartInputViewInternal(final EditorInfo editorInfo, final boolean restarting) {
         super.onStartInputView(editorInfo, restarting);
+        stopDictation(); // Keyboard: another field, or the same one again: a dictation never follows
 
         setGestureDataGatheringMode(editorInfo, restarting);
 
@@ -1038,6 +1044,7 @@ public class LatinIME extends InputMethodService implements
     @Override
     public void onWindowHidden() {
         super.onWindowHidden();
+        stopDictation(); // Keyboard: the keyboard hidden, the microphone is released
         InputWindowState.INSTANCE.setShown(false); // Keyboard
         Log.i(TAG, "onWindowHidden");
         final MainKeyboardView mainKeyboardView = mKeyboardSwitcher.getMainKeyboardView();
@@ -1050,6 +1057,7 @@ public class LatinIME extends InputMethodService implements
     void onFinishInputInternal() {
         super.onFinishInput();
         Log.i(TAG, "onFinishInput");
+        stopDictation(); // Keyboard
 
         mDictionaryFacilitator.onFinishInput();
         final MainKeyboardView mainKeyboardView = mKeyboardSwitcher.getMainKeyboardView();
@@ -1061,6 +1069,7 @@ public class LatinIME extends InputMethodService implements
     void onFinishInputViewInternal(final boolean finishingInput) {
         super.onFinishInputView(finishingInput);
         Log.i(TAG, "onFinishInputView");
+        stopDictation(); // Keyboard
         cleanupInternalStateForFinishInput();
     }
 
@@ -1437,14 +1446,55 @@ public class LatinIME extends InputMethodService implements
     // completely replace #onCodeInput.
     public void onEvent(@NonNull final Event event) {
         if (KeyCode.VOICE_INPUT == event.getKeyCode()) {
-            mRichImm.switchToShortcutIme(this);
+            // Keyboard: the mic starts and stops the dictation in the keyboard itself; HeliBoard's switch to another
+            // voice input method (mRichImm.switchToShortcutIme) is gone
+            getDictation().toggle();
+            return;
         }
+        // Keyboard: a typed key ends a dictation (the shift and layout keys do not)
+        if (mDictation != null && DictationController.Companion.endsDictation(event.getKeyCode()))
+            mDictation.onTyping();
         final InputTransaction completeInputTransaction =
                 mInputLogic.onCodeInput(mSettings.getCurrent(), event,
                         mKeyboardSwitcher.getKeyboardCapsMode(),
                         mKeyboardSwitcher.getCurrentKeyboardScript(), mHandler);
         updateStateAfterInputTransaction(completeInputTransaction);
         mKeyboardSwitcher.onEvent(event, getCurrentAutoCapsState(), getCurrentRecapitalizeState());
+    }
+
+    // Keyboard: dictation (latin/dictation/DictationController, core/voice Dictation). The controller is made at the
+    // first tap on the mic, as launchTranslate below makes its panel on demand; the methods that follow are forwards to
+    // the input logic and the bar, written like onTextInput and updateSuggestionStripView of HeliBoard's LatinIME
+    // https://github.com/HeliBorg/HeliBoard/blob/main/app/src/main/java/helium314/keyboard/latin/LatinIME.java
+    private DictationController mDictation;
+
+    public DictationController getDictation() {
+        if (mDictation == null) mDictation = new DictationController(this);
+        return mDictation;
+    }
+
+    private void stopDictation() {
+        if (mDictation != null) mDictation.stop(false);
+    }
+
+    public void dictationBegin() {
+        mInputLogic.dictationBegin(mSettings.getCurrent());
+    }
+
+    public boolean dictationSpaceBefore() {
+        return mInputLogic.dictationSpaceBefore(mSettings.getCurrent());
+    }
+
+    public void dictationComposing(final CharSequence words) {
+        mInputLogic.dictationComposing(words);
+    }
+
+    public void dictationEnd() {
+        mInputLogic.dictationEnd();
+    }
+
+    public void setDictating(final boolean on) {
+        if (hasSuggestionStripView()) mSuggestionStripView.setDictating(on);
     }
 
     public void onTextInput(@Nullable String rawText) {
@@ -1561,6 +1611,7 @@ public class LatinIME extends InputMethodService implements
     // interface
     @Override
     public void pickSuggestionManually(final SuggestedWordInfo suggestionInfo) {
+        if (mDictation != null) mDictation.onTyping(); // Keyboard: a picked word ends a dictation
         final InputTransaction completeInputTransaction = mInputLogic.onPickSuggestionManually(
                 mSettings.getCurrent(), suggestionInfo,
                 mKeyboardSwitcher.getKeyboardCapsMode(),

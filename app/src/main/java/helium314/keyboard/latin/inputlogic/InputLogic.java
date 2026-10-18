@@ -2386,6 +2386,44 @@ public final class InputLogic {
         }
     }
 
+    // Keyboard: dictation (core/voice Dictation, driven by latin/dictation/DictationController). The words being recognised
+    // sit in the field as composing text, replaced at each partial result with InputConnection.setComposingText
+    // https://developer.android.com/reference/android/view/inputmethod/InputConnection#setComposingText(java.lang.CharSequence,%20int)
+    // and by the finished phrase, committed with onTextInput (a commit replaces the composing region). The word being
+    // typed is committed first, as HeliBoard does when the keyboard closes (commitTyped with NOT_A_SEPARATOR), and the
+    // space before the words follows insertAutomaticSpaceIfOptionsAndTextAllow above (a space unless one is there).
+
+    /** Dictation starts: the word being typed is committed, so the dictated words follow it. */
+    public void dictationBegin(final SettingsValues settingsValues) {
+        mConnection.beginBatchEdit();
+        commitTyped(settingsValues, LastComposedWord.NOT_A_SEPARATOR);
+        resetComposingState(true /* alsoResetLastComposedWord */);
+        mConnection.endBatchEdit();
+    }
+
+    /** Dictation: whether a space goes before words starting here, because the text before the cursor ends in a letter or sign. */
+    public boolean dictationSpaceBefore(final SettingsValues settingsValues) {
+        if (!settingsValues.mSpacingAndPunctuations.mCurrentLanguageHasSpaces) return false;
+        final int before = mConnection.getCodePointBeforeCursor();
+        if (before == Constants.NOT_A_CODE || Character.isWhitespace(before)) return false;
+        // after an opening sign the words stay against it: ( [ { " « and the like
+        return Character.getType(before) != Character.START_PUNCTUATION
+                && Character.getType(before) != Character.INITIAL_QUOTE_PUNCTUATION
+                && before != '"' && before != '\'';
+    }
+
+    /** Dictation: the words being recognised, shown in the field in place of the previous ones. */
+    public void dictationComposing(final CharSequence words) {
+        mConnection.beginBatchEdit();
+        mConnection.setComposingText(words, 1);
+        mConnection.endBatchEdit();
+    }
+
+    /** Dictation is over: what is still composing stays in the field as written. */
+    public void dictationEnd() {
+        mConnection.finishComposingText();
+    }
+
     /**
      * Commit the current auto-correction.
      * <p>

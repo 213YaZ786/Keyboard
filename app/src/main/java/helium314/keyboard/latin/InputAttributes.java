@@ -101,8 +101,9 @@ public final class InputAttributes {
         final boolean noMicrophone = mIsPasswordField
                 || InputTypeUtils.isEmailVariation(variation)
                 || hasNoMicrophoneKeyOption()
-                || !RichInputMethodManager.isInitialized() // avoid crash when only using spell checker
-                || !RichInputMethodManager.getInstance().isShortcutImeReady();
+                || !RichInputMethodManager.isInitialized(); // avoid crash when only using spell checker
+        // Keyboard: the mic dictates in the keyboard itself, so it no longer waits for another voice input method
+        // (HeliBoard also required RichInputMethodManager.isShortcutImeReady() here)
         mShouldShowVoiceInputKey = !noMicrophone;
 
         mDisableGestureFloatingPreviewText = InputAttributes.inPrivateImeOptions(
