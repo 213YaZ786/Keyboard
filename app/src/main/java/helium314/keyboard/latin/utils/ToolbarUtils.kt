@@ -10,12 +10,15 @@ import android.widget.ImageButton
 import android.widget.ImageView
 import androidx.core.content.edit
 import androidx.core.view.forEach
+import androidx.core.view.isVisible
 import helium314.keyboard.event.HapticEvent
 import helium314.keyboard.keyboard.internal.KeyboardIconsSet
 import helium314.keyboard.keyboard.internal.keyboard_parser.floris.KeyCode
+import helium314.keyboard.keyboard.translate.TranslateActivity
 import helium314.keyboard.latin.AudioAndHapticFeedbackManager
 import helium314.keyboard.latin.R
 import helium314.keyboard.latin.common.Constants.Separators
+import helium314.keyboard.latin.core.translate.Translator
 import helium314.keyboard.latin.settings.Defaults
 import helium314.keyboard.latin.settings.Settings
 import helium314.keyboard.latin.utils.ToolbarKey.*
@@ -46,8 +49,23 @@ fun setToolbarButtonsActivatedStateOnPrefChange(buttonsGroup: ViewGroup, key: St
 
     GlobalScope.launch {
         delay(10) // need to wait until SettingsValues are reloaded
-        buttonsGroup.forEach { if (it is ImageButton) setToolbarButtonActivatedState(it) }
+        buttonsGroup.forEach {
+            if (it is ImageButton) setToolbarButtonActivatedState(it)
+            if (it.tag == TRANSLATE) it.isVisible = isTranslateKeyShown(it.context) // incognito may have changed
+        }
     }
+}
+
+/**
+ * Keyboard: whether the Translate key shows: Translator installed and signed as expected, no incognito
+ * (password fields included, SettingsValues.mIncognitoModeEnabled), and not while the Translate panel's own field is
+ * the current one (a second panel), as HeliBoard hides the voice key by field (SuggestionStripView.updateVoiceKey)
+ * https://github.com/HeliBorg/HeliBoard/blob/main/app/src/main/java/helium314/keyboard/latin/suggestions/SuggestionStripView.kt
+ */
+fun isTranslateKeyShown(context: Context): Boolean {
+    val values = Settings.getValues()
+    return !values.mIncognitoModeEnabled && Translator.installed(context) &&
+        TranslateActivity.decodePrivateImeOptions(values.mInputAttributes.editorInfo).height == 0
 }
 
 private fun setToolbarButtonActivatedState(button: ImageButton) {
@@ -95,6 +113,7 @@ fun getCodeForToolbarKey(key: ToolbarKey) = Settings.getInstance().getCustomTool
     SPLIT -> KeyCode.SPLIT_LAYOUT
     FLOATING -> KeyCode.TOGGLE_FLOATING_WINDOW
     BACKGROUND_GATHERING -> KeyCode.BACKGROUND_GATHERING
+    TRANSLATE -> KeyCode.TRANSLATE
 }
 
 fun getCodeForToolbarKeyLongClick(key: ToolbarKey) = Settings.getInstance().getCustomToolbarLongpressCode(key) ?: when (key) {
@@ -121,7 +140,8 @@ fun getCodeForToolbarKeyLongClick(key: ToolbarKey) = Settings.getInstance().getC
 enum class ToolbarKey {
     VOICE, CLIPBOARD, NUMPAD, DPAD, UNDO, REDO, SETTINGS, SELECT_ALL, SELECT_WORD, COPY, CUT, PASTE, ONE_HANDED, FLOATING, SPLIT,
     INCOGNITO, AUTOCORRECT, CLEAR_CLIPBOARD, CLOSE_HISTORY, EMOJI, LEFT, RIGHT, UP, DOWN, WORD_LEFT, WORD_RIGHT,
-    PAGE_UP, PAGE_DOWN, FULL_LEFT, FULL_RIGHT, PAGE_START, PAGE_END, BACKGROUND_GATHERING
+    PAGE_UP, PAGE_DOWN, FULL_LEFT, FULL_RIGHT, PAGE_START, PAGE_END, BACKGROUND_GATHERING,
+    TRANSLATE // Keyboard: shown only while Translator is installed (SuggestionStripView.updateVoiceKey)
 }
 
 enum class ToolbarMode {
@@ -133,10 +153,11 @@ val toolbarKeyStrings = entries.associateWithTo(EnumMap(ToolbarKey::class.java))
 val defaultToolbarPref by lazy {
     // Keyboard: the clipboard and its clear key only, and the mic; every other tool is a box to check in Settings >
     // Advanced > Toolbar (iOS's bar has no tools, Gboard hides its tool panel behind settings). EMOJI is not here: the
-    // bottom row has its key. VOICE stays last: the Glass bar draws it in its own slot at the right end
+    // bottom row has its key. TRANSLATE is Gboard's toolbar Translate (hidden unless Translator is installed). VOICE stays
+    // last: the Glass bar draws it in its own slot at the right end
     // (SuggestionStripView.setupGlassSlots), the other styles show it as the last tool. Order and keys are HeliBoard's
     // ToolbarKey list (this file), https://github.com/HeliBorg/HeliBoard/blob/main/app/src/main/java/helium314/keyboard/latin/utils/ToolbarUtils.kt
-    val default = listOf(CLIPBOARD, CLEAR_CLIPBOARD, VOICE)
+    val default = listOf(CLIPBOARD, CLEAR_CLIPBOARD, TRANSLATE, VOICE)
     val others = entries.filterNot { it in default || it == CLOSE_HISTORY }
     default.joinToString(Separators.ENTRY) { it.name + Separators.KV + true } + Separators.ENTRY +
             others.joinToString(Separators.ENTRY) { it.name + Separators.KV + false }
@@ -169,8 +190,13 @@ private fun upgradeToolbarPref(prefs: SharedPreferences, pref: String, default: 
     val splitDefault = defaultToolbarPref.split(Separators.ENTRY)
     splitDefault.forEach { entry ->
         val keyWithSeparator = entry.substringBefore(Separators.KV) + Separators.KV
-        if (list.none { it.startsWith(keyWithSeparator) })
-            list.add("${keyWithSeparator}false")
+        if (list.none { it.startsWith(keyWithSeparator) }) {
+            // Keyboard: Translate joins an existing bar enabled, before the mic (VOICE stays last)
+            if (pref == Settings.PREF_TOOLBAR_KEYS && keyWithSeparator == TRANSLATE.name + Separators.KV)
+                list.add(list.indexOfFirst { it.startsWith(VOICE.name + Separators.KV) }.takeIf { it >= 0 } ?: list.size, "${keyWithSeparator}true")
+            else
+                list.add("${keyWithSeparator}false")
+        }
     }
     // likely not needed, but better prepare for possibility of key removal
     list.removeAll {

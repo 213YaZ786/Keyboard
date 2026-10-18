@@ -877,6 +877,10 @@ public final class InputLogic {
                 commitTyped(sv, LastComposedWord.NOT_A_SEPARATOR);
                 mLatinIME.launchEmojiSearch();
                 break;
+            case KeyCode.TRANSLATE: // Keyboard: as EMOJI_SEARCH, the Translate panel above the keys
+                commitTyped(sv, LastComposedWord.NOT_A_SEPARATOR);
+                mLatinIME.launchTranslate();
+                break;
             case KeyCode.SEND_INTENT_ONE, KeyCode.SEND_INTENT_TWO, KeyCode.SEND_INTENT_THREE:
                 IntentUtils.handleSendIntentKey(mLatinIME, event.getKeyCode());
             case KeyCode.IME_HIDE_UI:

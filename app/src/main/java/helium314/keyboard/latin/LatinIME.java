@@ -45,6 +45,7 @@ import helium314.keyboard.keyboard.KeyboardMode;
 import helium314.keyboard.keyboard.emoji.EmojiPalettesView;
 import helium314.keyboard.keyboard.emoji.EmojiSearchActivity;
 import helium314.keyboard.keyboard.emoji.EmojiSearchActivityKt;
+import helium314.keyboard.keyboard.translate.TranslateActivity;
 import helium314.keyboard.keyboard.internal.KeyboardIconsSet;
 import helium314.keyboard.keyboard.internal.keyboard_parser.floris.KeyCode;
 import helium314.keyboard.latin.common.InsetsOutlineProvider;
@@ -167,7 +168,11 @@ public class LatinIME extends InputMethodService implements
     private final BroadcastReceiver mEmojiSearchReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
-            onEmojiSearchDone(intent);
+            // Keyboard: the Translate panel answers on this receiver too (TranslateActivity.TRANSLATE_DONE_ACTION)
+            if (intent != null && TranslateActivity.TRANSLATE_DONE_ACTION.equals(intent.getAction()))
+                onTranslateDone(intent);
+            else
+                onEmojiSearchDone(intent);
         }
     };
 
@@ -591,6 +596,7 @@ public class LatinIME extends InputMethodService implements
 
         final IntentFilter emojiSearchFilter = new IntentFilter();
         emojiSearchFilter.addAction(EmojiSearchActivity.EMOJI_SEARCH_DONE_ACTION);
+        emojiSearchFilter.addAction(TranslateActivity.TRANSLATE_DONE_ACTION);
         ContextCompat.registerReceiver(this, mEmojiSearchReceiver, emojiSearchFilter, ContextCompat.RECEIVER_NOT_EXPORTED);
 
         StatsUtils.onCreate(mSettings.getCurrent(), mRichImm);
@@ -1244,7 +1250,7 @@ public class LatinIME extends InputMethodService implements
         }
 
         // Has to be subtracted after calculating touchableRegion
-        visibleTopY -= getEmojiSearchActivityHeight();
+        visibleTopY -= Math.max(getEmojiSearchActivityHeight(), getTranslateActivityHeight());
 
         outInsets.contentTopInsets = visibleTopY;
         outInsets.visibleTopInsets = visibleTopY;
@@ -1786,6 +1792,35 @@ public class LatinIME extends InputMethodService implements
 
     private int getEmojiSearchActivityHeight() {
         return EmojiSearchActivity.Companion.decodePrivateImeOptions(getCurrentInputEditorInfo()).height();
+    }
+
+    // Keyboard: the Translate panel. launchTranslate, onTranslateDone, isTranslate and getTranslateActivityHeight are
+    // launchEmojiSearch, onEmojiSearchDone, isEmojiSearch and getEmojiSearchActivityHeight above, ported from HeliBoard's
+    // LatinIME.java (GPL-3.0) https://github.com/HeliBorg/HeliBoard/blob/main/app/src/main/java/helium314/keyboard/latin/LatinIME.java
+    // the result handed back is the translation instead of an emoji
+    public void launchTranslate() {
+        startActivity(new Intent().setClass(this, TranslateActivity.class)
+                          .setFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_MULTIPLE_TASK));
+    }
+
+    private void onTranslateDone(Intent intent) {
+        // the field of the app must be the current one again, not the panel's
+        if (isTranslate()) return;
+        if (intent.getBooleanExtra(TranslateActivity.IME_CLOSED_KEY, false)) {
+            requestHideSelf(0);
+            return;
+        }
+        final String text = intent.getStringExtra(TranslateActivity.TEXT_KEY);
+        if (text != null && !text.isEmpty())
+            onTextInput(text);
+    }
+
+    public boolean isTranslate() {
+        return getTranslateActivityHeight() > 0;
+    }
+
+    private int getTranslateActivityHeight() {
+        return TranslateActivity.Companion.decodePrivateImeOptions(getCurrentInputEditorInfo()).height();
     }
 
     public void dumpDictionaryForDebug(final String dictName) {

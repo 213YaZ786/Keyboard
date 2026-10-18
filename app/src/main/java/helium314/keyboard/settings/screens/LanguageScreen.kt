@@ -63,16 +63,7 @@ fun LanguageScreen(
     val enabledSubtypes = SubtypeSettings.getEnabledSubtypes()
     SearchScreen(
         onClickBack = onClickBack,
-        title = {
-            Column {
-                Text(stringResource(R.string.language_and_layouts_title))
-                Text(stringResource(
-                    R.string.text_tap_languages),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        },
+        title = { Text(stringResource(R.string.language_and_layouts_title)) },
         filteredItems = { term ->
             sortedSubtypes.filter { subtype ->
                 subtype.displayName().replace("(", "")

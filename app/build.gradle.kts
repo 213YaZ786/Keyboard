@@ -90,6 +90,7 @@ android {
         buildConfig = true
         compose = true
         resValues = true
+        aidl = true // Translator's service interface (kit translate), https://developer.android.com/reference/tools/gradle-api/com/android/build/api/dsl/BuildFeatures#aidl()
     }
 
     externalNativeBuild {

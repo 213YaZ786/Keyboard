@@ -240,6 +240,15 @@
     <string name="dictionary_download_too_large">The file is larger than 20 MB, it was not kept.</string>
     <string name="dictionary_download_refused">The file is not one of the known dictionaries, it was not kept.</string>
     <string name="dictionary_download_invalid">The file is not a valid dictionary, it was not kept.</string>
+    <!-- Keyboard: the Translate tool, translation by Translator (the toolbar key is named by the first string) -->
+    <string name="translate" tools:keep="@string/translate">Translate</string>
+    <string name="translate_hint">Type to translate</string>
+    <string name="translate_insert">Insert</string>
+    <string name="translate_more">More</string>
+    <string name="translate_not_detected">Language not detected</string>
+    <string name="translate_not_downloaded">%1$s is not downloaded in Translator</string>
+    <string name="translate_open">Open Translator</string>
+    <string name="translate_failed">Translation failed</string>
     <!-- Description, used for non-image clipboard files -->
     <string name="item_description">Description: %s</string>
     <!-- Type, used for non-image clipboard files -->

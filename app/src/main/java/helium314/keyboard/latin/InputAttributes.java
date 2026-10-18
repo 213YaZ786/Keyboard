@@ -146,6 +146,12 @@ public final class InputAttributes {
                 && (mEditorInfo.imeOptions & EditorInfo.IME_FLAG_FORCE_ASCII) == (editorInfo.imeOptions & EditorInfo.IME_FLAG_FORCE_ASCII);
     }
 
+    // Keyboard: the field's EditorInfo, for the Translate key to know the panel's own field is the current one
+    // (a getter on mEditorInfo, as isSameInputType above reads it) https://github.com/HeliBorg/HeliBoard/blob/main/app/src/main/java/helium314/keyboard/latin/InputAttributes.java
+    public EditorInfo getEditorInfo() {
+        return mEditorInfo;
+    }
+
     private boolean hasNoMicrophoneKeyOption() {
         return InputAttributes.inPrivateImeOptions(mPackageNameForPrivateImeOptions, NO_MICROPHONE, mEditorInfo);
     }

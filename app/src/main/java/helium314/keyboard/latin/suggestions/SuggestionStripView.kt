@@ -56,6 +56,7 @@ import helium314.keyboard.latin.utils.createToolbarKey
 import helium314.keyboard.latin.utils.dpToPx
 import helium314.keyboard.latin.utils.getEnabledToolbarKeys
 import helium314.keyboard.latin.utils.getPinnedToolbarKeys
+import helium314.keyboard.latin.utils.isTranslateKeyShown
 import helium314.keyboard.latin.utils.prefs
 import helium314.keyboard.latin.utils.removeFirst
 import helium314.keyboard.latin.utils.removePinnedKey
@@ -578,6 +579,9 @@ class SuggestionStripView(context: Context, attrs: AttributeSet?, defStyle: Int)
         pinnedKeys.findViewWithTag<View>(ToolbarKey.VOICE)?.isVisible = show
         glassVoiceKey?.isVisible = show // Keyboard: nothing at the right end when the voice key is hidden
         glassSeparatorEnd?.isVisible = show
+        val showTranslate = isTranslateKeyShown(context) // Keyboard: Translate, by field and by Translator's presence
+        toolbar.findViewWithTag<View>(ToolbarKey.TRANSLATE)?.isVisible = showTranslate
+        pinnedKeys.findViewWithTag<View>(ToolbarKey.TRANSLATE)?.isVisible = showTranslate
     }
 
     private fun updateKeys() {
