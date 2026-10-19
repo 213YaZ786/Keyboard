@@ -29,6 +29,8 @@ Keyboard for Android, a fork of [HeliBoard](https://github.com/HeliBorg/HeliBoar
   words from [CLDR](https://cldr.unicode.org) (Unicode License v3) and the
   [emoji-search-index of Signal](https://github.com/signalapp/emoji-search-index)
   (AGPL-3.0); these data files stay under the AGPL-3.0.
+- [Konfetti](https://github.com/DanielMartinus/Konfetti) 2.0.5 (ISC): the confetti
+  of the easter eggs.
 - [Noto Animated Emoji](https://googlefonts.github.io/noto-emoji-animation/)
   (Google, CC BY 4.0): the animated emoji, resized to 160 px.
 

@@ -82,6 +82,13 @@ import helium314.keyboard.settings.preferences.PreferenceSection
  */
 val LocalFloatingPadding = compositionLocalOf { PaddingValues() }
 
+/**
+ * Keyboard: easter egg 5. Opens the screen's search field, which takes the keyboard at once (SearchPill autoFocus), for
+ * what is in the page and needs the keyboard up: the version row of About on its seventh tap.
+ * Provided as a CompositionLocal, https://developer.android.com/develop/ui/compose/compositionlocal
+ */
+val LocalOpenSearch = compositionLocalOf<() -> Unit> { {} }
+
 @Composable
 fun SearchSettingsScreen(
     onClickBack: () -> Unit,
@@ -223,7 +230,8 @@ fun <T: Any?> SearchScreen(
             ) { padding ->
                 CompositionLocalProvider(
                     LocalTextStyle provides MaterialTheme.typography.bodyLarge,
-                    LocalFloatingPadding provides padding
+                    LocalFloatingPadding provides padding,
+                    LocalOpenSearch provides { setShowSearch(true) }
                 ) {
                     if (searchText.text.isBlank() && content != null) {
                         Column(Modifier.fillMaxSize()) {

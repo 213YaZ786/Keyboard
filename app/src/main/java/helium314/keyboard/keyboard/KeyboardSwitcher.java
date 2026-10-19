@@ -58,6 +58,7 @@ import helium314.keyboard.latin.utils.LanguageOnSpacebarUtils;
 import helium314.keyboard.latin.utils.Log;
 import helium314.keyboard.latin.utils.RecapitalizeMode;
 import helium314.keyboard.latin.utils.ResourceUtils;
+import nl.dionsegijn.konfetti.xml.KonfettiView;
 import helium314.keyboard.latin.utils.ScriptUtils;
 import helium314.keyboard.latin.utils.SubtypeUtilsAdditional;
 import helium314.keyboard.latin.utils.ToolbarMode;
@@ -75,6 +76,7 @@ public final class KeyboardSwitcher {
     private HorizontalScrollView mClipboardStripScrollView;
     private SuggestionStripView mSuggestionStripView;
     private FrameLayout mStripContainer;
+    private KonfettiView mEggConfettiView; // Keyboard: the easter eggs' confetti over the keyboard (input_view.xml)
     private ClipboardHistoryView mClipboardHistoryView;
     private TextView mFakeToastView;
     private ImageView mBackgroundGatheringIndicator;
@@ -510,6 +512,11 @@ public final class KeyboardSwitcher {
         return mKeyboardView;
     }
 
+    /** The view the easter eggs' confetti is drawn on, over the keyboard (EggEffects). Source: input_view.xml, Konfetti's KonfettiView (https://github.com/DanielMartinus/Konfetti). */
+    public KonfettiView getEggConfettiView() {
+        return mEggConfettiView;
+    }
+
     public FrameLayout getStripContainer() { return mStripContainer; }
 
     public void deallocateMemory() {
@@ -552,6 +559,7 @@ public final class KeyboardSwitcher {
         mEmojiPalettesView = mCurrentInputView.findViewById(R.id.emoji_palettes_view);
         mClipboardHistoryView = mCurrentInputView.findViewById(R.id.clipboard_history_view);
         mFakeToastView = mCurrentInputView.findViewById(R.id.fakeToast);
+        mEggConfettiView = mCurrentInputView.findViewById(R.id.easter_egg_confetti);
 
         mKeyboardViewWrapper = mCurrentInputView.findViewById(R.id.keyboard_view_wrapper);
         mKeyboardViewWrapper.setKeyboardActionListener(mLatinIME.mKeyboardActionListener);

@@ -47,6 +47,7 @@ import helium314.keyboard.keyboard.emoji.EmojiSearchActivity;
 import helium314.keyboard.keyboard.emoji.EmojiSearchActivityKt;
 import helium314.keyboard.keyboard.translate.TranslateActivity;
 import helium314.keyboard.latin.dictation.DictationController;
+import helium314.keyboard.latin.eggs.EggEffects;
 import helium314.keyboard.keyboard.internal.KeyboardIconsSet;
 import helium314.keyboard.keyboard.internal.keyboard_parser.floris.KeyCode;
 import helium314.keyboard.latin.common.InsetsOutlineProvider;
@@ -1034,6 +1035,7 @@ public class LatinIME extends InputMethodService implements
     public void onWindowShown() {
         super.onWindowShown();
         InputWindowState.INSTANCE.setShown(true); // Keyboard: an update never replaces the app under the user's typing
+        EggEffects.INSTANCE.onKeyboardShown(this); // Keyboard: easter egg 5, About asked for the keyboard to light up
         if (isInputViewShown()) {
             if (mInputView != null && Settings.getValues().mIsFloatingKeyboard)
                 FloatingKeyboardUtils.setFloating(mInputView);
@@ -1047,6 +1049,7 @@ public class LatinIME extends InputMethodService implements
         super.onWindowHidden();
         stopDictation(); // Keyboard: the keyboard hidden, the microphone is released
         InputWindowState.INSTANCE.setShown(false); // Keyboard
+        EggEffects.INSTANCE.stop(); // Keyboard: an easter egg playing stops with the window
         Log.i(TAG, "onWindowHidden");
         final MainKeyboardView mainKeyboardView = mKeyboardSwitcher.getMainKeyboardView();
         if (mainKeyboardView != null) {

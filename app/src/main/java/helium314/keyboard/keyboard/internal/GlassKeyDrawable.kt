@@ -20,6 +20,7 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.toArgb
 import helium314.keyboard.latin.R
 import helium314.keyboard.latin.common.ColorType
@@ -82,6 +83,13 @@ class GlassKeyDrawable(private val look: GlassLook, private val kind: Kind, cont
             field = value
             invalidateSelf()
         }
+
+    /**
+     * How much the key glows, 0 (at rest) to 1 (its pressed look), set by KeyboardView just before it draws the key
+     * and put back to 0 after: the background is one drawable for all the keys of its kind, the light is the key's own.
+     * Colour mix: androidx.compose.ui.graphics.lerp (https://developer.android.com/reference/kotlin/androidx/compose/ui/graphics/package-summary#lerp(androidx.compose.ui.graphics.Color,androidx.compose.ui.graphics.Color,kotlin.Float))
+     */
+    var lit = 0f
 
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val shadowPaint = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -175,7 +183,9 @@ class GlassKeyDrawable(private val look: GlassLook, private val kind: Kind, cont
             if (w <= 0f || h <= 0f) return
             radius = min(pillRadiusDp * density, min(w, h) / 2f)
         }
-        val tint = if (pressed || held) pressedTint else normalTint
+        var tint = if (pressed || held) pressedTint else normalTint
+        // Keyboard: easter eggs 4 and 5, KeyLight lights the key by [lit], from its look at rest to its pressed look
+        if (lit > 0f && !(pressed || held)) tint = lerp(normalTint, pressedTint, lit)
         val savedX = originX
         val savedY = originY
         originX += dx; originY += dy

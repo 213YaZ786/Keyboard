@@ -54,6 +54,8 @@ import helium314.keyboard.latin.common.StringUtils;
 import helium314.keyboard.latin.common.StringUtilsKt;
 import helium314.keyboard.latin.common.SuggestionSpanUtilsKt;
 import helium314.keyboard.latin.define.DebugFlags;
+import helium314.keyboard.latin.eggs.EggEffects;
+import helium314.keyboard.latin.eggs.EggRules;
 import helium314.keyboard.latin.settings.Settings;
 import helium314.keyboard.latin.settings.SettingsValues;
 import helium314.keyboard.latin.settings.SpacingAndPunctuations;
@@ -163,6 +165,7 @@ public final class InputLogic {
     public void startInput(final String combiningSpec, final SettingsValues settingsValues) {
         mEnteredText = null;
         mWordBeingCorrectedByCursor = null;
+        EggEffects.INSTANCE.newField(); // Keyboard: easter eggs, a new field is read once before it can play
         mConnection.onStartInput();
         if (!mWordComposer.getTypedWord().isEmpty()) {
             // For messaging apps that offer send button, the IME does not get the opportunity
@@ -354,6 +357,7 @@ public final class InputLogic {
         mConnection.endBatchEdit();
         // Don't allow cancellation of manual pick
         mLastComposedWord.deactivate();
+        checkEasterEggs(settingsValues); // Keyboard: a picked "Yennayer" counts as a typed one
 
         if (suggestionInfo.isEmoji()) {
             RecentEmojis.add(suggestion);
@@ -580,7 +584,25 @@ public final class InputLogic {
             mEnteredText = null;
         }
         mConnection.endBatchEdit();
+        checkEasterEggs(settingsValues);
         return inputTransaction;
+    }
+
+    /**
+     * Keyboard: easter eggs (point 21). After a key or a picked suggestion, the last words before the cursor (what is
+     * committed and the word being composed) are compared with the phrases of the eggs, in EggRules; EggEffects plays
+     * the egg a text begins to match. Never in incognito mode nor in a password field (mIncognitoModeEnabled covers
+     * both); the text is only compared, never kept nor logged, and stays as typed.
+     * Source: the text is read where AOSP's InputLogic reads it, RichInputConnection.getTextBeforeCursor
+     * (https://android.googlesource.com/platform/packages/inputmethods/LatinIME/+/refs/heads/main/java/src/com/android/inputmethod/latin/RichInputConnection.java),
+     * the effect idea is iOS Messages' typed-word screen effects.
+     */
+    private void checkEasterEggs(final SettingsValues settingsValues) {
+        if (settingsValues.mIncognitoModeEnabled) {
+            EggEffects.INSTANCE.newField();
+            return;
+        }
+        EggEffects.INSTANCE.onTextChanged(mLatinIME, mConnection.getTextBeforeCursor(EggRules.TEXT_WINDOW, 0));
     }
 
     public void onStartBatchInput(final SettingsValues settingsValues,

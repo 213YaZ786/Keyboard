@@ -226,6 +226,8 @@
     <string name="clipboard_sensitive_expiry">Remove sensitive items after 20 seconds</string>
     <string name="clipboard_clean_links">Clean links when pasting</string>
     <string name="clipboard_clean_links_summary">Drops tracking parameters and redirects from pasted links</string>
+    <!-- Keyboard: the count of the taps on the version in About, an ICU plural as the Settings' show_dev_countdown -->
+    <string name="egg_taps_countdown">{count, plural, =1 {# step away} other {# steps away}}</string>
     <!-- Keyboard: Settings > Advanced > Text correction, Delete learned words -->
     <string name="delete_learned_words">Delete learned words</string>
     <string name="delete_learned_words_message">The words learned from your typing will be deleted.</string>

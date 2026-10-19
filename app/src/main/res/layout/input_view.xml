@@ -15,4 +15,13 @@
     <include
         android:id="@+id/main_keyboard_frame"
         layout="@layout/main_keyboard_frame" />
+    <!-- Keyboard: the easter eggs' confetti (Konfetti's KonfettiView, ISC, https://github.com/DanielMartinus/Konfetti)
+         over the keyboard; not clickable, so every touch goes through to the keys, and it draws only while a party lasts -->
+    <nl.dionsegijn.konfetti.xml.KonfettiView
+        android:id="@+id/easter_egg_confetti"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:clickable="false"
+        android:focusable="false"
+        android:importantForAccessibility="no" />
 </helium314.keyboard.latin.InputView>

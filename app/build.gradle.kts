@@ -165,6 +165,9 @@ dependencies {
     implementation("androidx.navigation:navigation-compose:2.9.8")
     implementation("sh.calvin.reorderable:reorderable:3.1.0") // for easier re-ordering
     implementation("com.github.skydoves:colorpicker-compose:1.1.3") // for user-defined colors, newer requires minSdk 23
+    // Easter eggs (point 21): Konfetti's View version (ISC, https://github.com/DanielMartinus/Konfetti), 2.0.5 of November 2024:
+    // later versions are too recent. Reads nothing, sends nothing; its core module comes with it.
+    implementation("nl.dionsegijn:konfetti-xml:2.0.5")
 
     // test
     testImplementation(kotlin("test"))

@@ -5,5 +5,8 @@
              (DUMP) can call it. -->
         <receiver android:name="helium314.keyboard.latin.dictation.DictationTestReceiver"
             android:exported="true" android:permission="android.permission.DUMP" />
+        <!-- Debug builds only: sets the day the easter eggs see (EggClockReceiver). Only the shell (DUMP) can call it. -->
+        <receiver android:name="helium314.keyboard.latin.eggs.EggClockReceiver"
+            android:exported="true" android:permission="android.permission.DUMP" />
     </application>
 </manifest>

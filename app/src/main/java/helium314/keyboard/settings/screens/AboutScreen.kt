@@ -17,6 +17,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import helium314.keyboard.latin.eggs.EggEffects
+import helium314.keyboard.latin.eggs.VersionTaps
+import helium314.keyboard.settings.LocalOpenSearch
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -86,10 +90,18 @@ fun createAboutSettings(context: Context) = listOf(
         var count by rememberSaveable { mutableIntStateOf(0) }
         val ctx = LocalContext.current
         val prefs = ctx.prefs()
+        // Keyboard: easter egg 5, seven taps as Android's build number (VersionTaps); the seventh brings the keyboard up
+        // (the screen's search field) and lights every key (EggEffects.lightAllKeysWhenShown)
+        val taps = remember { VersionTaps(ctx) }
+        val openSearch = LocalOpenSearch.current
         Preference(
             name = it.title,
             description = stringResource(R.string.version_text, BuildConfig.VERSION_NAME),
             onClick = {
+                if (taps.tap() && EggEffects.animationsOn(ctx)) {
+                    EggEffects.lightAllKeysWhenShown(ctx)
+                    openSearch()
+                }
                 if (prefs.getBoolean(DebugSettings.PREF_SHOW_DEBUG_SETTINGS, Defaults.PREF_SHOW_DEBUG_SETTINGS) || BuildConfig.DEBUG)
                     return@Preference
                 count++

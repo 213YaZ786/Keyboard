@@ -31,6 +31,7 @@ import androidx.annotation.Nullable;
 import helium314.keyboard.keyboard.emoji.EmojiPageKeyboardView;
 import helium314.keyboard.keyboard.internal.GlassCalloutItemDrawable;
 import helium314.keyboard.keyboard.internal.GlassKeyDrawable;
+import helium314.keyboard.keyboard.internal.KeyLight;
 import helium314.keyboard.keyboard.internal.KeyDrawParams;
 import helium314.keyboard.keyboard.internal.KeyVisualAttributes;
 import helium314.keyboard.keyboard.internal.keyboard_parser.floris.KeyCode;
@@ -66,6 +67,7 @@ public class KeyboardView extends View {
     private final Drawable mSpacebarBackground;
     private final float mSpacebarIconWidthRatio;
     private final Rect mKeyBackgroundPadding = new Rect();
+    private KeyLight mKeyLight; // Keyboard: the light of easter eggs 4 and 5, null until the first one
     private static final float KET_TEXT_SHADOW_RADIUS_DISABLED = -1.0f;
     private final Colors mColors;
     // Keyboard: Glass keeps Rounded's label places; the same STYLE_ROUNDED check as upstream
@@ -381,11 +383,31 @@ public class KeyboardView extends View {
             bgX = -padding.left;
         }
         background.setBounds(0, 0, bgWidth, bgHeight);
-        if (background instanceof GlassKeyDrawable) // Keyboard: the glass bends the ground behind the key
+        if (background instanceof GlassKeyDrawable) { // Keyboard: the glass bends the ground behind the key
             ((GlassKeyDrawable) background).place(this, key.getDrawX() + getPaddingLeft() + bgX, key.getY() + getPaddingTop() + bgY);
+            // easter eggs 4 and 5: the light of this key at this frame (KeyLight), 0 when none runs
+            if (mKeyLight != null)
+                ((GlassKeyDrawable) background).setLit(mKeyLight.litAt(key.getDrawX() + key.getDrawWidth() / 2f));
+        }
         canvas.translate(bgX, bgY);
         background.draw(canvas);
         canvas.translate(-bgX, -bgY);
+        if (background instanceof GlassKeyDrawable) ((GlassKeyDrawable) background).setLit(0f);
+    }
+
+    /**
+     * Keyboard: easter eggs 4 and 5. Lights the keys, a wave from left to right or all together (KeyLight); the light
+     * is redrawn at each frame of a ValueAnimator by {@link #invalidateAllKeys}, and nothing runs afterwards.
+     * Source: ValueAnimator, https://developer.android.com/reference/android/animation/ValueAnimator
+     */
+    public void playKeyLight(@NonNull final KeyLight.Mode mode) {
+        if (mKeyLight == null) mKeyLight = new KeyLight(() -> { invalidateAllKeys(); return kotlin.Unit.INSTANCE; });
+        mKeyLight.start(mode, getWidth());
+    }
+
+    /** Ends the light of easter eggs 4 and 5 at once. Source: Animator.cancel, https://developer.android.com/reference/android/animation/Animator#cancel() */
+    public void stopKeyLight() {
+        if (mKeyLight != null) mKeyLight.cancel();
     }
 
     // Draw key top visuals.
@@ -648,6 +670,7 @@ public class KeyboardView extends View {
     @Override
     protected void onDetachedFromWindow() {
         super.onDetachedFromWindow();
+        stopKeyLight();
         freeOffscreenBuffer();
     }
 
