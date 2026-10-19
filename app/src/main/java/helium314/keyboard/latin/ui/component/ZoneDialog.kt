@@ -58,9 +58,14 @@ fun ZoneAlertDialog(
  * The window of the dialog blurs the screen behind it (Android 12 and later,
  * where the phone allows it), with a lighter dim, so the pane over it reads
  * as glass. Where blur is off (battery saver, an old GPU), the plain dim stays.
+ * Blur and dim from Kyant0/AndroidLiquidGlass's dialog (Apache-2.0,
+ * https://github.com/Kyant0/AndroidLiquidGlass app/src/commonMain/kotlin/com/kyant/backdrop/catalog/destinations/DialogContent.kt):
+ * blur 16 dp by day, 8 by night; dim 0.23 by day, 0.56 by night.
  */
 @Composable
-fun BlurBehind(radiusDp: Int = 28) {
+fun BlurBehind(radiusDp: Int? = null) {
+    val dark = LocalGlass.current?.dark ?: false
+    val radius = radiusDp ?: if (dark) 8 else 16
     val view = androidx.compose.ui.platform.LocalView.current
     val density = androidx.compose.ui.platform.LocalDensity.current
     androidx.compose.runtime.DisposableEffect(view) {
@@ -68,18 +73,18 @@ fun BlurBehind(radiusDp: Int = 28) {
         if (window != null && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
             window.addFlags(android.view.WindowManager.LayoutParams.FLAG_BLUR_BEHIND)
             window.attributes = window.attributes.apply {
-                blurBehindRadius = with(density) { radiusDp.dp.roundToPx() }
-                dimAmount = 0.18f
+                blurBehindRadius = with(density) { radius.dp.roundToPx() }
+                dimAmount = if (dark) 0.56f else 0.23f
             }
         }
         onDispose { }
     }
 }
 
-/** A dialog's pane: a clear tint over the blurred screen, its rim soft. */
+/** A dialog's pane: a clear tint over the blurred screen, its rim soft. Tint from Kyant0/AndroidLiquidGlass's DialogContent.kt containerColor. */
 fun Modifier.dialogGlass(shape: Shape, look: helium314.keyboard.latin.ui.glass.GlassLook): Modifier = this.drawBehind {
     val outline = shape.createOutline(size, layoutDirection, this)
-    drawOutline(outline, if (look.dark) Color(0xFF1C1D22).copy(alpha = 0.58f) else Color.White.copy(alpha = 0.62f))
+    drawOutline(outline, if (look.dark) Color(0xFF121212).copy(alpha = 0.4f) else Color(0xFFFAFAFA).copy(alpha = 0.6f))
     drawOutline(outline, helium314.keyboard.latin.ui.glass.rimBrush(look, size.height), style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.4f * density))
 }
 
