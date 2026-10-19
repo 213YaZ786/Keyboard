@@ -3,7 +3,6 @@ package helium314.keyboard.settings.screens
 
 import android.annotation.SuppressLint
 import android.content.Context
-import android.os.Build
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -77,7 +76,7 @@ fun AdvancedSettingsScreen(
         Settings.PREF_SPACE_TO_CHANGE_LANG,
         Settings.PREFS_LONG_PRESS_SYMBOLS_FOR_NUMPAD,
         Settings.PREF_ENABLE_EMOJI_ALT_PHYSICAL_KEY,
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) Settings.PREF_SHOW_SETUP_WIZARD_ICON else null,
+        Settings.PREF_SHOW_SETUP_WIZARD_ICON, // Keyboard: shown on every Android (HeliBoard hides it from Android 10)
         Settings.PREF_ABC_AFTER_SYMBOL_SPACE,
         Settings.PREF_ABC_AFTER_NUMPAD_SPACE,
         Settings.PREF_ABC_AFTER_EMOJI,

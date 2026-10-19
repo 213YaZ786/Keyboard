@@ -49,6 +49,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
 import helium314.keyboard.latin.R
+import helium314.keyboard.latin.SystemBroadcastReceiver
 import helium314.keyboard.latin.ui.component.BoldButton
 import helium314.keyboard.latin.ui.component.ZoneSurface
 import helium314.keyboard.latin.ui.glass.LocalGlass
@@ -95,6 +96,11 @@ fun WelcomeWizard(
         !enabled -> 1
         !selected -> 2
         else -> 3
+    }
+    // the last step reached = enabled and selected: the launcher icon goes (SystemBroadcastReceiver.hideAppIconOnceSetUp),
+    // unless the user turned "Show app icon" on themselves
+    LaunchedEffect(step) {
+        if (step == 3) SystemBroadcastReceiver.hideAppIconOnceSetUp(ctx)
     }
     val appName = stringResource(ctx.applicationInfo.labelRes)
     // the Surface takes every touch, so the settings behind it stay out of reach; its ground is the app's

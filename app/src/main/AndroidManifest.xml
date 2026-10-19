@@ -71,7 +71,12 @@ SPDX-License-Identifier: Apache-2.0 AND GPL-3.0-only
                 android:theme="@style/platformActivityTheme"
                 android:icon="@mipmap/ic_launcher"
                 android:windowSoftInputMode="adjustResize"
-                android:exported="true">
+                android:exported="true"
+                android:enabled="false">
+            <!-- Keyboard: no launcher icon unless "Show app icon" is on. Disabled by default, as an enabled-then-disabled
+                 launcher activity gets a synthesized App info icon from Android 10
+                 (LauncherApps.getActivityList, https://android.googlesource.com/platform/frameworks/base/+/refs/heads/main/core/java/android/content/pm/LauncherApps.java).
+                 Settings open from Android's keyboard settings (method.xml settingsActivity, SettingsActivity2). -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

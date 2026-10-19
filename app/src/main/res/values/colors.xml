@@ -73,4 +73,8 @@
 
     <!-- Scrollbar color -->
     <color name="toolbar_scrollbar">#66808080</color>
+
+    <!-- Launcher icon, as YAZ SMS: the palest tone of the wallpaper's accent behind, the key in the accent. -->
+    <color name="ic_launcher_ground">@android:color/system_accent1_50</color>
+    <color name="ic_launcher_key">@android:color/system_accent1_500</color>
 </resources>

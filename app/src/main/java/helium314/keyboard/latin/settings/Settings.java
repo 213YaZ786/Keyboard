@@ -386,13 +386,8 @@ public final class Settings implements SharedPreferences.OnSharedPreferenceChang
 
     public static boolean readShowSetupWizardIcon(final SharedPreferences prefs,
                                                   final Context context) {
-        if (!prefs.contains(PREF_SHOW_SETUP_WIZARD_ICON)) {
-            final ApplicationInfo appInfo = context.getApplicationInfo();
-            final boolean isApplicationInSystemImage =
-                    (appInfo.flags & ApplicationInfo.FLAG_SYSTEM) != 0;
-            // Default value
-            return !isApplicationInSystemImage;
-        }
+        // Keyboard: hidden by default, matching the launcher activity disabled in the manifest
+        if (!prefs.contains(PREF_SHOW_SETUP_WIZARD_ICON)) return false;
         return prefs.getBoolean(PREF_SHOW_SETUP_WIZARD_ICON, Defaults.PREF_SHOW_SETUP_WIZARD_ICON);
     }
 

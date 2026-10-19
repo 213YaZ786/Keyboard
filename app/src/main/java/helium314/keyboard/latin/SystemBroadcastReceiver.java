@@ -12,7 +12,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
-import android.os.Build;
 import android.os.Process;
 
 import helium314.keyboard.latin.utils.KtxKt;
@@ -84,9 +83,10 @@ public final class SystemBroadcastReceiver extends BroadcastReceiver {
         }
     }
 
+    // Keyboard: the early return for Android 10 and above is gone (minSdk 31): the launcher component is enabled or
+    // disabled from the "Show app icon" setting on every Android we run on (the component toggle as HeliBoard's
+    // https://github.com/HeliBorg/HeliBoard/blob/main/app/src/main/java/helium314/keyboard/latin/SystemBroadcastReceiver.java).
     public static void toggleAppIcon(final Context context) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q)
-            return; // can't change visibility in Android 10 and above
         final SharedPreferences prefs = KtxKt.prefs(context);
         context.getPackageManager().setComponentEnabledSetting(
                 new ComponentName(context, SettingsActivity.class),
@@ -94,5 +94,22 @@ public final class SystemBroadcastReceiver extends BroadcastReceiver {
                         ? PackageManager.COMPONENT_ENABLED_STATE_ENABLED
                         : PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
                 PackageManager.DONT_KILL_APP);
+    }
+
+    // Source: https://github.com/HeliBorg/HeliBoard/blob/main/app/src/main/java/helium314/keyboard/latin/SystemBroadcastReceiver.java
+    // (toggleAppIcon) and Settings.java (readShowSetupWizardIcon), the setting and the component toggle; the call
+    // once the setup guide is done is ours.
+    /**
+     * Keyboard: once the setup guide is done (keyboard enabled and selected) the launcher icon goes, as Gboard's
+     * once it is set up: the stored "Show app icon" setting becomes false and the launcher component is disabled,
+     * unless the user already chose a value for it (turned it on themselves). The switch in Advanced still turns
+     * it back on.
+     */
+    public static void hideAppIconOnceSetUp(final Context context) {
+        final SharedPreferences prefs = KtxKt.prefs(context);
+        if (prefs.contains(Settings.PREF_SHOW_SETUP_WIZARD_ICON))
+            return;
+        prefs.edit().putBoolean(Settings.PREF_SHOW_SETUP_WIZARD_ICON, false).apply();
+        toggleAppIcon(context);
     }
 }
