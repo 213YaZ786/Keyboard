@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Keyboard's launcher glyph: a key in soft relief. The key's grey body is
+     multiplied by a tone of the wallpaper's accent, its light lies on it
+     untinted. Layering from YAZ SMS's ic_launcher_foreground. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <bitmap
+            android:src="@drawable/key_body"
+            android:tint="@color/ic_launcher_key"
+            android:tintMode="multiply" />
+    </item>
+    <item android:drawable="@drawable/key_shine" />
+</layer-list>

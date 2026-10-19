@@ -1,0 +1,315 @@
+// SPDX-License-Identifier: GPL-3.0-only
+package helium314.keyboard.latin.utils
+
+import android.content.Context
+import android.content.SharedPreferences
+import android.view.View
+import android.view.ViewConfiguration
+import android.view.ViewGroup
+import android.widget.ImageButton
+import android.widget.ImageView
+import androidx.core.content.edit
+import androidx.core.view.forEach
+import androidx.core.view.isVisible
+import helium314.keyboard.event.HapticEvent
+import helium314.keyboard.keyboard.internal.KeyboardIconsSet
+import helium314.keyboard.keyboard.internal.keyboard_parser.floris.KeyCode
+import helium314.keyboard.keyboard.translate.TranslateActivity
+import helium314.keyboard.latin.AudioAndHapticFeedbackManager
+import helium314.keyboard.latin.R
+import helium314.keyboard.latin.common.Constants.Separators
+import helium314.keyboard.latin.core.translate.Translator
+import helium314.keyboard.latin.settings.Defaults
+import helium314.keyboard.latin.settings.Settings
+import helium314.keyboard.latin.utils.ToolbarKey.*
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import java.util.EnumMap
+import java.util.Locale
+
+fun createToolbarKey(context: Context, key: ToolbarKey): ImageButton {
+    val button = ImageButton(context, null, R.attr.suggestionWordStyle)
+    button.scaleType = ImageView.ScaleType.CENTER
+    button.tag = key
+    button.contentDescription = key.name.lowercase().getStringResourceOrName("", context)
+    setToolbarButtonActivatedState(button)
+    button.setImageDrawable(KeyboardIconsSet.instance.getNewDrawable(key.name, context))
+    return button
+}
+
+fun setToolbarButtonsActivatedStateOnPrefChange(buttonsGroup: ViewGroup, key: String?) {
+    // settings need to be updated when buttons change
+    if (key != Settings.PREF_AUTO_CORRECTION
+        && key != Settings.PREF_ALWAYS_INCOGNITO_MODE
+        && key != GestureDataGatheringSettings.PREF_BACKGROUND_GATHERING_ENABLED
+        && key != GestureDataGatheringSettings.PREF_BACKGROUND_DISABLED_BEFORE_TIME_MILLIS
+        && key?.startsWith(Settings.PREF_ONE_HANDED_MODE_PREFIX) == false)
+        return
+
+    GlobalScope.launch {
+        delay(10) // need to wait until SettingsValues are reloaded
+        buttonsGroup.forEach {
+            if (it is ImageButton) setToolbarButtonActivatedState(it)
+            if (it.tag == TRANSLATE) it.isVisible = isTranslateKeyShown(it.context) // incognito may have changed
+        }
+    }
+}
+
+/**
+ * Keyboard: whether the Translate key shows: Translator installed and signed as expected, no incognito
+ * (password fields included, SettingsValues.mIncognitoModeEnabled), and not while the Translate panel's own field is
+ * the current one (a second panel), as HeliBoard hides the voice key by field (SuggestionStripView.updateVoiceKey)
+ * https://github.com/HeliBorg/HeliBoard/blob/main/app/src/main/java/helium314/keyboard/latin/suggestions/SuggestionStripView.kt
+ */
+fun isTranslateKeyShown(context: Context): Boolean {
+    val values = Settings.getValues()
+    return !values.mIncognitoModeEnabled && Translator.installed(context) &&
+        TranslateActivity.decodePrivateImeOptions(values.mInputAttributes.editorInfo).height == 0
+}
+
+private fun setToolbarButtonActivatedState(button: ImageButton) {
+    button.isActivated = when (button.tag) {
+        INCOGNITO -> button.context.prefs().getBoolean(Settings.PREF_ALWAYS_INCOGNITO_MODE, Defaults.PREF_ALWAYS_INCOGNITO_MODE)
+        ONE_HANDED -> Settings.getValues().mOneHandedModeEnabled
+        SPLIT -> Settings.getValues().mIsSplitKeyboardEnabled
+        AUTOCORRECT -> Settings.getValues().mAutoCorrectionEnabledPerUserSettings
+        BACKGROUND_GATHERING -> useBackgroundGathering
+        else -> true
+    }
+}
+
+fun getCodeForToolbarKey(key: ToolbarKey) = Settings.getInstance().getCustomToolbarKeyCode(key) ?: when (key) {
+    VOICE -> KeyCode.VOICE_INPUT
+    CLIPBOARD -> KeyCode.CLIPBOARD
+    NUMPAD -> KeyCode.NUMPAD
+    DPAD -> KeyCode.DPAD
+    UNDO -> KeyCode.UNDO
+    REDO -> KeyCode.REDO
+    SETTINGS -> KeyCode.SETTINGS
+    SELECT_ALL -> KeyCode.CLIPBOARD_SELECT_ALL
+    SELECT_WORD -> KeyCode.CLIPBOARD_SELECT_WORD
+    COPY -> KeyCode.CLIPBOARD_COPY
+    CUT -> KeyCode.CLIPBOARD_CUT
+    PASTE -> KeyCode.CLIPBOARD_PASTE
+    ONE_HANDED -> KeyCode.TOGGLE_ONE_HANDED_MODE
+    INCOGNITO -> KeyCode.TOGGLE_INCOGNITO_MODE
+    AUTOCORRECT -> KeyCode.TOGGLE_AUTOCORRECT
+    CLEAR_CLIPBOARD -> KeyCode.CLIPBOARD_CLEAR_HISTORY
+    CLOSE_HISTORY -> KeyCode.CLIPBOARD
+    EMOJI -> KeyCode.EMOJI
+    LEFT -> KeyCode.ARROW_LEFT
+    RIGHT -> KeyCode.ARROW_RIGHT
+    UP -> KeyCode.ARROW_UP
+    DOWN -> KeyCode.ARROW_DOWN
+    WORD_LEFT -> KeyCode.WORD_LEFT
+    WORD_RIGHT -> KeyCode.WORD_RIGHT
+    PAGE_UP -> KeyCode.PAGE_UP
+    PAGE_DOWN -> KeyCode.PAGE_DOWN
+    FULL_LEFT -> KeyCode.MOVE_START_OF_LINE
+    FULL_RIGHT -> KeyCode.MOVE_END_OF_LINE
+    PAGE_START -> KeyCode.MOVE_START_OF_PAGE
+    PAGE_END -> KeyCode.MOVE_END_OF_PAGE
+    SPLIT -> KeyCode.SPLIT_LAYOUT
+    FLOATING -> KeyCode.TOGGLE_FLOATING_WINDOW
+    BACKGROUND_GATHERING -> KeyCode.BACKGROUND_GATHERING
+    TRANSLATE -> KeyCode.TRANSLATE
+}
+
+fun getCodeForToolbarKeyLongClick(key: ToolbarKey) = Settings.getInstance().getCustomToolbarLongpressCode(key) ?: when (key) {
+    CLIPBOARD -> KeyCode.CLIPBOARD_PASTE
+    UNDO -> KeyCode.REDO
+    REDO -> KeyCode.UNDO
+    SELECT_ALL -> KeyCode.CLIPBOARD_SELECT_WORD
+    SELECT_WORD -> KeyCode.CLIPBOARD_SELECT_ALL
+    COPY -> KeyCode.CLIPBOARD_CUT
+    PASTE -> KeyCode.CLIPBOARD
+    LEFT -> KeyCode.KEY_REPEAT
+    RIGHT -> KeyCode.KEY_REPEAT
+    UP -> KeyCode.KEY_REPEAT
+    DOWN -> KeyCode.KEY_REPEAT
+    WORD_LEFT -> KeyCode.KEY_REPEAT
+    WORD_RIGHT -> KeyCode.KEY_REPEAT
+    PAGE_UP -> KeyCode.MOVE_START_OF_PAGE
+    PAGE_DOWN -> KeyCode.MOVE_END_OF_PAGE
+    BACKGROUND_GATHERING -> KeyCode.BACKGROUND_GATHERING_TEMP_OFF
+    else -> KeyCode.UNSPECIFIED
+}
+
+// names need to be aligned with resources strings (using lowercase of key.name)
+enum class ToolbarKey {
+    VOICE, CLIPBOARD, NUMPAD, DPAD, UNDO, REDO, SETTINGS, SELECT_ALL, SELECT_WORD, COPY, CUT, PASTE, ONE_HANDED, FLOATING, SPLIT,
+    INCOGNITO, AUTOCORRECT, CLEAR_CLIPBOARD, CLOSE_HISTORY, EMOJI, LEFT, RIGHT, UP, DOWN, WORD_LEFT, WORD_RIGHT,
+    PAGE_UP, PAGE_DOWN, FULL_LEFT, FULL_RIGHT, PAGE_START, PAGE_END, BACKGROUND_GATHERING,
+    TRANSLATE // Keyboard: shown only while Translator is installed (SuggestionStripView.updateVoiceKey)
+}
+
+enum class ToolbarMode {
+    EXPANDABLE, TOOLBAR_KEYS, SUGGESTION_STRIP, HIDDEN,
+}
+
+val toolbarKeyStrings = entries.associateWithTo(EnumMap(ToolbarKey::class.java)) { it.toString().lowercase(Locale.US) }
+
+val defaultToolbarPref by lazy {
+    // Keyboard: the clipboard and its clear key only, and the mic; every other tool is a box to check in Settings >
+    // Advanced > Toolbar (iOS's bar has no tools, Gboard hides its tool panel behind settings). EMOJI is not here: the
+    // bottom row has its key. TRANSLATE is Gboard's toolbar Translate (hidden unless Translator is installed). VOICE stays
+    // last: the Glass bar draws it in its own slot at the right end
+    // (SuggestionStripView.setupGlassSlots), the other styles show it as the last tool. Order and keys are HeliBoard's
+    // ToolbarKey list (this file), https://github.com/HeliBorg/HeliBoard/blob/main/app/src/main/java/helium314/keyboard/latin/utils/ToolbarUtils.kt
+    val default = listOf(CLIPBOARD, CLEAR_CLIPBOARD, TRANSLATE, VOICE)
+    val others = entries.filterNot { it in default || it == CLOSE_HISTORY }
+    default.joinToString(Separators.ENTRY) { it.name + Separators.KV + true } + Separators.ENTRY +
+            others.joinToString(Separators.ENTRY) { it.name + Separators.KV + false }
+}
+
+val defaultPinnedToolbarPref = entries.filterNot { it == CLOSE_HISTORY }.joinToString(Separators.ENTRY) {
+    it.name + Separators.KV + false
+}
+
+val defaultClipboardToolbarPref by lazy {
+    // Keyboard: only the clear key (Gboard's clipboard panel offers only "Edit" and clear, iOS none); the other tools,
+    // HeliBoard's list (UP, DOWN, LEFT, RIGHT, UNDO, CUT, COPY, PASTE, SELECT_WORD, CLOSE_HISTORY), stay boxes to check
+    // in Settings > Advanced > Toolbar; the ABC key of the bottom row goes back to the letters
+    val default = listOf(CLEAR_CLIPBOARD)
+    val others = entries.filterNot { it in default }
+    default.joinToString(Separators.ENTRY) { it.name + Separators.KV + true } + Separators.ENTRY +
+            others.joinToString(Separators.ENTRY) { it.name + Separators.KV + false }
+}
+
+/** add missing keys, typically because a new key has been added */
+fun upgradeToolbarPrefs(prefs: SharedPreferences) {
+    upgradeToolbarPref(prefs, Settings.PREF_TOOLBAR_KEYS, defaultToolbarPref)
+    upgradeToolbarPref(prefs, Settings.PREF_PINNED_TOOLBAR_KEYS, defaultPinnedToolbarPref)
+    upgradeToolbarPref(prefs, Settings.PREF_CLIPBOARD_TOOLBAR_KEYS, defaultClipboardToolbarPref)
+}
+
+private fun upgradeToolbarPref(prefs: SharedPreferences, pref: String, default: String) {
+    if (!prefs.contains(pref)) return
+    val list = prefs.getString(pref, default)!!.split(Separators.ENTRY).toMutableList()
+    val splitDefault = defaultToolbarPref.split(Separators.ENTRY)
+    splitDefault.forEach { entry ->
+        val keyWithSeparator = entry.substringBefore(Separators.KV) + Separators.KV
+        if (list.none { it.startsWith(keyWithSeparator) }) {
+            // Keyboard: Translate joins an existing bar enabled, before the mic (VOICE stays last)
+            if (pref == Settings.PREF_TOOLBAR_KEYS && keyWithSeparator == TRANSLATE.name + Separators.KV)
+                list.add(list.indexOfFirst { it.startsWith(VOICE.name + Separators.KV) }.takeIf { it >= 0 } ?: list.size, "${keyWithSeparator}true")
+            else
+                list.add("${keyWithSeparator}false")
+        }
+    }
+    // likely not needed, but better prepare for possibility of key removal
+    list.removeAll {
+        try {
+            ToolbarKey.valueOf(it.substringBefore(Separators.KV))
+            false
+        } catch (_: IllegalArgumentException) {
+            true
+        }
+    }
+    prefs.edit { putString(pref, list.joinToString(Separators.ENTRY)) }
+}
+
+fun getEnabledToolbarKeys(prefs: SharedPreferences) = getEnabledToolbarKeys(prefs, Settings.PREF_TOOLBAR_KEYS, defaultToolbarPref)
+
+fun getPinnedToolbarKeys(prefs: SharedPreferences) = getEnabledToolbarKeys(prefs, Settings.PREF_PINNED_TOOLBAR_KEYS, defaultPinnedToolbarPref)
+
+fun getEnabledClipboardToolbarKeys(prefs: SharedPreferences) = getEnabledToolbarKeys(prefs, Settings.PREF_CLIPBOARD_TOOLBAR_KEYS, defaultClipboardToolbarPref)
+
+fun addPinnedKey(prefs: SharedPreferences, key: ToolbarKey) {
+    // remove the existing version of this key and add the enabled one after the last currently enabled key
+    val string = prefs.getString(Settings.PREF_PINNED_TOOLBAR_KEYS, defaultPinnedToolbarPref)!!
+    val keys = string.split(Separators.ENTRY).toMutableList()
+    keys.removeAll { it.startsWith(key.name + Separators.KV) }
+    val lastEnabledIndex = keys.indexOfLast { it.endsWith("true") }
+    keys.add(lastEnabledIndex + 1, key.name + Separators.KV + "true")
+    prefs.edit { putString(Settings.PREF_PINNED_TOOLBAR_KEYS, keys.joinToString(Separators.ENTRY)) }
+}
+
+fun removePinnedKey(prefs: SharedPreferences, key: ToolbarKey) {
+    // just set it to disabled
+    val string = prefs.getString(Settings.PREF_PINNED_TOOLBAR_KEYS, defaultPinnedToolbarPref)!!
+    val result = string.split(Separators.ENTRY).joinToString(Separators.ENTRY) {
+        if (it.startsWith(key.name + Separators.KV))
+            key.name + Separators.KV + "false"
+        else it
+    }
+    prefs.edit { putString(Settings.PREF_PINNED_TOOLBAR_KEYS, result) }
+}
+
+private fun getEnabledToolbarKeys(prefs: SharedPreferences, pref: String, default: String): List<ToolbarKey> {
+    val string = prefs.getString(pref, default)!!
+    return string.split(Separators.ENTRY).mapNotNull {
+        val split = it.split(Separators.KV)
+        if (split.last() == "true") {
+            try {
+                ToolbarKey.valueOf(split.first())
+            } catch (_: IllegalArgumentException) {
+                null
+            }
+        } else null
+    }
+}
+
+fun writeCustomKeyCodes(prefs: SharedPreferences, codes: EnumMap<ToolbarKey, Pair<Int?, Int?>>) {
+    val string = codes.mapNotNull { entry -> entry.value?.let { "${entry.key.name},${it.first},${it.second}" } }.joinToString(";")
+    prefs.edit { putString(Settings.PREF_TOOLBAR_CUSTOM_KEY_CODES, string) }
+}
+
+fun readCustomKeyCodes(prefs: SharedPreferences): EnumMap<ToolbarKey, Pair<Int?, Int?>> {
+    val map = EnumMap<ToolbarKey, Pair<Int?, Int?>>(ToolbarKey::class.java)
+    prefs.getString(Settings.PREF_TOOLBAR_CUSTOM_KEY_CODES, Defaults.PREF_TOOLBAR_CUSTOM_KEY_CODES)!!
+        .split(";").forEach {
+            runCatching {
+                val s = it.split(",")
+                map[ToolbarKey.valueOf(s[0])] = s[1].toIntOrNull() to s[2].toIntOrNull()
+            }
+        }
+    return map
+}
+
+fun getCustomKeyCode(key: ToolbarKey, prefs: SharedPreferences): Int? {
+    if (customToolbarKeyCodes == null)
+        customToolbarKeyCodes = readCustomKeyCodes(prefs)
+    return customToolbarKeyCodes!![key]?.first
+}
+
+fun getCustomLongpressKeyCode(key: ToolbarKey, prefs: SharedPreferences): Int? {
+    if (customToolbarKeyCodes == null)
+        customToolbarKeyCodes = readCustomKeyCodes(prefs)
+    return customToolbarKeyCodes!![key]?.second
+}
+
+fun clearCustomToolbarKeyCodes() {
+    customToolbarKeyCodes = null
+}
+
+fun onClickToolbarKey(view: View, onCodeInput: (Int) -> Unit) {
+    AudioAndHapticFeedbackManager.getInstance().performHapticAndAudioFeedback(KeyCode.NOT_SPECIFIED, view, HapticEvent.KEY_PRESS)
+    val code = getCodeForToolbarKey(view.tag as ToolbarKey)
+    if (code != KeyCode.UNSPECIFIED) {
+        onCodeInput(code)
+    }
+}
+
+fun onLongClickToolbarKey(view: View, onCodeInput: (Int, Boolean) -> Unit) {
+    AudioAndHapticFeedbackManager.getInstance().performHapticAndAudioFeedback(KeyCode.NOT_SPECIFIED, view, HapticEvent.KEY_LONG_PRESS)
+    val longClickCode = getCodeForToolbarKeyLongClick(view.tag as ToolbarKey)
+    if (longClickCode == KeyCode.KEY_REPEAT) {
+        onClickToolbarKey(view) { onCodeInput(it, false) }
+        repeatToolbarKey(view) { onClickToolbarKey(view) { onCodeInput(it, true) } }
+    } else if (longClickCode != KeyCode.UNSPECIFIED) {
+        onCodeInput(longClickCode, false)
+    }
+}
+
+private fun repeatToolbarKey(view: View, onClick: (view: View) -> Unit) {
+    view.handler.postDelayed({
+        if (view.isPressed) {
+            onClick(view)
+            repeatToolbarKey(view, onClick)
+        }
+    }, view.resources.getInteger(R.integer.config_key_repeat_interval).toLong())
+}
+
+private var customToolbarKeyCodes: EnumMap<ToolbarKey, Pair<Int?, Int?>>? = null

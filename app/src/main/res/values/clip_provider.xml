@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- clipboard_provider_authority comes from app/build.gradle.kts (resValue), per application id -->
+</resources>

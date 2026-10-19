@@ -1,0 +1,215 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+Copyright (C) 2012 The Android Open Source Project
+modified
+SPDX-License-Identifier: Apache-2.0 AND GPL-3.0-only
+-->
+
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.READ_USER_DICTIONARY" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.WRITE_USER_DICTIONARY" />
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
+
+    <!-- Keyboard: the Network switch in Settings turns all of it off. Only the update check on GitHub and the
+         dictionaries downloaded on a tap go out; nothing typed ever does. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Only used when the user chooses to install updates from the app; Android asks them then. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- An update goes in without a question when the user leaves the app. -->
+    <uses-permission android:name="android.permission.UPDATE_PACKAGES_WITHOUT_USER_ACTION" />
+    <!-- The note after an update and while one downloads. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Dictation: the microphone is read only while the user dictates; asked from DictationPermissionActivity. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
+    <application android:label="@string/english_ime_name"
+            android:name="helium314.keyboard.latin.App"
+            android:icon="@mipmap/ic_launcher"
+            android:roundIcon="@mipmap/ic_launcher_round"
+            android:supportsRtl="true"
+            android:allowBackup="false"
+            android:defaultToDeviceProtectedStorage="true"
+            android:directBootAware="true"
+            android:enableOnBackInvokedCallback="false"
+            android:memtagMode="sync"
+            android:usesCleartextTraffic="false"
+            android:networkSecurityConfig="@xml/network_security_config"
+            android:localeConfig="@xml/locales_config"
+            tools:remove="android:appComponentFactory"
+            tools:targetApi="33">
+
+        <!-- Services -->
+        <service android:name="LatinIME"
+                android:label="@string/english_ime_name"
+                android:permission="android.permission.BIND_INPUT_METHOD"
+                android:directBootAware="true"
+                android:exported="true">
+            <intent-filter>
+                <action android:name="android.view.InputMethod" />
+            </intent-filter>
+            <meta-data android:name="android.view.im" android:resource="@xml/method_dummy" />
+        </service>
+
+        <service android:name=".spellcheck.AndroidSpellCheckerService"
+                 android:label="@string/spell_checker_service_name"
+                 android:permission="android.permission.BIND_TEXT_SERVICE"
+                 android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.textservice.SpellCheckerService" />
+            </intent-filter>
+            <meta-data android:name="android.view.textservice.scs"
+                    android:resource="@xml/spellchecker" />
+        </service>
+
+        <!-- Activities -->
+        <activity android:name="helium314.keyboard.settings.SettingsActivity"
+                android:theme="@style/platformActivityTheme"
+                android:icon="@mipmap/ic_launcher"
+                android:windowSoftInputMode="adjustResize"
+                android:exported="true"
+                android:enabled="false">
+            <!-- Keyboard: no launcher icon unless "Show app icon" is on. Disabled by default, as an enabled-then-disabled
+                 launcher activity gets a synthesized App info icon from Android 10
+                 (LauncherApps.getActivityList, https://android.googlesource.com/platform/frameworks/base/+/refs/heads/main/core/java/android/content/pm/LauncherApps.java).
+                 Settings open from Android's keyboard settings (method.xml settingsActivity, SettingsActivity2). -->
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- separate activity that's used internally, only necessary in case the launcher icon is disabled on Android < 10 -->
+        <activity android:name="helium314.keyboard.settings.SettingsActivity2"
+            android:theme="@style/platformActivityTheme"
+            android:icon="@mipmap/ic_launcher"
+            android:windowSoftInputMode="adjustResize"
+            android:exported="true">
+            <!-- intent filter for opening .dict files -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:mimeType="application/octet-stream" android:scheme="content" android:host="*" android:pathPattern=".*\\.dict" />
+            </intent-filter>
+        </activity>
+
+        <activity android:name=".spellcheck.SpellCheckerSettingsActivity"
+                android:theme="@style/platformActivityTheme"
+                android:label="@string/spell_checker_service_name"
+                android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+            </intent-filter>
+        </activity>
+
+        <activity android:name="helium314.keyboard.keyboard.emoji.EmojiSearchActivity" android:exported="false"
+            android:theme="@style/TransparentActivityTheme" android:excludeFromRecents="true" android:noHistory="true"
+            android:windowSoftInputMode="adjustResize|stateAlwaysVisible" android:configChanges="orientation|screenSize"/>
+
+        <activity android:name="helium314.keyboard.keyboard.translate.TranslateActivity" android:exported="false"
+            android:theme="@style/TransparentActivityTheme" android:excludeFromRecents="true" android:noHistory="true"
+            android:windowSoftInputMode="adjustResize|stateAlwaysVisible" android:configChanges="orientation|screenSize"/>
+
+        <!-- Dictation: the transparent activity that asks for the microphone, an input method cannot -->
+        <activity android:name="helium314.keyboard.latin.dictation.DictationPermissionActivity" android:exported="false"
+            android:theme="@style/TransparentActivityTheme" android:excludeFromRecents="true"/>
+
+        <!-- Broadcast receivers -->
+        <receiver android:name="SystemBroadcastReceiver"
+                android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
+                <action android:name="android.intent.action.USER_INITIALIZE" />
+                <action android:name="android.intent.action.LOCALE_CHANGED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Keyboard: after an update the app installed itself, a notification to open it again (update kit). -->
+        <receiver android:name=".core.update.UpdatedReceiver" android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+
+        <receiver android:name="DictionaryPackInstallBroadcastReceiver" android:exported="false">
+            <intent-filter>
+                <action android:name="helium314.keyboard.dictionarypack.aosp.UNKNOWN_CLIENT" />
+            </intent-filter>
+        </receiver>
+
+        <!-- for pasting files from internal clipboard -->
+        <provider android:name="helium314.keyboard.latin.database.ClipboardContentProvider"
+            android:authorities="@string/clipboard_provider_authority"
+            android:enabled="true"
+            android:grantUriPermissions="true"
+            android:exported="false">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/clipboard_provider_path"/>
+        </provider>
+
+        <!-- necessary for sending mail attachments, remove when data gathering phase is done (end of 2026 latest) -->
+        <provider android:name="helium314.keyboard.settings.screens.gesturedata.GestureFileProvider"
+            android:authorities="@string/gesture_data_provider_authority"
+            android:enabled="true"
+            android:grantUriPermissions="true"
+            android:exported="false">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/gesture_data_path"/>
+        </provider>
+
+        <!-- Keyboard: copied pictures are decoded here, in a process of its own with no permission, no files and no network
+             (Modules' safemedia kit, core/security/DecoderService) -->
+        <service
+            android:name=".core.security.DecoderService"
+            android:exported="false"
+            android:isolatedProcess="true"
+            android:process=":decoder" />
+
+        <!-- Keyboard: the animated emoji sent as images (InputConnectionCompat.commitContent), only the animated folder,
+             read by the app receiving it through the one-time grant of the input content, never exported
+             (https://developer.android.com/develop/ui/views/touch-and-input/image-keyboard;
+             https://github.com/android/input-samples/tree/main/CommitContentSampleIME, Apache-2.0) -->
+        <provider android:name="androidx.core.content.FileProvider"
+            android:authorities="@string/animated_provider_authority"
+            android:grantUriPermissions="true"
+            android:exported="false">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/animated_provider_path"/>
+        </provider>
+    </application>
+
+    <queries>
+        <!-- Translator, whose service the Translate tool binds (signature checked in core/translate/Translator) -->
+        <package android:name="dev.davidv.translator" />
+
+        <!-- The phone's speech recognizers, for SpeechRecognizer.isOnDeviceRecognitionAvailable and the dictation
+             (https://developer.android.com/reference/android/speech/SpeechRecognizer#createSpeechRecognizer(android.content.Context)).
+             Voice and Store are seen through the launcher query below. -->
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
+
+        <!-- To detect other IMEs -->
+        <intent>
+            <!-- changed to * as it's supposed to help with finding other keyboard apps, see https://github.com/HeliBorg/HeliBoard/issues/1340 -->
+            <!--<action android:name="android.view.InputMethod" />-->
+            <action android:name="*" />
+        </intent>
+
+        <!-- To detect names of installed apps -->
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+    </queries>
+</manifest>

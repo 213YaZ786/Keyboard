@@ -1,0 +1,54 @@
+[
+// Source: xkeyboard-config symbols/ma, variant "tifinagh" (IRCAM standard), rows AD, AC, AB
+// https://gitlab.freedesktop.org/xkeyboard-config/xkeyboard-config/-/blob/master/symbols/ma
+// Level 1 is the key, level 2 (Shift) is the emphatic where xkb has one. AD11's ⵯ ends the last row,
+// as the Kabyle AZERTY ends it with its seventh key.
+  [
+    { "label": "ⴰ" },
+    { "$": "shift_state_selector",
+      "manualOrLocked": { "label": "ⵥ" },
+      "default": { "label": "ⵣ" }
+    },
+    { "label": "ⴻ" },
+    { "$": "shift_state_selector",
+      "manualOrLocked": { "label": "ⵕ" },
+      "default": { "label": "ⵔ" }
+    },
+    { "$": "shift_state_selector",
+      "manualOrLocked": { "label": "ⵟ" },
+      "default": { "label": "ⵜ" }
+    },
+    { "label": "ⵢ" },
+    { "label": "ⵓ" },
+    { "label": "ⵉ" },
+    { "label": "ⵄ" },
+    { "label": "ⵃ" }
+  ],
+  [
+    { "label": "ⵇ" },
+    { "$": "shift_state_selector",
+      "manualOrLocked": { "label": "ⵚ" },
+      "default": { "label": "ⵙ" }
+    },
+    { "$": "shift_state_selector",
+      "manualOrLocked": { "label": "ⴹ" },
+      "default": { "label": "ⴷ" }
+    },
+    { "label": "ⴼ" },
+    { "label": "ⴳ" },
+    { "label": "ⵀ" },
+    { "label": "ⵊ" },
+    { "label": "ⴽ" },
+    { "label": "ⵍ" },
+    { "label": "ⵎ" }
+  ],
+  [
+    { "label": "ⵡ" },
+    { "label": "ⵅ" },
+    { "label": "ⵛ" },
+    { "label": "ⵖ" },
+    { "label": "ⴱ" },
+    { "label": "ⵏ" },
+    { "label": "ⵯ" }
+  ]
+]

@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Copyright (C) 2012 The Android Open Source Project
+    modified
+    SPDX-License-Identifier: Apache-2.0 AND GPL-3.0-only
+
+    Keyboard: the word view of AOSP LatinIME's hint_add_to_dictionary (branch jb-mr2-release), for the saved word's check mark
+    https://android.googlesource.com/platform/packages/inputmethods/LatinIME/+/refs/heads/jb-mr2-release/java/res/layout/hint_add_to_dictionary.xml
+    The strip's own text style (suggestionWordStyle) in place of suggestionBackgroundStyle, no padding.
+-->
+<TextView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="match_parent"
+    android:gravity="center"
+    android:paddingLeft="0dp"
+    android:paddingTop="0dp"
+    android:paddingRight="0dp"
+    android:paddingBottom="0dp"
+    android:focusable="false"
+    android:singleLine="true"
+    android:ellipsize="none"
+    android:hapticFeedbackEnabled="false"
+    android:soundEffectsEnabled="false"
+    style="?attr/suggestionWordStyle" />
