@@ -2,8 +2,8 @@ import com.android.build.api.variant.ApplicationVariant
 
 plugins {
     id("com.android.application")
-    kotlin("plugin.serialization") version "2.4.0"
-    kotlin("plugin.compose") version "2.4.0"
+    kotlin("plugin.serialization") version "2.4.21"
+    kotlin("plugin.compose") version "2.4.21"
 }
 
 android {
@@ -134,7 +134,7 @@ android {
 
 dependencies {
     // androidx
-    implementation("androidx.core:core-ktx:1.17.0") // 1.18.0 requires minSdk 23
+    implementation("androidx.core:core-ktx:1.19.1") // 1.18.0 requires minSdk 23
     implementation("androidx.recyclerview:recyclerview:1.4.0")
     implementation("androidx.autofill:autofill:1.3.0")
     implementation("androidx.viewpager2:viewpager2:1.1.0")
@@ -153,19 +153,19 @@ dependencies {
     implementation("androidx.compose.ui:ui-tooling-preview")
     debugImplementation("androidx.compose.ui:ui-tooling")
     "debugNoMinifyImplementation"("androidx.compose.ui:ui-tooling")
-    implementation("androidx.navigation:navigation-compose:2.9.8")
+    implementation("androidx.navigation:navigation-compose:2.10.2")
     implementation("sh.calvin.reorderable:reorderable:3.1.0") // for easier re-ordering
-    implementation("com.github.skydoves:colorpicker-compose:1.1.3") // for user-defined colors, newer requires minSdk 23
+    implementation("com.github.skydoves:colorpicker-compose:1.3.0") // for user-defined colors, newer requires minSdk 23
     // Easter eggs (point 21): Konfetti's View version (ISC, https://github.com/DanielMartinus/Konfetti), 2.0.5 of November 2024:
     // later versions are too recent. Reads nothing, sends nothing; its core module comes with it.
-    implementation("nl.dionsegijn:konfetti-xml:2.0.5")
+    implementation("nl.dionsegijn:konfetti-xml:2.0.6")
 
     // test
     testImplementation(kotlin("test"))
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit")
-    testImplementation("org.mockito:mockito-core:5.23.0")
-    testImplementation("org.robolectric:robolectric:4.16.1")
+    testImplementation("org.mockito:mockito-core:5.24.0")
+    testImplementation("org.robolectric:robolectric:4.17")
     testImplementation("androidx.test:runner:1.7.0")
     testImplementation("androidx.test:core:1.7.0")
 }
