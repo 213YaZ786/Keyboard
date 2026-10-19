@@ -163,6 +163,9 @@ jobs:
           # (the first manifestPlaceholders line, defaultConfig's).
           grep -oP 'manifestPlaceholders\["\K[^"]+"\] = "[^"]+' app/build.gradle.kts | sed 's/"\] = "/ /' | awk '!seen[$1]++' \
             | while read -r name value; do sed -i "s|\\\${$name}|$value|g" allowed.txt; done || true
+          # androidx.core's receiver permission is named after the application id, which can differ
+          # from the namespace (Keyboard): https://developer.android.com/reference/androidx/core/content/ContextCompat#registerReceiver
+          grep -oP '^package: \K\S+' permissions.txt | sed 's/$/.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION/' >> allowed.txt || true
           echo "allowed:"; sort -u allowed.txt
           unexpected="$(grep -oP "uses-permission: name='\K[^']+" permissions.txt | grep -vxF -f allowed.txt || true)"
           if [ -n "$unexpected" ]
