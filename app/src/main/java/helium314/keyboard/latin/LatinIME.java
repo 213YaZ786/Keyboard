@@ -42,6 +42,7 @@ import helium314.keyboard.event.HapticEvent;
 import helium314.keyboard.keyboard.KeyboardActionListener;
 import helium314.keyboard.keyboard.KeyboardActionListenerImpl;
 import helium314.keyboard.keyboard.KeyboardMode;
+import helium314.keyboard.keyboard.emoji.EmojiFirst;
 import helium314.keyboard.keyboard.emoji.EmojiPalettesView;
 import helium314.keyboard.keyboard.emoji.EmojiSearchActivity;
 import helium314.keyboard.keyboard.emoji.EmojiSearchActivityKt;
@@ -1027,6 +1028,12 @@ public class LatinIME extends InputMethodService implements
                 currentSettingsValues.mGestureInputEnabled,
                 currentSettingsValues.mGestureTrailEnabled,
                 currentSettingsValues.mGestureFloatingPreviewTextEnabled);
+
+        // Keyboard: a field that asks for it (privateImeOptions, EmojiFirst) opens on the emoji page, switched as
+        // HeliBoard's onEmojiSearchDone does it, a beat later so that the keyboard's own reload cannot undo it
+        // (https://github.com/HeliBorg/HeliBoard/blob/main/app/src/main/java/helium314/keyboard/latin/LatinIME.java)
+        if (EmojiFirst.wanted(editorInfo))
+            mHandler.postDelayed(mKeyboardSwitcher::setEmojiKeyboard, 100);
 
         if (TRACE) Debug.startMethodTracing("/data/trace/latinime");
     }
