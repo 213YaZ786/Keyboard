@@ -38,7 +38,6 @@ fun MainSettingsScreen(
     onClickTextReplacement: () -> Unit,
     onClickAppearance: () -> Unit,
     onClickAdvanced: () -> Unit,
-    onClickDictation: () -> Unit,
     onClickBack: () -> Unit,
 ) {
     SearchSettingsScreen(
@@ -99,7 +98,7 @@ fun MainSettingsScreen(
                     stringResource(R.string.main_key_preview),
                     key = Settings.PREF_POPUP_ON, default = Defaults.PREF_POPUP_ON
                 ) { KeyboardSwitcher.getInstance().reloadKeyboard() }
-                DictationPreference(stringResource(R.string.main_dictation), onClickDictation)
+                DictationPreference(stringResource(R.string.main_dictation))
                 if (AudioAndHapticFeedbackManager.getInstance().hasVibrator())
                     SwitchPreference(
                         stringResource(R.string.main_vibration),
@@ -132,7 +131,7 @@ private fun PreviewScreen() {
     initPreview(LocalContext.current)
     Theme(previewDark) {
         Surface {
-            MainSettingsScreen({}, {}, {}, {}, {}, {})
+            MainSettingsScreen({}, {}, {}, {}, {})
         }
     }
 }

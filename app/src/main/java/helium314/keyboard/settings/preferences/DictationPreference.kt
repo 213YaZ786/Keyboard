@@ -5,13 +5,9 @@ import android.content.SharedPreferences
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.stringResource
 import androidx.core.content.edit
 import helium314.keyboard.keyboard.KeyboardSwitcher
-import helium314.keyboard.latin.R
 import helium314.keyboard.latin.common.Constants.Separators
-import helium314.keyboard.latin.core.voice.SpeechModel
-import helium314.keyboard.latin.utils.NextScreenIcon
 import helium314.keyboard.latin.settings.Settings
 import helium314.keyboard.latin.ui.component.GlassSwitch
 import helium314.keyboard.latin.utils.Log
@@ -31,7 +27,7 @@ import helium314.keyboard.settings.SettingsActivity
 // Sources: https://github.com/HeliBorg/HeliBoard/blob/main/app/src/main/java/helium314/keyboard/settings/preferences/ReorderSwitchPreference.kt
 // and removePinnedKey in https://github.com/HeliBorg/HeliBoard/blob/main/app/src/main/java/helium314/keyboard/latin/utils/ToolbarUtils.kt
 @Composable
-fun DictationPreference(name: String, onClickEngine: () -> Unit) {
+fun DictationPreference(name: String) {
     val ctx = LocalContext.current
     val prefs = ctx.prefs()
     val b = (ctx.getActivity() as? SettingsActivity)?.prefChanged?.collectAsState()
@@ -46,27 +42,6 @@ fun DictationPreference(name: String, onClickEngine: () -> Unit) {
     }
     Preference(name = name, onClick = { switched(!on) }) {
         GlassSwitch(checked = on, onCheckedChange = { switched(it) })
-    }
-    // the mic dictates in the keyboard: its speech engine (This phone, Base, Small) is one row under the switch, shown
-    // while the switch is on (settings/screens/DictationScreen)
-    if (on) Preference(
-        name = stringResource(R.string.dictation_engine),
-        description = engineSummary(ctx, prefs),
-        onClick = onClickEngine,
-    ) { NextScreenIcon() }
-}
-
-/**
- * The engine chosen, in a word: "This phone" or the model's name; nothing before a choice is made. Read from the
- * saved choice (SpeechChoice, Settings.PREF_SPEECH_MODEL) so that looking at the settings starts no engine.
- * Same idea as the summary of HeliBoard's ListPreference rows (the chosen value under the name)
- * https://github.com/HeliBorg/HeliBoard/blob/main/app/src/main/java/helium314/keyboard/settings/preferences/ListPreference.kt
- */
-private fun engineSummary(context: android.content.Context, prefs: SharedPreferences): String? {
-    val choice = prefs.getString(Settings.PREF_SPEECH_MODEL, "").orEmpty()
-    return when {
-        choice == SpeechModel.SYSTEM -> context.getString(R.string.dictation_this_phone)
-        else -> SpeechModel.PINS.firstOrNull { it.name == choice }?.label
     }
 }
 

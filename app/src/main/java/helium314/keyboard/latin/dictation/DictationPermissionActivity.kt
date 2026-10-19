@@ -2,8 +2,11 @@
 package helium314.keyboard.latin.dictation
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Bundle
+import android.provider.Settings
 import androidx.activity.ComponentActivity
 
 /**
@@ -33,7 +36,10 @@ class DictationPermissionActivity : ComponentActivity() {
         val granted = grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED
         // refused and the system will not ask again: only Android's settings can allow it
         if (!granted && !shouldShowRequestPermissionRationale(Manifest.permission.RECORD_AUDIO))
-            startActivity(KeyboardSpeech.appSettingsIntent(this))
+            startActivity(
+                Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", packageName, null))
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
         finish()
     }
 

@@ -1499,21 +1499,33 @@ public final class InputLogic {
                         // TODO: Add a new StatsUtils method onBackspaceWhenNoText()
                         return;
                     }
-                    int lengthToDelete = mConnection.getCharCountToDeleteBeforeCursor();
-                    mConnection.deleteTextBeforeCursor(lengthToDelete);
-                    int totalDeletedLength = lengthToDelete;
-                    if (mDeleteCount > Constants.DELETE_ACCELERATE_AT) {
-                        // If this is an accelerated (i.e., double) deletion, then we need to
-                        // consider unlearning here because we may have already reached
-                        // the previous word, and will lose it after next deletion.
+                    // Held long enough, each repeat removes the whole previous word (iOS, Gboard).
+                    final int wordLength = mDeleteCount > Constants.DELETE_WORD_AT
+                            ? wordLengthBeforeCursor(inputTransaction.getSettingsValues().mLocale) : 0;
+                    int totalDeletedLength;
+                    if (wordLength > 0) {
+                        // unlearn the word as AOSP does before an accelerated deletion
                         hasUnlearnedWordBeingDeleted |= unlearnWordBeingDeleted(
                                 inputTransaction.getSettingsValues(), currentKeyboardScript);
-                        final int codePointBeforeCursorToDeleteAgain =
-                                mConnection.getCodePointBeforeCursor();
-                        if (codePointBeforeCursorToDeleteAgain != Constants.NOT_A_CODE) {
-                            int lengthToDeleteAgain = mConnection.getCharCountToDeleteBeforeCursor();
-                            mConnection.deleteTextBeforeCursor(lengthToDeleteAgain);
-                            totalDeletedLength += lengthToDeleteAgain;
+                        mConnection.deleteTextBeforeCursor(wordLength);
+                        totalDeletedLength = wordLength;
+                    } else {
+                        int lengthToDelete = mConnection.getCharCountToDeleteBeforeCursor();
+                        mConnection.deleteTextBeforeCursor(lengthToDelete);
+                        totalDeletedLength = lengthToDelete;
+                        if (mDeleteCount > Constants.DELETE_ACCELERATE_AT) {
+                            // If this is an accelerated (i.e., double) deletion, then we need to
+                            // consider unlearning here because we may have already reached
+                            // the previous word, and will lose it after next deletion.
+                            hasUnlearnedWordBeingDeleted |= unlearnWordBeingDeleted(
+                                    inputTransaction.getSettingsValues(), currentKeyboardScript);
+                            final int codePointBeforeCursorToDeleteAgain =
+                                    mConnection.getCodePointBeforeCursor();
+                            if (codePointBeforeCursorToDeleteAgain != Constants.NOT_A_CODE) {
+                                int lengthToDeleteAgain = mConnection.getCharCountToDeleteBeforeCursor();
+                                mConnection.deleteTextBeforeCursor(lengthToDeleteAgain);
+                                totalDeletedLength += lengthToDeleteAgain;
+                            }
                         }
                     }
                     StatsUtils.onBackspacePressed(totalDeletedLength);
@@ -1543,6 +1555,20 @@ public final class InputLogic {
             }
         }
         return "";
+    }
+
+    // Source: FlorisBoard BreakIterators.measureLastUWords (Apache-2.0), through StringUtilsKt.lastWordsLengths:
+    // https://github.com/florisboard/florisboard/blob/main/app/src/main/kotlin/dev/patrickgold/florisboard/ime/nlp/BreakIterators.kt
+    // Word-wise delete: the text read before the cursor as FlorisBoard's DELETE_WORDS_PRECISELY swipe reads it.
+    /**
+     * Length in chars of the word before the cursor with the spaces after it, 0 when there is none to read.
+     * Same boundaries as the delete swipe; a boundary never splits an emoji.
+     */
+    private int wordLengthBeforeCursor(final Locale locale) {
+        final CharSequence before = mConnection.getTextBeforeCursor(256, 0);
+        if (TextUtils.isEmpty(before)) return 0;
+        final int[] lengths = StringUtilsKt.lastWordsLengths(before, 1, locale);
+        return lengths.length == 0 ? 0 : lengths[0];
     }
 
     boolean unlearnWordBeingDeleted(

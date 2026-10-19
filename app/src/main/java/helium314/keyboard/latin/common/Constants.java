@@ -155,6 +155,10 @@ public final class Constants {
     public static final int GET_SUGGESTED_WORDS_TIMEOUT = BuildConfig.DEBUG ? 500 : 200; // debug build is slow, and timeout is annoying for testing
     // How many continuous deletes at which to start deleting at a higher speed.
     public static final int DELETE_ACCELERATE_AT = 20;
+    // How many continuous deletes at which each repeat removes the whole previous word, as iOS and Gboard do
+    // after a moment of holding: 400 ms (config_key_repeat_start_timeout) + 42 * 50 ms (config_key_repeat_interval)
+    // is about 2.5 s.
+    public static final int DELETE_WORD_AT = 42;
 
     public static final String WORD_SEPARATOR = " ";
 

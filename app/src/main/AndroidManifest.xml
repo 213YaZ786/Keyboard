@@ -187,6 +187,13 @@ SPDX-License-Identifier: Apache-2.0 AND GPL-3.0-only
         <!-- Translator, whose service the Translate tool binds (signature checked in core/translate/Translator) -->
         <package android:name="dev.davidv.translator" />
 
+        <!-- The phone's speech recognizers, for SpeechRecognizer.isOnDeviceRecognitionAvailable and the dictation
+             (https://developer.android.com/reference/android/speech/SpeechRecognizer#createSpeechRecognizer(android.content.Context)).
+             Voice and Store are seen through the launcher query below. -->
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
+
         <!-- To detect other IMEs -->
         <intent>
             <!-- changed to * as it's supposed to help with finding other keyboard apps, see https://github.com/HeliBorg/HeliBoard/issues/1340 -->

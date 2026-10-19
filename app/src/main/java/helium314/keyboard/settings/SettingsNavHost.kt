@@ -21,7 +21,6 @@ import helium314.keyboard.settings.screens.AdvancedSettingsScreen
 import helium314.keyboard.settings.screens.AppearanceScreen
 import helium314.keyboard.settings.screens.ColorsScreen
 import helium314.keyboard.settings.screens.DebugScreen
-import helium314.keyboard.settings.screens.DictationScreen
 import helium314.keyboard.settings.screens.DictionaryScreen
 import helium314.keyboard.settings.screens.GestureTypingScreen
 import helium314.keyboard.settings.screens.LanguageScreen
@@ -74,12 +73,8 @@ fun SettingsNavHost(
                 onClickTextReplacement = { navController.navigate(SettingsDestination.PersonalDictionaries) },
                 onClickAppearance = { navController.navigate(SettingsDestination.Appearance) },
                 onClickAdvanced = { navController.navigate(SettingsDestination.More) },
-                onClickDictation = { navController.navigate(SettingsDestination.Dictation) },
                 onClickBack = ::goBack,
             )
-        }
-        composable(SettingsDestination.Dictation) { // Keyboard: the speech engine of the mic (This phone, Base, Small)
-            DictationScreen(onClickBack = ::goBack)
         }
         composable(SettingsDestination.More) { // Keyboard: the former main page's other screens
             MoreSettingsScreen(
@@ -161,7 +156,6 @@ fun SettingsNavHost(
 object SettingsDestination {
     const val Settings = "settings"
     const val More = "more" // Keyboard: Advanced, the list of the other screens
-    const val Dictation = "dictation" // Keyboard: the speech engine of the mic
     const val About = "about"
     const val TextCorrection = "text_correction"
     const val Preferences = "preferences"

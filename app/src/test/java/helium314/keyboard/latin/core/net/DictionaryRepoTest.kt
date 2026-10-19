@@ -252,11 +252,7 @@ class DictionaryRepoTest {
         val others = File("src/main").walkTopDown()
             .filter { it.isFile && (it.extension == "kt" || it.extension == "java") && "openConnection(" in it.readText() }
             .map { it.name }.sorted().toList()
-        // the voice kit's SpeechModel is the third: the speech model fetched once on a tap, each redirect checked
-        assertEquals(listOf("DictionaryRepo.kt", "SpeechModel.kt", "Updates.kt"), others)
+        assertEquals(listOf("DictionaryRepo.kt", "Updates.kt"), others)
         assertFalse("instanceFollowRedirects = true" in File("src/main/java/helium314/keyboard/latin/core/net/DictionaryRepo.kt").readText())
-        val speech = File("src/main/java/helium314/keyboard/latin/core/voice/SpeechModel.kt").readText()
-        assertFalse("instanceFollowRedirects = true" in speech)
-        assertTrue("instanceFollowRedirects = false" in speech)
     }
 }

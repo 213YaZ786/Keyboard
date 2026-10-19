@@ -233,22 +233,8 @@
     <string name="delete_learned_words_message">The words learned from your typing will be deleted.</string>
     <string name="delete_learned_words_personal">Also the words of the personal dictionary</string>
     <string name="learned_words_deleted">Deleted</string>
-    <!-- Keyboard: dictation, the stop button and the speech engine of the Dictation settings -->
+    <!-- Keyboard: the stop button of dictation -->
     <string name="dictation_stop">Stop dictation</string>
-    <string name="dictation_engine">Speech engine</string>
-    <string name="dictation_this_phone">This phone</string>
-    <string name="dictation_this_phone_summary">Nothing to download · %1$s</string>
-    <string name="dictation_model_summary">%1$s · %2$d MB</string>
-    <string name="dictation_downloading">Downloading · %1$d%%</string>
-    <string name="dictation_download">Download · %1$d MB</string>
-    <string name="dictation_stop_download">Stop</string>
-    <string name="dictation_remove">Remove</string>
-    <string name="dictation_on_phone">On this phone</string>
-    <string name="dictation_ready">Ready</string>
-    <string name="dictation_failed">Could not download</string>
-    <string name="dictation_needs_network">Turn on Network to download a model</string>
-    <string name="dictation_mobile_data">On mobile data</string>
-    <string name="dictation_unavailable">Dictation is not available on this phone</string>
     <!-- Keyboard: the Network switch, the update mode and the dictionaries downloaded on a tap -->
     <string name="network_title">Network</string>
     <string name="update_mode_title">Updates</string>

@@ -136,12 +136,3 @@ target_link_options(jni_latinime PRIVATE
     -Wl,--hash-style=both
     -Wl,-z,max-page-size=16384
 )
-
-# Keyboard: dictation's engine, whisper.cpp with its JNI bridge (Modules' voice kit, app/src/main/cpp), for the 64-bit
-# ABIs only; on the 32-bit ones Whisper.loaded stays false and dictation uses the phone's own recognizer.
-# WHISPER_SRC is the source fetched by fetchWhisper (app/build.gradle.kts). Both libraries share one C++ runtime
-# (c++_shared, set in app/build.gradle.kts).
-# https://cmake.org/cmake/help/latest/command/add_subdirectory.html
-if(ANDROID_ABI STREQUAL "arm64-v8a" OR ANDROID_ABI STREQUAL "x86_64")
-    add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../cpp keyboardwhisper)
-endif()

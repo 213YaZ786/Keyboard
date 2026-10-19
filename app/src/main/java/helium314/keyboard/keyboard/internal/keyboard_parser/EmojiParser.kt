@@ -11,6 +11,7 @@ import helium314.keyboard.keyboard.internal.keyboard_parser.floris.KeyCode
 import helium314.keyboard.latin.R
 import helium314.keyboard.latin.common.Constants
 import helium314.keyboard.latin.common.StringUtils
+import helium314.keyboard.latin.common.isEmoji
 import helium314.keyboard.latin.common.splitOnWhitespace
 import helium314.keyboard.latin.settings.Defaults
 import helium314.keyboard.latin.settings.Settings
@@ -65,7 +66,11 @@ class EmojiParser(private val params: KeyboardParams, private val context: Conte
             emoji.getCode(),
             if (emojiPopupSpecs[emoji] != null) EMOJI_HINT_LABEL else null,
             emojiPopupSpecs[emoji],
-            Key.LABEL_FLAGS_FONT_NORMAL,
+            // Keyboard: a symbol drawn as text (the Arabic signs ﷽ ﷲ ﷺ ﷻ ﷴ ۞ ۩ ۝) can be wider than its cell: it takes AOSP's
+            // label auto scaling (Key.needsAutoXScale, applied in KeyboardView.onDrawKeyTopVisuals, which only ever shrinks
+            // a label) https://android.googlesource.com/platform/packages/inputmethods/LatinIME/+/refs/heads/main/java/src/com/android/inputmethod/keyboard/KeyboardView.java
+            // a real emoji keeps its drawing as it is
+            Key.LABEL_FLAGS_FONT_NORMAL or if (isEmoji(emoji)) 0 else Key.LABEL_FLAGS_AUTO_X_SCALE,
             params
         )
     }

@@ -202,7 +202,9 @@ public class SettingsValues {
         mKeyPreviewPopupOn = prefs.getBoolean(Settings.PREF_POPUP_ON, Defaults.PREF_POPUP_ON);
         mSlidingKeyInputPreviewEnabled = prefs.getBoolean(
                 DebugSettings.PREF_SLIDING_KEY_INPUT_PREVIEW, Defaults.PREF_SLIDING_KEY_INPUT_PREVIEW);
-        mShowsVoiceInputKey = mInputAttributes.mShouldShowVoiceInputKey;
+        // Keyboard: the mic hides when nothing can listen (no Voice, no on-device recognizer, no Store to get Voice from)
+        mShowsVoiceInputKey = mInputAttributes.mShouldShowVoiceInputKey
+                && helium314.keyboard.latin.dictation.Recognizers.INSTANCE.anyway(context);
         String languagePref = prefs.getString(Settings.PREF_LANGUAGE_SWITCH_KEY, Defaults.PREF_LANGUAGE_SWITCH_KEY);
         mLanguageSwitchKeyToOtherImes = languagePref.equals("input_method") || languagePref.equals("both");
         mLanguageSwitchKeyToOtherSubtypes = mIsLocked || languagePref.equals("internal") || languagePref.equals("both");

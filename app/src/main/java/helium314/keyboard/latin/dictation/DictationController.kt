@@ -2,29 +2,23 @@
 package helium314.keyboard.latin.dictation
 
 import android.Manifest
+import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.PackageManager
 import helium314.keyboard.keyboard.internal.keyboard_parser.floris.KeyCode
 import helium314.keyboard.latin.LatinIME
-import helium314.keyboard.latin.core.voice.Dictation
-import helium314.keyboard.latin.core.voice.SpeechModel
-import helium314.keyboard.latin.core.voice.Whisper
+import helium314.keyboard.latin.RichInputMethodManager
 import helium314.keyboard.latin.settings.Settings
-import helium314.keyboard.settings.SettingsActivity
-import helium314.keyboard.settings.SettingsDestination
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.launch
+import java.util.Locale
 
 /**
  * Dictation in the keyboard, the way iOS 26 does it: the keyboard stays, the mic turns into a stop button, the words
  * go into the field as they are recognised and typing is still possible (a key ends the dictation).
- * The engines are Modules' voice kit (core/voice/Dictation: the phone's own recognizer, or whisper.cpp with Silero's
- * voice detector); this class is the keyboard's side: the right to the microphone, the choice of engine, the words
- * into the field (InputLogic.dictationComposing and onTextInput), the stop button (SuggestionStripView.setDictating),
- * and the end of the dictation when the user types, the keyboard closes or the field changes.
+ * The words are heard by Android's SpeechRecognizer (KeyboardRecognizer): our Voice app's recognition service, else the
+ * phone's own on-device recognizer (Recognizers); this class is the keyboard's side: the right to the microphone, the
+ * words into the field (InputLogic.dictationComposing and onTextInput), the stop button
+ * (SuggestionStripView.setDictating), and the end of the dictation when the user types, the keyboard closes or the
+ * field changes. With neither Voice nor an on-device recognizer, the mic opens Store (Voice is installed from it).
  * Never in incognito mode nor in a password field (SettingsValues.mIncognitoModeEnabled covers both, as
  * isTranslateKeyShown in ToolbarUtils does for Translate).
  *
@@ -39,10 +33,9 @@ import kotlinx.coroutines.launch
  * HeliBoard's own mic key switches to another voice input method (LatinIME.onEvent, RichInputMethodManager.switchToShortcutIme):
  * that is replaced here.
  */
-class DictationController(private val ime: LatinIME) : Dictation.Listener {
+class DictationController(private val ime: LatinIME) : KeyboardRecognizer.Listener {
 
-    private val dictation = Dictation(ime)
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private val dictation = KeyboardRecognizer(ime)
 
     /** The stop button shows: a dictation is listening. */
     var listening = false
@@ -53,8 +46,8 @@ class DictationController(private val ime: LatinIME) : Dictation.Listener {
     private var composing = false
     private var prefix = ""
     private var committing = false
-    private var engine = Dictation.Engine.SYSTEM
-    private var starting = false
+    private var service: ComponentName? = null
+    private var triedOnDevice = false
 
     /** The tap on the mic: starts, or stops. */
     fun toggle() {
@@ -84,55 +77,47 @@ class DictationController(private val ime: LatinIME) : Dictation.Listener {
         }
     }
 
-    /** The keyboard is going: nothing of the engines stays. */
+    /** The keyboard is going: nothing of the recognizer stays. */
     fun destroy() {
         stop(flush = false)
-        scope.cancel()
     }
 
     private fun start() {
-        if (starting || dictation.busy) return
+        if (dictation.busy) return
         if (Settings.getValues().mIncognitoModeEnabled) return // incognito and password fields: no microphone
         if (ime.checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             askForMicrophone()
             return
         }
-        starting = true
-        scope.launch {
-            try {
-                val speech = KeyboardSpeech.model(ime)
-                // The phone's recognizer is asked about the keyboard's language when that is not known yet
-                if (!speech.system.value || KeyboardSpeech.languageChanged()) speech.recheck().join()
-                val chosen = when {
-                    speech.usesSystem -> Dictation.Engine.SYSTEM
-                    Whisper.loaded && speech.state.value == SpeechModel.State.Ready && speech.file.exists() -> Dictation.Engine.WHISPER
-                    else -> null
-                }
-                if (chosen == null) {
-                    openDictationSettings() // no engine is ready: the settings choose one
-                    return@launch
-                }
-                begin(chosen, speech)
-            } finally {
-                starting = false
-            }
+        val voice = Recognizers.voice(ime)
+        if (voice == null && !Recognizers.onDevice(ime)) {
+            // nobody to listen: Voice is installed from Store
+            Recognizers.storeIntent(ime)?.let { ime.startActivity(it) }
+            return
         }
+        triedOnDevice = voice == null
+        begin(voice)
     }
 
-    private fun begin(chosen: Dictation.Engine, speech: SpeechModel) {
-        engine = chosen
+    /** Listens with Voice's service [with], or the phone's on-device recognizer when null. */
+    private fun begin(with: ComponentName?) {
+        service = with
         ime.dictationBegin()
         composing = false
         prefix = ""
         accepting = true
         listening = true
         ime.setDictating(true)
-        if (!dictation.start(chosen, KeyboardSpeech.language(), speech.file, this)) {
+        if (!dictation.start(language(), with, this)) {
             listening = false
             accepting = false
             ime.setDictating(false)
         }
     }
+
+    /** The language of the keyboard now (its current subtype); the phone's when the keyboard is not running. */
+    private fun language(): Locale =
+        runCatching { RichInputMethodManager.getInstance().currentSubtypeLocale }.getOrNull() ?: Locale.getDefault()
 
     override fun partial(text: String) {
         if (!accepting) return
@@ -156,27 +141,26 @@ class DictationController(private val ime: LatinIME) : Dictation.Listener {
         }
     }
 
-    override fun stopped(why: Dictation.Why) {
+    override fun stopped(why: KeyboardRecognizer.Why) {
         accepting = false
         val wasListening = listening
         listening = false
         if (wasListening) ime.setDictating(false)
         finishComposing()
         when (why) {
-            Dictation.Why.NO_MICROPHONE_RIGHT -> askForMicrophone()
-            Dictation.Why.UNAVAILABLE -> fallBack()
+            KeyboardRecognizer.Why.NO_MICROPHONE_RIGHT -> askForMicrophone()
+            KeyboardRecognizer.Why.UNAVAILABLE -> fallBack()
             else -> Unit
         }
     }
 
-    /** The phone's recognizer cannot hear this language: the downloaded model takes over, else the settings open. */
+    /** Voice cannot hear this language: the phone's on-device recognizer takes over once, else Voice itself opens. */
     private fun fallBack() {
-        val speech = KeyboardSpeech.model(ime)
-        if (engine == Dictation.Engine.SYSTEM && Whisper.loaded && speech.file.exists()) {
-            // the model is there but the choice said the phone: the model takes this one
-            begin(Dictation.Engine.WHISPER, speech)
+        if (service != null && !triedOnDevice && Recognizers.onDevice(ime)) {
+            triedOnDevice = true
+            begin(null)
         } else {
-            openDictationSettings()
+            Recognizers.voiceIntent(ime)?.let { ime.startActivity(it) }
         }
     }
 
@@ -196,14 +180,6 @@ class DictationController(private val ime: LatinIME) : Dictation.Listener {
         ime.startActivity(
             Intent(ime, DictationPermissionActivity::class.java)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_MULTIPLE_TASK)
-        )
-    }
-
-    private fun openDictationSettings() {
-        ime.startActivity(
-            Intent(ime, SettingsActivity::class.java)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                .putExtra(SettingsActivity.EXTRA_DESTINATION, SettingsDestination.Dictation)
         )
     }
 

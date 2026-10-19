@@ -32,6 +32,7 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.RelativeLayout
 import android.widget.TextView
+import androidx.core.view.children
 import androidx.core.view.doOnNextLayout
 import androidx.core.view.isVisible
 import helium314.keyboard.event.HapticEvent
@@ -120,10 +121,6 @@ class SuggestionStripView(context: Context, attrs: AttributeSet?, defStyle: Int)
             if (colors.themeStyle == STYLE_GLASS) word.setPadding(2.dpToPx(resources), 0, 2.dpToPx(resources), 0)
             wordViews.add(word)
             val divider = inflater.inflate(R.layout.suggestion_divider, null)
-            if (colors.themeStyle == STYLE_GLASS) { // Keyboard: the toolbar's separator, 1 x 30 in onSurface at 50 %
-                (divider as ImageView).setImageDrawable(GlassKeyDrawable.separator(context, colors))
-                divider.scaleType = ImageView.ScaleType.CENTER
-            }
             dividerViews.add(divider)
             val info = TextView(context, null, R.attr.suggestionWordStyle)
             info.setTextColor(colors.get(ColorType.KEY_TEXT))
@@ -148,9 +145,8 @@ class SuggestionStripView(context: Context, attrs: AttributeSet?, defStyle: Int)
     private var direction = 1 // 1 if LTR, -1 if RTL
 
     // Keyboard: the Glass bar has no grid key (the tools are the ones checked in Settings > Advanced > Toolbar, shown
-    // when nothing is typed, as iOS's bar); the voice key sits alone at the right end beside a thin separator (the one
-    // drawn between suggestions); null in the other styles. The voice key is not among the tools then.
-    private var glassSeparatorEnd: View? = null
+    // when nothing is typed, as iOS's bar); the voice key sits alone at the right end, no separator before it (Gboard's
+    // strip has none); null in the other styles. The voice key is not among the tools then.
     private var glassVoiceKey: ImageButton? = null
 
     private val toolbarKeyLayoutParams = LinearLayout.LayoutParams(
@@ -222,28 +218,17 @@ class SuggestionStripView(context: Context, attrs: AttributeSet?, defStyle: Int)
     }
 
     /**
-     * Keyboard: at the right end a separator and the voice key (the tools' VOICE key, so its tap and its code are
-     * HeliBoard's) in a round accent glass (GlassKeyDrawable.Kind.ACTION, as Gboard's tinted mic circle); the voice key
-     * is added only when the user keeps it among the tools or the pinned keys.
-     * The separator is the one drawn between suggestions (GlassKeyDrawable.separator), added with LinearLayout.addView
-     * (https://developer.android.com/reference/android/widget/LinearLayout) in the strip's wrapper, 8 dp of space on
-     * each side (View.setPadding, https://developer.android.com/reference/android/view/View#setPadding(int,%20int,%20int,%20int)).
+     * Keyboard: at the right end the voice key (the tools' VOICE key, so its tap and its code are HeliBoard's) in a
+     * round accent glass (GlassKeyDrawable.Kind.ACTION, as Gboard's tinted mic circle), added with LinearLayout.addView
+     * (https://developer.android.com/reference/android/widget/LinearLayout) in the strip's wrapper; it is added only when
+     * the user keeps it among the tools or the pinned keys.
      */
     private fun setupGlassSlots(colors: Colors, withVoiceKey: Boolean) {
         val wrapper = findViewById<LinearLayout>(R.id.suggestions_strip_wrapper)
-        fun separator() = ImageView(context).apply {
-            setImageDrawable(GlassKeyDrawable.separator(context, colors))
-            scaleType = ImageView.ScaleType.CENTER
-            val space = (8 * resources.displayMetrics.density).roundToInt()
-            setPadding(space, 0, space, 0)
-            layoutParams = LinearLayout.LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.MATCH_PARENT)
-            importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO
-        }
         // The words take exactly what the two slots leave (0 dp wide with weight 1, LinearLayout.LayoutParams.weight),
         // so the last one never runs under the voice key
         suggestionsStrip.layoutParams = (suggestionsStrip.layoutParams as LinearLayout.LayoutParams).apply { width = 0 }
         if (!withVoiceKey) return
-        glassSeparatorEnd = separator().also { wrapper.addView(it) }
         val mic = createToolbarKey(context, ToolbarKey.VOICE)
         // The voice key's slot: the round button's size (its circle centred in the slot), and the same distance from the
         // screen edge as the keys' own outer margin: half the keys' horizontal gap, computed as KeyboardParams and
@@ -331,6 +316,12 @@ class SuggestionStripView(context: Context, attrs: AttributeSet?, defStyle: Int)
         )
         isExternalSuggestionVisible = false
         updateKeys()
+        // Keyboard: with no suggestion drawn in the strip the tools stay, as Gboard's bar does, and the suggestions replace
+        // them only when one is there (LatinIME.setSuggestedWords hides the toolbar then). HeliBoard's LatinIME
+        // setNeutralSuggestionStrip (HeliBoard/.../latin/LatinIME.java) shows the tools only at the start of a line or on a
+        // selection, which left empty slots between; the same "Auto show toolbar" setting turns this off.
+        if (isGlass && Settings.getValues().mAutoShowToolbar && suggestionsStrip.children.none { it is TextView && it.text.isNotEmpty() })
+            setToolbarVisibility(true)
     }
 
     /**
@@ -670,7 +661,6 @@ class SuggestionStripView(context: Context, attrs: AttributeSet?, defStyle: Int)
         toolbar.findViewWithTag<View>(ToolbarKey.VOICE)?.isVisible = show
         pinnedKeys.findViewWithTag<View>(ToolbarKey.VOICE)?.isVisible = show
         glassVoiceKey?.isVisible = show // Keyboard: nothing at the right end when the voice key is hidden
-        glassSeparatorEnd?.isVisible = show
         val showTranslate = isTranslateKeyShown(context) // Keyboard: Translate, by field and by Translator's presence
         toolbar.findViewWithTag<View>(ToolbarKey.TRANSLATE)?.isVisible = showTranslate
         pinnedKeys.findViewWithTag<View>(ToolbarKey.TRANSLATE)?.isVisible = showTranslate

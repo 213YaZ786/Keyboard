@@ -410,13 +410,11 @@ final class SuggestionStripLayoutHelper {
         @SuppressWarnings("unused")
         int x = 0;
         for (int positionInStrip = 0; positionInStrip < countInStrip; positionInStrip++) {
-            if (positionInStrip != 0) {
+            // Keyboard: no divider between the suggestions in the Glass style, as Gboard's strip
+            if (positionInStrip != 0 && !mGlass) {
                 final View divider = mDividerViews.get(positionInStrip);
                 // Add divider if this isn't the left most suggestion in suggestions strip.
                 addDivider(stripView, divider);
-                // Keyboard: Autocomplete.Toolbar.useSeparator (KeyboardKit 9.9.1): none beside the autocorrect word
-                if (mGlass) divider.setVisibility(mWordViews.get(positionInStrip).getBackground() != null
-                        || mWordViews.get(positionInStrip - 1).getBackground() != null ? View.INVISIBLE : View.VISIBLE);
                 x += divider.getMeasuredWidth();
             }
 
@@ -496,12 +494,13 @@ final class SuggestionStripLayoutHelper {
 
     private int getSuggestionWidth(final int positionInStrip, final int maxWidth) {
         final int paddings = mPadding * mSuggestionsCountInStrip;
-        final int dividers = mDividerWidth * (mSuggestionsCountInStrip - 1);
+        final int dividers = mGlass ? 0 : mDividerWidth * (mSuggestionsCountInStrip - 1);
         final int availableWidth = maxWidth - paddings - dividers;
         return (int)(availableWidth * getSuggestionWeight(positionInStrip));
     }
 
     private float getSuggestionWeight(final int positionInStrip) {
+        if (mGlass) return 1.0f / mSuggestionsCountInStrip; // Keyboard: three equal slots, as Gboard's and iOS's bars
         if (positionInStrip == mCenterPositionInStrip) {
             return mCenterSuggestionWeight;
         }
@@ -556,7 +555,7 @@ final class SuggestionStripLayoutHelper {
             final PunctuationSuggestions punctuationSuggestions, final ViewGroup stripView) {
         final int countInStrip = Math.min(punctuationSuggestions.size(), PUNCTUATIONS_IN_STRIP);
         for (int positionInStrip = 0; positionInStrip < countInStrip; positionInStrip++) {
-            if (positionInStrip != 0) {
+            if (positionInStrip != 0 && !mGlass) { // Keyboard: no divider in the Glass style
                 // Add divider if this isn't the left most suggestion in suggestions strip.
                 addDivider(stripView, mDividerViews.get(positionInStrip));
             }
