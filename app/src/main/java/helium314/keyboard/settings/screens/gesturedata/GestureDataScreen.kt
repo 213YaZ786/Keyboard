@@ -607,26 +607,21 @@ private fun BottomBar(hasWords: Boolean, onDeleted: () -> Unit) {
     }
     if (showLinks) {
         val text = buildAnnotatedString {
+            // Each link on its own line, no bullet: lines of parts as AOSP Dialer's CallLogEntryText.java (https://android.googlesource.com/platform/packages/apps/Dialer/+/refs/heads/main/java/com/android/dialer/calllogutils/CallLogEntryText.java).
             appendLine(stringResource(R.string.gesture_data_links))
-            append("• ")
             appendLink("PeerTube", Links.GESTURE_DATA_VIDEO_PEERTUBE)
             appendLine()
-            append("• ")
             appendLink("YouTube", Links.GESTURE_DATA_VIDEO_YOUTUBE)
             appendLine()
-            append("• ")
             appendLink("HeliBoard wiki", Links.GESTURE_DATA_WIKI)
             appendLine()
             appendLine()
 
             appendLine(stringResource(R.string.background_gesture_data_links))
-            append("• ")
             appendLink("PeerTube", Links.BACKGROUND_GESTURE_DATA_VIDEO_PEERTUBE)
             appendLine()
-            append("• ")
             appendLink("YouTube", Links.BACKGROUND_GESTURE_DATA_VIDEO_YOUTUBE)
             appendLine()
-            append("• ")
             appendLink("HeliBoard wiki", Links.BACKGROUND_GESTURE_DATA_WIKI)
             appendLine()
             appendLine()
