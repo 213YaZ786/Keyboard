@@ -130,7 +130,9 @@ fun PillMenu(state: PillMenuState, items: List<PillItem>, @Suppress("UNUSED_PARA
         onDismissRequest = state::close,
         properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
     ) {
-        BlurBehind(radiusDp = 24)
+        // Blur off (battery saver, GrapheneOS): a stronger dim and an opaque pane, as ZoneDialog's.
+        val blur = rememberCrossWindowBlur()
+        BlurBehind(radiusDp = 24, blur = blur)
         val density = LocalDensity.current
         val lift = remember { Animatable(0f) }
         val pane = remember { Animatable(0f) }
@@ -195,7 +197,7 @@ fun PillMenu(state: PillMenuState, items: List<PillItem>, @Suppress("UNUSED_PARA
                         transformOrigin = TransformOrigin(((finger - paneX) / paneW).coerceIn(0f, 1f), if (fromTop) 0f else 1f)
                     }
                     .shadow(10.dp, shape, clip = false, ambientColor = Color.Black.copy(alpha = 0.2f), spotColor = Color.Black.copy(alpha = 0.2f))
-                    .then(if (glass != null) Modifier.dialogGlass(shape, glass) else Modifier.background(MaterialTheme.colorScheme.surfaceContainerHigh, shape))
+                    .then(if (glass != null) Modifier.dialogGlass(shape, glass, blur) else Modifier.background(MaterialTheme.colorScheme.surfaceContainerHigh, shape))
                     .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { }
             ) {
                 Column(Modifier.heightIn(max = with(density) { paneH.toDp() }).verticalScroll(rememberScrollState()).padding(vertical = 6.dp)) {

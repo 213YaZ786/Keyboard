@@ -53,6 +53,10 @@ data class Release(val version: String, val page: String, val apk: String?, val 
  * with the permission, an installer updating itself, and an app targeting a
  * recent API, no user action is required. setRequestUpdateOwnership is not
  * used: it needs ENFORCE_UPDATE_OWNERSHIP and only counts on a first install.
+ *
+ * With Store on the phone and the "self" setting off (see [StoreLink]), the
+ * app fetches and stages nothing: [arm] tells Store the app has opened, and
+ * at ON_STOP, not busy, it tells Store the app was left; Store installs.
  */
 object Updates {
 
@@ -122,6 +126,8 @@ object Updates {
     @Volatile private var staged: Staged? = null
     @Volatile private var busy: () -> Boolean = { false }
     @Volatile private var foreground = true
+    /** Store was told this launch that the app opened; only then is it told the app was left. */
+    @Volatile private var storeOpened = false
     /** Android's confirmation screen, held while the app is out of sight. */
     @Volatile private var held: Intent? = null
     private var armed = false
@@ -141,9 +147,16 @@ object Updates {
      */
     fun arm(context: Context, busy: () -> Boolean = { false }) {
         this.busy = busy
+        val app = context.applicationContext
+        // Store's route: the app only says it has opened (off the main thread, the check reads PackageManager).
+        if (!storeOpened) scope.launch {
+            if (StoreLink.viaStore(app)) {
+                storeOpened = true
+                StoreLink.opened(app)
+            }
+        }
         if (armed) return
         armed = true
-        val app = context.applicationContext
         val lifecycle = ProcessLifecycleOwner.get().lifecycle
         foreground = lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
         lifecycle.addObserver(LifecycleEventObserver { _, event ->
@@ -154,15 +167,39 @@ object Updates {
                 }
                 Lifecycle.Event.ON_STOP -> {
                     foreground = false
-                    scope.launch { commitIfLeft(app) }
+                    scope.launch { leave(app) }
                 }
                 else -> Unit
             }
         })
     }
 
+    /**
+     * The user has left the app. On Store's route (the "self" setting off,
+     * Store there) Store is told, once the app is not busy, and installs;
+     * a file the app staged earlier is deleted, never installed behind
+     * Store's back. Else the app's own commit, [commitIfLeft]. Run off the
+     * main thread. Source: ProcessLifecycleOwner's ON_STOP as in [arm]
+     * (https://developer.android.com/reference/androidx/lifecycle/ProcessLifecycleOwner);
+     * "busy" read as in [commitIfLeft].
+     */
+    internal fun leave(app: Context) {
+        if (!StoreLink.viaStore(app)) {
+            commitIfLeft(app)
+            return
+        }
+        staged?.let {
+            it.file.delete()
+            staged = null
+            gate.dropped()
+        }
+        val busyNow = runCatching { busy() }.getOrDefault(true)
+        if (storeOpened && gate.storeLeaves(foreground, busyNow)) StoreLink.left(app)
+    }
+
     /** The mode left Install: an update waiting is forgotten and its file deleted. */
     fun drop() {
+        storeOpened = false
         gate.dropped()
         held = null
         staged?.file?.delete()

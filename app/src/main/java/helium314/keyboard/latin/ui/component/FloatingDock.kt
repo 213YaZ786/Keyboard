@@ -97,7 +97,9 @@ fun FloatingDock(
         border = if (glass) null else boldBorder(),
         shadowElevation = if (glass) 0.dp else 8.dp,
         tonalElevation = if (glass) 0.dp else 2.dp,
-        modifier = if (glass) modifier.glassFloating(backdrop!!, CircleShape, look!!) else modifier
+        // A drag that starts on the dock scrolls the screen's content (FloatingFrame's LocalFrameScroll,
+        // after Material Components' HeaderBehavior): no dead zone at the bottom.
+        modifier = (if (glass) modifier.glassFloating(backdrop!!, CircleShape, look!!) else modifier).then(LocalFrameScroll.current)
     ) {
         Box(Modifier.padding(8.dp)) {
             // Half way between two tabs the drop is at its longest.

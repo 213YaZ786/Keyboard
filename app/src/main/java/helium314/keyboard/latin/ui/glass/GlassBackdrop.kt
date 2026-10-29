@@ -16,6 +16,7 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.addOutline
 import androidx.compose.ui.graphics.asComposeRenderEffect
 import androidx.compose.ui.graphics.drawOutline
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.drawscope.ContentDrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
@@ -176,6 +177,13 @@ private class GlassFloatingNode(
                 .onFailure { shaderFailed = true; android.util.Log.w("Glass", "lens failed", it) }
                 .getOrNull()
             effectKey = key
+        }
+        // The zones' soft shadow (GlassZone), so a round action over the white of the ground still shows
+        // as glass (the user, 2026-10-28: "on dirait pas du liquid glass"), as iOS 26's buttons keep theirs.
+        drawIntoCanvas { canvas ->
+            val paint = androidx.compose.ui.graphics.Paint().apply { color = look.ground }
+            paint.asFrameworkPaint().setShadowLayer(10f * density, 0f, 3.5f * density, android.graphics.Color.argb(if (look.dark) 110 else 34, 0, 0, 0))
+            canvas.drawOutline(outline, paint)
         }
         clipPath(Path().apply { addOutline(outline) }) {
             translate(-margin.toFloat(), -margin.toFloat()) { drawLayer(own) }

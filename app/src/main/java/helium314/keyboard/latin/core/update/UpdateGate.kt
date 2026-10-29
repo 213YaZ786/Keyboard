@@ -15,6 +15,29 @@ internal fun startFor(mode: UpdateMode, hasApk: Boolean, canInstall: Boolean): S
     else -> Start.ASK
 }
 
+// Source of Route, selfOn, routeFor and callsStore: Google Play's In-App Updates API, where the
+// store updates the app and the app only asks it (https://developer.android.com/guide/playcore/in-app-updates),
+// and GrapheneOS AppStore, where only the store updates apps (https://github.com/GrapheneOS/AppStore).
+// Written as plain functions like startFor below.
+
+/** Which updater runs: the app's own, or Store's (see [routeFor]). */
+internal enum class Route { OWN, STORE }
+
+/**
+ * The "self" setting: the user's choice when there is one, else true
+ * without Store and false with it. Read at each use, so installing Store
+ * later turns the app's own updater off unless the user turned it on.
+ * Same shape as [startFor]: a plain function of its inputs, tested on the JVM.
+ */
+internal fun selfOn(chosen: Boolean?, storePresent: Boolean): Boolean = chosen ?: !storePresent
+
+/** Store updates the app only when its own updater is off and Store is there; else today's behaviour. */
+internal fun routeFor(selfOn: Boolean, storePresent: Boolean): Route =
+    if (!selfOn && storePresent) Route.STORE else Route.OWN
+
+/** Whether the app tells Store when it opens and when it is left: Install mode, on Store's route. */
+internal fun callsStore(mode: UpdateMode, route: Route): Boolean = mode == UpdateMode.INSTALL && route == Route.STORE
+
 /**
  * When a downloaded update goes in, and when Android's own confirmation is
  * shown: a plain state, no Android in it, so it is tested on the JVM.
@@ -53,6 +76,15 @@ internal class UpdateGate {
         ready = false
         return true
     }
+
+    /**
+     * Whether to tell Store now that the app is left, in place of committing
+     * a staged update: the same condition as [installNow], out of sight and
+     * not busy, but nothing is staged here, so there is no state to spend.
+     * Source: ProcessLifecycleOwner's ON_STOP, as [installNow]
+     * (https://developer.android.com/reference/androidx/lifecycle/ProcessLifecycleOwner).
+     */
+    fun storeLeaves(foreground: Boolean, busy: Boolean): Boolean = !foreground && !busy
 
     /**
      * Android still wants the reader's confirmation. True when the app is in

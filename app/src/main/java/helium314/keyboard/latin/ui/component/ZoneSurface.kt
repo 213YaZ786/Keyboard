@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
@@ -51,7 +52,10 @@ fun ZoneSurface(
     // fall back to black: the glass carries the page's text colour instead.
     val text = when {
         glass == null -> contentColorFor(color)
-        accent -> if (glass.dark) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onPrimaryContainer
+        accent -> readableOn(
+            androidx.compose.ui.graphics.Color(androidx.core.graphics.ColorUtils.compositeColors(glass.accentTint.toArgb(), glass.ground.toArgb())),
+            MaterialTheme.colorScheme.onSurface, MaterialTheme.colorScheme.onPrimaryContainer
+        )
         else -> MaterialTheme.colorScheme.onSurface
     }
     if (onClick == null) {
@@ -59,4 +63,18 @@ fun ZoneSurface(
     } else {
         Surface(onClick, look, shape = shape, color = fill, contentColor = text, border = edge, tonalElevation = tonal, shadowElevation = shadow, content = content)
     }
+}
+
+/**
+ * Of [light] and [dark], the text colour that reads best on [ground]: the higher WCAG contrast ratio,
+ * androidx's ColorUtils.calculateContrast
+ * (https://github.com/androidx/androidx/blob/androidx-main/core/core/src/main/java/androidx/core/graphics/ColorUtils.java).
+ * An accent zone's wash depends on the wallpaper's palette (Material You): a fixed colour per theme
+ * left "Name and photo · On" unreadable on some phones by night (the user, 2026-10-28).
+ */
+internal fun readableOn(ground: Color, light: Color, dark: Color): Color {
+    val g = ground.toArgb()
+    val a = androidx.core.graphics.ColorUtils.calculateContrast(light.copy(alpha = 1f).toArgb(), g)
+    val b = androidx.core.graphics.ColorUtils.calculateContrast(dark.copy(alpha = 1f).toArgb(), g)
+    return if (a >= b) light else dark
 }

@@ -16,11 +16,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import helium314.keyboard.latin.core.update.Release
+import helium314.keyboard.latin.core.update.Route
 import helium314.keyboard.latin.core.update.Start
+import helium314.keyboard.latin.core.update.StoreLink
 import helium314.keyboard.latin.core.update.UpdateMode
 import helium314.keyboard.latin.core.update.Updates
+import helium314.keyboard.latin.core.update.callsStore
 import helium314.keyboard.latin.core.update.startFor
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** Once per launch of the process, not on every return to the screen. */
 private var checkedThisLaunch = false
@@ -35,6 +40,8 @@ private enum class Step { ASK, DOWNLOADING, FAILED }
  * follows). [busy] is the app's own check, true while a call, a sending or a
  * playback must not be cut; it reads the app's state, never a composition's.
  * Nothing is shown when the app is up to date or GitHub cannot be reached.
+ * When Store updates the app instead (UpdateSourceRow, StoreLink), GitHub is
+ * not asked and nothing is shown: Install mode only tells Store.
  */
 @Composable
 fun UpdatePrompt(mode: UpdateMode, currentVersion: String, busy: () -> Boolean = { false }) {
@@ -49,6 +56,14 @@ fun UpdatePrompt(mode: UpdateMode, currentVersion: String, busy: () -> Boolean =
     LaunchedEffect(Unit) {
         if (checkedThisLaunch) return@LaunchedEffect
         checkedThisLaunch = true
+        // Store updates this app (see StoreLink): nothing is fetched or shown here; in Install mode
+        // the app tells Store it opened, and later that it was left (Updates.arm, Updates.leave).
+        // Read off the main thread: the check asks PackageManager.
+        val route = withContext(Dispatchers.IO) { StoreLink.route(context) }
+        if (route == Route.STORE) {
+            if (callsStore(mode, route)) Updates.arm(context, busy)
+            return@LaunchedEffect
+        }
         val newer = Updates.latest()?.takeIf { Updates.isNewer(it.version, currentVersion) } ?: return@LaunchedEffect
         // Install mode asks nothing: the update downloads by itself and goes
         // in when the user leaves. The dialog shows only when installing

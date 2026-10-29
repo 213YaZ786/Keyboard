@@ -64,7 +64,8 @@ fun SearchPill(
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                     modifier = androidx.compose.ui.Modifier.focusRequester(focus),
                     decorationBox = { field ->
-                        if (value.isEmpty()) Text(hint, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        // The hint stays on one line as the field does (singleLine), cut at the largest font.
+                        if (value.isEmpty()) Text(hint, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                         field()
                     }
                 )

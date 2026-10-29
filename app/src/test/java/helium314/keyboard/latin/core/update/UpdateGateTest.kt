@@ -81,6 +81,78 @@ class UpdateGateTest {
         assertFalse(gate.started())
     }
 
+    // Store's route, in the same protocol as the tests above (plain inputs, plain answers). The cases
+    // follow what Google Play's In-App Updates API and GrapheneOS AppStore do: the store updates the app,
+    // the app only asks (https://developer.android.com/guide/playcore/in-app-updates,
+    // https://github.com/GrapheneOS/AppStore), and ProcessLifecycleOwner's ON_STOP for "left"
+    // (https://developer.android.com/reference/androidx/lifecycle/ProcessLifecycleOwner).
+
+    @Test
+    fun `the setting defaults to on without Store and off with it`() {
+        assertTrue(selfOn(chosen = null, storePresent = false))
+        assertFalse(selfOn(chosen = null, storePresent = true))
+    }
+
+    @Test
+    fun `the user's choice is kept whether Store is there or not`() {
+        assertTrue(selfOn(chosen = true, storePresent = true))
+        assertFalse(selfOn(chosen = false, storePresent = true))
+        assertTrue(selfOn(chosen = true, storePresent = false))
+        assertFalse(selfOn(chosen = false, storePresent = false))
+    }
+
+    @Test
+    fun `Store installed later turns the own updater off unless the user turned it on`() {
+        // Read at each use: same stored value (none), Store absent then present.
+        assertEquals(Route.OWN, routeFor(selfOn(null, storePresent = false), storePresent = false))
+        assertEquals(Route.STORE, routeFor(selfOn(null, storePresent = true), storePresent = true))
+        assertEquals(Route.OWN, routeFor(selfOn(true, storePresent = true), storePresent = true))
+    }
+
+    @Test
+    fun `Store's route needs the own updater off and Store present, else the app's own runs`() {
+        assertEquals(Route.STORE, routeFor(selfOn = false, storePresent = true))
+        assertEquals(Route.OWN, routeFor(selfOn = true, storePresent = true))
+        assertEquals(Route.OWN, routeFor(selfOn = true, storePresent = false))
+        // Off, then Store uninstalled: nobody else to update the app.
+        assertEquals(Route.OWN, routeFor(selfOn = false, storePresent = false))
+    }
+
+    @Test
+    fun `only Install mode on Store's route tells Store`() {
+        assertTrue(callsStore(UpdateMode.INSTALL, Route.STORE))
+        assertFalse(callsStore(UpdateMode.NOTIFY, Route.STORE))
+        assertFalse(callsStore(UpdateMode.OFF, Route.STORE))
+        assertFalse(callsStore(UpdateMode.INSTALL, Route.OWN))
+    }
+
+    @Test
+    fun `Store is told the app was left only when out of sight and not busy`() {
+        val gate = UpdateGate()
+        assertTrue(gate.storeLeaves(foreground = false, busy = false))
+        assertFalse(gate.storeLeaves(foreground = true, busy = false))
+        assertFalse(gate.storeLeaves(foreground = false, busy = true))
+        assertFalse(gate.storeLeaves(foreground = true, busy = true))
+    }
+
+    @Test
+    fun `busy blocks the call to Store as it blocks the commit`() {
+        val gate = UpdateGate()
+        gate.staged()
+        assertEquals(gate.installNow(foreground = false, busy = true), gate.storeLeaves(foreground = false, busy = true))
+        assertEquals(gate.installNow(foreground = false, busy = false), gate.storeLeaves(foreground = false, busy = false))
+    }
+
+    @Test
+    fun `the own path still commits once and Store's path needs no staged file`() {
+        val gate = UpdateGate()
+        gate.staged()
+        assertTrue(gate.installNow(foreground = false, busy = false))
+        assertFalse(gate.installNow(foreground = false, busy = false))
+        assertFalse(UpdateGate().installNow(foreground = false, busy = false))
+        assertTrue(UpdateGate().storeLeaves(foreground = false, busy = false))
+    }
+
     @Test
     fun `modes keep their behaviour at launch`() {
         assertEquals(Start.NOTHING, startFor(UpdateMode.OFF, hasApk = true, canInstall = true))

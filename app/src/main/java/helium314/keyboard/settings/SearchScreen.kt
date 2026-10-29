@@ -83,6 +83,14 @@ import helium314.keyboard.settings.preferences.PreferenceSection
 val LocalFloatingPadding = compositionLocalOf { PaddingValues() }
 
 /**
+ * The scroll state of the page's content, made by the screen so a drag on its floating header scrolls the page
+ * (FloatingFrame's `scroll`, whose drag is Material Components' AppBarLayout HeaderBehavior,
+ * https://github.com/material-components/material-components-android/blob/master/lib/java/com/google/android/material/appbar/HeaderBehavior.java).
+ * SettingsPage takes it. Provided as a CompositionLocal, https://developer.android.com/develop/ui/compose/compositionlocal
+ */
+val LocalPageScroll = compositionLocalOf<ScrollState?> { null }
+
+/**
  * Keyboard: easter egg 5. Opens the screen's search field, which takes the keyboard at once (SearchPill autoFocus), for
  * what is in the page and needs the keyboard up: the version row of About on its seventh tap.
  * Provided as a CompositionLocal, https://developer.android.com/develop/ui/compose/compositionlocal
@@ -156,7 +164,7 @@ fun SettingsSections(items: List<Any?>, preference: @Composable (Any) -> Unit) {
  * https://github.com/213YaZ786/Calculator/blob/main/app/src/main/java/com/yaz/calculator/feature/settings/SettingsScreen.kt
  */
 @Composable
-fun SettingsPage(scrollState: ScrollState = rememberScrollState(), content: @Composable ColumnScope.() -> Unit) {
+fun SettingsPage(scrollState: ScrollState = LocalPageScroll.current ?: rememberScrollState(), content: @Composable ColumnScope.() -> Unit) {
     Column(
         Modifier
             .fillMaxSize()
@@ -197,10 +205,13 @@ fun <T: Any?> SearchScreen(
     val searchLabel = stringResource(R.string.label_search_key)
     // Keyboard: no bar. The content takes the whole window and scrolls under a FloatingTop (the title in a pill,
     // back and search as round panes of glass), inside a FloatingFrame, as Calculator's SettingsScreen.
+    val pageScroll = rememberScrollState()
+    val resultsScroll = androidx.compose.foundation.lazy.rememberLazyListState()
     Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))) {
         ReadableScroll {
             FloatingFrame(
                 bottom = 0.dp,
+                scroll = if (searchText.text.isBlank() && content != null) pageScroll else resultsScroll,
                 top = {
                     val back: @Composable () -> Unit = {
                         FloatingAction(AppIcons.ArrowBack, backLabel, { if (showSearch) setShowSearch(false) else onClickBack() })
@@ -231,6 +242,7 @@ fun <T: Any?> SearchScreen(
                 CompositionLocalProvider(
                     LocalTextStyle provides MaterialTheme.typography.bodyLarge,
                     LocalFloatingPadding provides padding,
+                    LocalPageScroll provides pageScroll,
                     LocalOpenSearch provides { setShowSearch(true) }
                 ) {
                     if (searchText.text.isBlank() && content != null) {
@@ -242,6 +254,7 @@ fun <T: Any?> SearchScreen(
                         // A long list stays lazy: its rows are zones side by side, the first and last rounded
                         // like the ends of one zone (segmented list, Material 3 Expressive).
                         LazyColumn(
+                            state = resultsScroll,
                             modifier = Modifier.fillMaxSize(),
                             contentPadding = PaddingValues(
                                 start = 16.dp + LocalReadableInset.current,

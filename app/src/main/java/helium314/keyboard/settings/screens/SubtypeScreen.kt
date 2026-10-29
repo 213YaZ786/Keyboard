@@ -132,7 +132,6 @@ fun SubtypeScreen(
     var showKeyOrderDialog by remember { mutableStateOf(false) }
     var showHintOrderDialog by remember { mutableStateOf(false) }
     var showMorePopupsDialog by remember { mutableStateOf(false) }
-    val scrollState = rememberScrollState()
     val customMainLayouts = LayoutUtilsCustom.getLayoutFiles(LayoutType.MAIN, ctx, currentSubtype.locale).map { it.name }
     SearchScreen(
         onClickBack = onClickBack,
@@ -147,7 +146,7 @@ fun SubtypeScreen(
     ) {
         // Keyboard: each group of rows is a Section (SubtypeSection), the page scrolls under the floating top
         // (SettingsPage), as Calculator's settings https://github.com/213YaZ786/Calculator/blob/main/app/src/main/java/com/yaz/calculator/feature/settings/SettingsScreen.kt
-        SettingsPage(scrollState) {
+        SettingsPage {
                 MainLayoutRow(currentSubtype, customMainLayouts) { setCurrentSubtype(it) }
                 if (availableLocalesForScript.size > 1) {
                     SubtypeSection(stringResource(R.string.secondary_locale)) {

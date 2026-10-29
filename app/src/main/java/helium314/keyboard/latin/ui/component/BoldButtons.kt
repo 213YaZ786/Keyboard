@@ -30,6 +30,12 @@ import androidx.compose.ui.unit.dp
  */
 val BoldEdge: Dp = 2.dp
 
+/**
+ * The space between buttons side by side. Glass shadows eat into the gap, so
+ * Material's 8 dp reads as touching; iOS alerts keep their buttons well apart.
+ */
+val ButtonGap: Dp = 12.dp
+
 @Composable
 fun boldBorder(enabled: Boolean = true, color: Color = MaterialTheme.colorScheme.primary): BorderStroke =
     BorderStroke(BoldEdge, if (enabled) color else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f))
