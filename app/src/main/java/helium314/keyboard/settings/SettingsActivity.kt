@@ -21,7 +21,9 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -69,7 +71,13 @@ import java.util.zip.ZipOutputStream
 //  https://developer.android.com/codelabs/jetpack-compose-performance#2
 //  https://developer.android.com/topic/performance/baselineprofiles/overview
 // todo: consider viewModel, at least for LanguageScreen and ColorsScreen it might help making them less awkward and complicated
-open class SettingsActivity : ComponentActivity(), SharedPreferences.OnSharedPreferenceChangeListener {
+/**
+ * Shows the welcome pages again, from About's "Guide" row. Provided as a CompositionLocal, as LocalOpenSearch
+ * (https://developer.android.com/develop/ui/compose/compositionlocal).
+ */
+val LocalOpenGuide = compositionLocalOf<() -> Unit> { {} }
+
+open class SettingsActivity :ComponentActivity(), SharedPreferences.OnSharedPreferenceChangeListener {
     private val prefs by lazy { this.prefs() }
     val prefChanged = MutableStateFlow(0) // simple counter, as the only relevant information is that something changed
     fun prefChanged() = prefChanged.value++
@@ -109,6 +117,7 @@ open class SettingsActivity : ComponentActivity(), SharedPreferences.OnSharedPre
                         !UncachedInputMethodManagerUtils.isThisImeCurrent(this@SettingsActivity, imm)
                                 || !UncachedInputMethodManagerUtils.isThisImeEnabled(this@SettingsActivity, imm)
                     ) }
+                    var showGuide by rememberSaveable { mutableStateOf(false) }
                     if (spellchecker)
                         Scaffold(
                             contentWindowInsets = WindowInsets.safeDrawing,
@@ -131,9 +140,14 @@ open class SettingsActivity : ComponentActivity(), SharedPreferences.OnSharedPre
                             }
                         }
                     else {
-                        SettingsNavHost(onClickBack = { this@SettingsActivity.finish() })
+                        CompositionLocalProvider(LocalOpenGuide provides { showGuide = true }) {
+                            SettingsNavHost(onClickBack = { this@SettingsActivity.finish() })
+                        }
                         if (showWelcomeWizard) {
                             WelcomeWizard(close = { showWelcomeWizard = false }, finish = this@SettingsActivity::finish)
+                        } else if (showGuide) {
+                            // About's "Guide" (as Dialer's, which resets welcomeSeen): the same pages on demand, their end back to the settings.
+                            WelcomeWizard(close = { showGuide = false }, finish = { showGuide = false })
                         } else if (crashReports.isNotEmpty()) {
                             val ctx = LocalContext.current
                             ConfirmationDialog(

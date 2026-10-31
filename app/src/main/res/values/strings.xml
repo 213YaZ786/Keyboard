@@ -840,6 +840,9 @@ New dictionary:
     <string name="discussion_section_link">"discussion section"</string>
     <!-- Settings screen title for about -->
     <string name="settings_screen_about">About</string>
+    <!-- About screen: shows the setup pages again -->
+    <string name="about_guide">Guide</string>
+    <string name="about_guide_summary">See the welcome pages again</string>
     <!-- version for about screen -->
     <string name="version">Version</string>
     <!-- github repo link for about screen -->

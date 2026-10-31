@@ -29,6 +29,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -43,6 +48,7 @@ import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.setProgress
 import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.LayoutDirection
@@ -53,21 +59,30 @@ import kotlin.math.roundToInt
 import kotlinx.coroutines.flow.collectLatest
 
 /*
- * Material 3's slider in glass: the shape and the sizes of Material's Slider, its track in two parts of glass
- * (the active one washed with the accent) around a gap at the handle, its stop indicator and ticks, its handle
- * a bar of glass; and Kyant0's press: the handle grows, stretches with its speed and, while pressed, is a lens
+ * Material 3 Expressive's slider in glass: the shape and the sizes of Material's Slider (Large by default, as
+ * Android 16's brightness slider), its track in two parts of glass (the active one washed with the accent) around
+ * a gap at the handle, an optional icon inset at the start of the active part, its stop indicator and ticks, its
+ * handle a bar of glass; and Kyant0's press: the handle grows, stretches with its speed and, while pressed, is a lens
  * bending the track.
  *
  * Material 3 (Apache-2.0), Slider.kt and tokens/SliderTokens.kt (androidx-main),
  * https://github.com/androidx/androidx/blob/androidx-main/compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/Slider.kt
- * track 16 dp high (InactiveTrackHeight, ActiveTrackHeight), fully rounded (corner = half the height),
- * handle 4 x 44 dp (HandleWidth, HandleHeight), gap of 6 dp beside the handle (ActiveHandleLeadingSpace,
+ * handle 4 dp wide (HandleWidth), gap of 6 dp beside the handle (ActiveHandleLeadingSpace,
  * ThumbTrackGapSize) so the track ends 8 dp from the handle's centre (thumbWidth / 2 + gap), 2 dp corners
  * towards the handle (TrackInsideCornerSize), stop indicator 4 dp at the end of the inactive part, 8 dp
  * from the end (StopIndicatorSize, drawStopIndicator: its centre at end - cornerSize), ticks 4 dp from
  * corner to end - corner (drawTrack), the track inset by half the handle (Slider layout: trackOffsetX),
  * 48 dp touch height (minimumInteractiveComponentSize), the semantics (sliderSemantics) and the steps
  * (stepsToTickFractions, snapValueToTick).
+ *
+ * Material Components Android (Apache-2.0), the Expressive sizes, lib/java/com/google/android/material/slider/res/values/tokens.xml
+ * https://github.com/material-components/material-components-android/blob/master/lib/java/com/google/android/material/slider/res/values/tokens.xml
+ * (m3_comp_slider_{xsmall,small,medium,large,xlarge}_active_track_height, _active_track_shape_leading,
+ * _active_handle_height, _icon_size) and the inset icon, BaseSlider.java (calculateTrackIconBounds: shown when the
+ * part is at least icon + 2 x padding wide, padding m3_slider_track_icon_padding = 10 dp, on the start side).
+ * https://github.com/material-components/material-components-android/blob/master/lib/java/com/google/android/material/slider/BaseSlider.java
+ * The icon drawing follows androidx's SliderWithTrackIconsSample (icon size and padding, the same width test, tinted).
+ * https://github.com/androidx/androidx/blob/androidx-main/compose/material3/material3/samples/src/main/java/androidx/compose/material3/samples/SliderSamples.kt
  *
  * Kyant0/AndroidLiquidGlass (Apache-2.0), LiquidSlider.kt,
  * https://github.com/Kyant0/AndroidLiquidGlass/blob/kmp/app/src/commonMain/kotlin/com/kyant/backdrop/catalog/components/LiquidSlider.kt
@@ -77,11 +92,11 @@ import kotlinx.coroutines.flow.collectLatest
  * Shared across the apps of this base: edit Modules/shared, then run sync.
  */
 
-private val SliderHeight = 48.dp
-private val TrackHeight = 16.dp
+private val TouchHeight = 48.dp
 private val HandleWidth = 4.dp
-private val HandleHeight = 44.dp
 private val HandleGap = 6.dp
+// BaseSlider.java, m3_slider_track_icon_padding.
+private val IconPadding = 10.dp
 private val InsideCorner = 2.dp
 private val StopSize = 4.dp
 // Pressed, the handle widens to a pill (Material's narrows to 2 dp, which leaves no room for a lens): ours.
@@ -89,6 +104,21 @@ private val PressedHandleWidth = 20.dp
 // The recorded track reaches 20 dp beyond each end, which holds the pressed and stretched handle (held to 40 dp wide).
 private val SliderReach = 20.dp
 private val MaxHandleWidth = 40.dp
+
+// The sizes of Material 3 Expressive's slider, as Material Components Android's tokens.xml gives them
+// (md.comp.slider.xsmall to xlarge: active track height, active track shape leading, active handle height, icon size):
+// https://github.com/material-components/material-components-android/blob/master/lib/java/com/google/android/material/slider/res/values/tokens.xml
+// "icon" is 0 where tokens.xml has no icon size (below Medium). "height" is the whole slider: the handle, at least
+// the 48 dp touch target (BaseSlider.java minTouchTargetSize).
+enum class GlassSliderSize(val track: Dp, val corner: Dp, val handle: Dp, val icon: Dp) {
+    ExtraSmall(16.dp, 8.dp, 44.dp, 0.dp),
+    Small(24.dp, 8.dp, 44.dp, 0.dp),
+    Medium(40.dp, 12.dp, 44.dp, 24.dp),
+    Large(56.dp, 16.dp, 68.dp, 24.dp),
+    ExtraLarge(96.dp, 28.dp, 108.dp, 32.dp);
+
+    val height: Dp get() = if (handle > TouchHeight) handle else TouchHeight
+}
 
 /**
  * A slider in glass, the signature of Material 3's Slider: change its name
@@ -102,7 +132,9 @@ fun GlassSlider(
     valueRange: ClosedFloatingPointRange<Float> = 0f..1f,
     steps: Int = 0,
     onValueChangeFinished: (() -> Unit)? = null,
-    enabled: Boolean = true
+    enabled: Boolean = true,
+    icon: ImageVector? = null,
+    size: GlassSliderSize = GlassSliderSize.Large
 ) {
     val look = LocalGlass.current
     if (look == null) {
@@ -117,7 +149,7 @@ fun GlassSlider(
         )
         return
     }
-    GlassSliderBody(look, value, onValueChange, modifier, valueRange, steps, onValueChangeFinished, enabled)
+    GlassSliderBody(look, value, onValueChange, modifier, valueRange, steps, onValueChangeFinished, enabled, icon, size)
 }
 
 // LiquidSlider.kt (link above), composable body: state, DampedDragAnimation, track, handle.
@@ -130,8 +162,12 @@ private fun GlassSliderBody(
     valueRange: ClosedFloatingPointRange<Float>,
     steps: Int,
     onValueChangeFinished: (() -> Unit)?,
-    enabled: Boolean
+    enabled: Boolean,
+    icon: ImageVector?,
+    sliderSize: GlassSliderSize
 ) {
+    val sliderHeight = sliderSize.height
+    val iconPainter = icon?.let { rememberVectorPainter(it) }
     val accent = MaterialTheme.colorScheme.primary
     val density = LocalDensity.current
     val isLtr = LocalLayoutDirection.current == LayoutDirection.Ltr
@@ -169,7 +205,7 @@ private fun GlassSliderBody(
     BoxWithConstraints(
         modifier
             .fillMaxWidth()
-            .heightIn(min = SliderHeight)
+            .heightIn(min = sliderHeight)
             .alpha(if (enabled) 1f else 0.38f)
             // Material's sliderSemantics: the range, the steps, the set progress action.
             .semantics {
@@ -192,7 +228,7 @@ private fun GlassSliderBody(
         // Material's Slider layout: the track starts half a handle in; the corner is half the track's height.
         val half = with(density) { (HandleWidth / 2).roundToPx() }
         val trackWidth = max(constraints.maxWidth - 2 * half, 1).toFloat()
-        val corner = with(density) { (TrackHeight / 2).toPx() }
+        val corner = with(density) { sliderSize.corner.toPx() }
         val trackWidthNow by rememberUpdatedState(trackWidth)
         val cornerNow by rememberUpdatedState(corner)
 
@@ -254,7 +290,7 @@ private fun GlassSliderBody(
         // glass, and a list of sliders scrolling costs nothing more than glass zones.
         val lensing by remember(dampedDragAnimation) { derivedStateOf { dampedDragAnimation.pressProgress > 0.001f } }
 
-        // Their detectTapGestures on the track: a tap goes there. Over the whole height, not the 16 dp of the track.
+        // Their detectTapGestures on the track: a tap goes there. Over the whole height, not only the track.
         Box(
             Modifier
                 .matchParentSize()
@@ -275,7 +311,7 @@ private fun GlassSliderBody(
 
         Box(
             Modifier
-                .glassOverflow(SliderReach, 0.dp, height = SliderHeight)
+                .glassOverflow(SliderReach, 0.dp, height = sliderHeight)
                 .then(if (lensing) Modifier.glassTrackSource(trackBackdrop, look) else Modifier),
             contentAlignment = Alignment.Center
         ) {
@@ -284,10 +320,10 @@ private fun GlassSliderBody(
                     .padding(horizontal = SliderReach)
                     .padding(horizontal = HandleWidth / 2)
                     .fillMaxWidth()
-                    .height(TrackHeight)
+                    .height(sliderSize.track)
             ) {
-                TrackSegment(true, dampedDragAnimation, look, steps, accent)
-                TrackSegment(false, dampedDragAnimation, look, steps, accent)
+                TrackSegment(true, dampedDragAnimation, look, steps, accent, sliderSize, iconPainter)
+                TrackSegment(false, dampedDragAnimation, look, steps, accent, sliderSize, null)
                 if (steps > 0) {
                     val dark = look.dark
                     val scheme = MaterialTheme.colorScheme
@@ -300,7 +336,7 @@ private fun GlassSliderBody(
                                 // last (the stop indicator is there), none in the gap beside the handle; active ones
                                 // in the colour of text on the accent, the others in the accent.
                                 val rtl = layoutDirection == LayoutDirection.Rtl
-                                val c = (TrackHeight / 2).toPx()
+                                val c = sliderSize.corner.toPx()
                                 val x = trackX(dampedDragAnimation.progress.coerceIn(0f, 1f), size.width, c, steps)
                                 val gap = (HandleWidth / 2 + HandleGap).toPx()
                                 for (i in 0..steps) {
@@ -318,21 +354,21 @@ private fun GlassSliderBody(
             }
         }
 
-        // The handle: Material's 4 x 44 dp bar, in glass washed with the primary; pressed it widens and is a lens.
+        // The handle: Material's 4 dp wide bar (the size's handle height), in glass washed with the primary; pressed it widens and is a lens.
         GlassBead(
             dampedDragAnimation = dampedDragAnimation,
             backdrop = trackBackdrop,
             look = look,
             lensing = lensing,
             velocityDivisor = 10f,
-            report = { c -> IntSize(c.maxWidth, SliderHeight.roundToPx()) },
+            report = { c -> IntSize(c.maxWidth, sliderHeight.roundToPx()) },
             // Material's Slider layout: the handle's centre at trackOffsetX + the track's position of the value.
             centreX = { half + trackX(dampedDragAnimation.progress.coerceIn(0f, 1f), trackWidth, corner, steps) },
             beadSize = {
                 val sx = ((dampedDragAnimation.scaleX - 1f) / 0.5f).coerceAtLeast(0f)
-                Size(HandleWidth.toPx() + (PressedHandleWidth - HandleWidth).toPx() * sx, HandleHeight.toPx())
+                Size(HandleWidth.toPx() + (PressedHandleWidth - HandleWidth).toPx() * sx, sliderSize.handle.toPx())
             },
-            maxSize = DpSize(MaxHandleWidth, SliderHeight),
+            maxSize = DpSize(MaxHandleWidth, sliderHeight),
             shape = CircleShape,
             under = { washShape(CircleShape, accent.copy(alpha = 0.9f)) },
             lensTint = accent.copy(alpha = 0.25f),
@@ -343,16 +379,22 @@ private fun GlassSliderBody(
 
 // One part of Material's track, in glass: the active one from the start to the handle's gap, washed with the
 // accent (look.accentTint, as ZoneSurface(accent = true)), the inactive one from the gap to the end, plain glass
-// with the stop indicator. Corners: half the height outside, 2 dp towards the handle (Slider.kt drawTrack).
+// with the stop indicator. Corners: the size's corner outside, 2 dp towards the handle (Slider.kt drawTrack).
+// The active one carries the inset icon at its start when it is wide enough: BaseSlider.java calculateTrackIconBounds
+// https://github.com/material-components/material-components-android/blob/master/lib/java/com/google/android/material/slider/BaseSlider.java
+// and androidx's SliderWithTrackIconsSample (translate, then the painter drawn with ColorFilter.tint).
 @Composable
 private fun TrackSegment(
     active: Boolean,
     dampedDragAnimation: DampedDragAnimation,
     look: GlassLook,
     steps: Int,
-    accent: Color
+    accent: Color,
+    sliderSize: GlassSliderSize,
+    iconPainter: Painter?
 ) {
-    val outer = TrackHeight / 2
+    val onAccent = MaterialTheme.colorScheme.onPrimary
+    val outer = sliderSize.corner
     val shape = if (active) {
         RoundedCornerShape(topStart = outer, topEnd = InsideCorner, bottomEnd = InsideCorner, bottomStart = outer)
     } else {
@@ -363,7 +405,7 @@ private fun TrackSegment(
             .layout { measurable, constraints ->
                 val w = constraints.maxWidth
                 val h = constraints.maxHeight
-                val x = trackX(dampedDragAnimation.progress.coerceIn(0f, 1f), w.toFloat(), (TrackHeight / 2).toPx(), steps)
+                val x = trackX(dampedDragAnimation.progress.coerceIn(0f, 1f), w.toFloat(), sliderSize.corner.toPx(), steps)
                 val gap = (HandleWidth / 2 + HandleGap).toPx()
                 val start = if (active) 0f else x + gap
                 val end = if (active) x - gap else w.toFloat()
@@ -378,9 +420,22 @@ private fun TrackSegment(
                     // Material's active track is primary (SliderTokens.ActiveTrackColor): washed with primary as
                     // GlassSwitch's on track and GlassCheck's box (0.85), never the pale accentTint.
                     washShape(shape, accent.copy(alpha = 0.85f))
+                    if (iconPainter != null && sliderSize.icon > 0.dp) {
+                        // calculateTrackIconBounds: only if the part is at least icon + 2 x padding wide; the
+                        // icon on the start side (the right one in a right to left layout), centred in the track.
+                        val iconPx = sliderSize.icon.toPx()
+                        val pad = IconPadding.toPx()
+                        if (size.width >= iconPx + 2 * pad) {
+                            val rtl = layoutDirection == LayoutDirection.Rtl
+                            val left = if (rtl) size.width - pad - iconPx else pad
+                            translate(left, (size.height - iconPx) / 2f) {
+                                with(iconPainter) { draw(Size(iconPx, iconPx), colorFilter = ColorFilter.tint(onAccent)) }
+                            }
+                        }
+                    }
                 } else {
                     // drawStopIndicator: 4 dp, its centre one corner from the end, only if there is room.
-                    val c = (TrackHeight / 2).toPx()
+                    val c = outer.toPx()
                     if (size.width > c) {
                         val rtl = layoutDirection == LayoutDirection.Rtl
                         drawCircle(accent, StopSize.toPx() / 2f, Offset(if (rtl) c else size.width - c, size.height / 2f))

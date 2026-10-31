@@ -1,9 +1,9 @@
 package helium314.keyboard.latin.ui.component
 
 import helium314.keyboard.latin.ui.glass.LocalGlass
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
+import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.material3.BasicAlertDialog
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.Surface
@@ -85,9 +85,9 @@ fun ZoneAlertDialog(
  * the same 24 dp padding, 16 dp under the icon and the title, 24 dp under the text, the same
  * styles (headlineSmall, bodyMedium, labelLarge) and content colours; the text slot keeps
  * weight(1f, fill = false) so a long list scrolls. Changed, as iOS's alerts (the user,
- * 2026-10-28, "text must be centered"): icon, title and text centred, and the buttons in one
- * row sharing the whole width equally (a confirm alone takes it all), where Material packs
- * them at the end.
+ * 2026-10-28, "text must be centered"): icon, title and text centred, and the buttons sharing
+ * the whole width equally (a confirm alone takes it all), where Material packs them at the end;
+ * stacked when the labels do not fit side by side ([ZoneDialogButtons]).
  */
 @Composable
 private fun ZoneAlertContent(
@@ -130,10 +130,58 @@ private fun ZoneAlertContent(
             }
             CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.primary) {
                 ProvideTextStyle(LocalTextStyle.current.merge(MaterialTheme.typography.labelLarge)) {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(ButtonGap)) {
-                        dismissButton?.let { slot -> Box(Modifier.weight(1f), propagateMinConstraints = true) { slot() } }
-                        Box(Modifier.weight(1f), propagateMinConstraints = true) { confirmButton() }
+                    ZoneDialogButtons {
+                        dismissButton?.let { slot -> Box(propagateMinConstraints = true) { slot() } }
+                        Box(propagateMinConstraints = true) { confirmButton() }
                     }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * The buttons of a dialog, as Material 3's AlertDialogFlowRow places them (AlertDialog.kt of
+ * https://github.com/androidx/androidx/blob/androidx-main/compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/AlertDialog.kt,
+ * Apache-2.0: buttons laid in a row, wrapped to new lines when they do not fit): side by side,
+ * sharing the width equally, when each label fits on one line in its share; else stacked, each on
+ * the whole width, the confirm button (the last child) first, as Material stacks long labels and
+ * iOS's alerts do. The fit is the button's own one line width (maxIntrinsicWidth), so it follows
+ * the language, the font scale and the width of the window; words are never cut.
+ * Children are the dismiss button then the confirm button; a confirm alone takes the whole width.
+ */
+@Composable
+private fun ZoneDialogButtons(content: @Composable () -> Unit) {
+    val gap = ButtonGap
+    Layout(content, Modifier.fillMaxWidth()) { measurables, constraints ->
+        val gapPx = gap.roundToPx()
+        val width = constraints.maxWidth
+        val count = measurables.size
+        val share = if (count > 1) (width - gapPx * (count - 1)) / count else width
+        // Whether every label fits on one line in its share of the row.
+        val sideBySide = count <= 1 || measurables.all { it.maxIntrinsicWidth(Constraints.Infinity) <= share }
+        val cell = if (sideBySide) share else width
+        if (sideBySide) {
+            // Equal height in the row, so two glass buttons read as a pair: the tallest height is asked
+            // first (maxIntrinsicHeight is a query, not a measure), then each button is measured once, as
+            // Compose requires (https://developer.android.com/develop/ui/compose/layouts/intrinsic-measurements:
+            // measuring a child twice throws).
+            val rowHeight = measurables.maxOfOrNull { it.maxIntrinsicHeight(cell) } ?: 0
+            val even = measurables.map { it.measure(Constraints(cell, cell, rowHeight, maxOf(rowHeight, constraints.maxHeight))) }
+            val height = even.maxOfOrNull { it.height } ?: 0
+            layout(width, height) {
+                even.forEachIndexed { index, placeable -> placeable.placeRelative(index * (cell + gapPx), 0) }
+            }
+        } else {
+            // Confirm first, the dismiss button under it.
+            val placeables = measurables.map { it.measure(Constraints(minWidth = cell, maxWidth = cell)) }
+            val order = placeables.asReversed()
+            val height = order.sumOf { it.height } + gapPx * (order.size - 1)
+            layout(width, height) {
+                var y = 0
+                order.forEach { placeable ->
+                    placeable.placeRelative(0, y)
+                    y += placeable.height + gapPx
                 }
             }
         }

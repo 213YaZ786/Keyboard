@@ -284,7 +284,8 @@ fun <T: Any?> SearchScreen(
 @Composable
 private fun TitleChip(title: @Composable () -> Unit) {
     FloatingPane(shape = CircleShape) {
-        CompositionLocalProvider(LocalTextStyle provides MaterialTheme.typography.titleMedium) {
+        // Every title in the accent (the user, 2026-10-31), as Modules' SettingsSectionTitle and TitlePill.
+        CompositionLocalProvider(LocalTextStyle provides MaterialTheme.typography.titleMedium.copy(color = MaterialTheme.colorScheme.primary)) {
             Box(Modifier.padding(horizontal = 18.dp, vertical = 10.dp)) { title() }
         }
     }

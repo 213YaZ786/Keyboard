@@ -115,9 +115,11 @@ fun WelcomeWizard(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
+                // Every title in the accent (the user, 2026-10-31), as Modules' SettingsSectionTitle.
                 Text(
                     stringResource(R.string.setup_steps_title, appName),
                     style = MaterialTheme.typography.headlineMedium,
+                    color = MaterialTheme.colorScheme.primary,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.padding(bottom = 8.dp)
                 )

@@ -1,0 +1,14 @@
+<!--
+    SPDX-FileCopyrightText: Material Design Authors / Google LLC
+    SPDX-License-Identifier: Apache-2.0
+    Material Icons play_arrow (https://github.com/google/material-design-icons), the path of AppIcons.Play in Dialer.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+  <path
+      android:fillColor="@color/foreground"
+      android:pathData="M8,5v14l11,-7z" />
+</vector>

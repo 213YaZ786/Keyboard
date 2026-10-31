@@ -20,6 +20,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import helium314.keyboard.latin.eggs.EggEffects
 import helium314.keyboard.latin.eggs.VersionTaps
+import helium314.keyboard.settings.LocalOpenGuide
 import helium314.keyboard.settings.LocalOpenSearch
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -61,6 +62,7 @@ fun AboutScreen(
     onClickBack: () -> Unit,
 ) {
     val items = listOf(
+        SettingsWithoutKey.GUIDE,
         SettingsWithoutKey.APP,
         SettingsWithoutKey.VERSION,
         SettingsWithoutKey.LICENSE,
@@ -78,6 +80,16 @@ fun AboutScreen(
 }
 
 fun createAboutSettings(context: Context) = listOf(
+    // The same first row in every app, as Dialer's "Guide" tile (YAZ/Dialer feature/settings/SettingsScreen.kt) and Store's (onGuide).
+    Setting(context, SettingsWithoutKey.GUIDE, R.string.about_guide, R.string.about_guide_summary) {
+        val openGuide = LocalOpenGuide.current
+        Preference(
+            name = it.title,
+            description = it.description,
+            onClick = openGuide,
+            icon = R.drawable.ic_settings_about_guide
+        )
+    },
     Setting(context, SettingsWithoutKey.APP, R.string.english_ime_name, R.string.app_slogan) {
         Preference(
             name = it.title,

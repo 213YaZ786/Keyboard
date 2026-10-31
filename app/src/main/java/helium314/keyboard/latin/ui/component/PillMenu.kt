@@ -16,19 +16,17 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicText
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
@@ -51,12 +49,16 @@ import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionOnScreen
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import kotlinx.coroutines.launch
@@ -152,22 +154,14 @@ fun PillMenu(state: PillMenuState, items: List<PillItem>, @Suppress("UNUSED_PARA
             val screenH = constraints.maxHeight.toFloat()
             val margin = with(density) { 12.dp.toPx() }
             val item = state.bounds.translate(-at)
-            val paneW = with(density) { PANE_WIDTH.toPx() }.coerceAtMost(screenW - 2 * margin)
-            val paneH = with(density) { (ROW_HEIGHT * items.size).toPx() + 12.dp.toPx() }.coerceAtMost(screenH * 0.6f)
             val gap = with(density) { 10.dp.toPx() }
             // A tall item (a long message) is not lifted: the pane opens at the finger.
             val lifted = state.picture != null && item.height < screenH * 0.45f && item.width > 0f
-            val below = item.bottom + gap + paneH <= screenH - margin
-            val above = item.top - gap - paneH >= margin
-            val paneY = when {
-                !lifted -> (item.top + state.pressAt.y - paneH / 2).coerceIn(margin, screenH - paneH - margin)
-                below -> item.bottom + gap
-                above -> item.top - gap - paneH
-                else -> (screenH - paneH - margin)
-            }
             val finger = item.left + state.pressAt.x
-            val paneX = (finger - paneW / 2).coerceIn(margin, screenW - paneW - margin)
-            val fromTop = !lifted || below || !above
+            val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
+            // Where the pane ended up, written by its layout below and read when it draws (its scale grows
+            // from the finger, from the top edge or the bottom one).
+            val spot = remember { PaneSpot() }
 
             if (lifted) {
                 val picture = state.picture!!
@@ -184,33 +178,124 @@ fun PillMenu(state: PillMenuState, items: List<PillItem>, @Suppress("UNUSED_PARA
                 )
             }
             val glass = LocalGlass.current
-            val shape = RoundedCornerShape(22.dp)
-            Box(
-                Modifier
-                    .offset { IntOffset(paneX.toInt(), paneY.toInt()) }
-                    .width(with(density) { paneW.toDp() })
-                    .graphicsLayer {
-                        val v = pane.value
-                        alpha = v.coerceIn(0f, 1f)
-                        scaleX = 0.6f + 0.4f * v
-                        scaleY = 0.6f + 0.4f * v
-                        transformOrigin = TransformOrigin(((finger - paneX) / paneW).coerceIn(0f, 1f), if (fromTop) 0f else 1f)
-                    }
-                    .shadow(10.dp, shape, clip = false, ambientColor = Color.Black.copy(alpha = 0.2f), spotColor = Color.Black.copy(alpha = 0.2f))
-                    .then(if (glass != null) Modifier.dialogGlass(shape, glass, blur) else Modifier.background(MaterialTheme.colorScheme.surfaceContainerHigh, shape))
-                    .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { }
-            ) {
-                Column(Modifier.heightIn(max = with(density) { paneH.toDp() }).verticalScroll(rememberScrollState()).padding(vertical = 6.dp)) {
-                    items.forEachIndexed { i, entry ->
-                        if (i > 0) HorizontalDivider(Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-                        PillRow(entry) {
-                            state.close()
-                            entry.action()
+            // A pane on the screen: Material 3's extra large corner, 28 dp (ShapeDefaults,
+            // https://developer.android.com/reference/kotlin/androidx/compose/material3/ShapeDefaults).
+            val shape = androidx.compose.material3.ShapeDefaults.ExtraLarge
+            // The pane is measured, not computed from a row count: its rows grow with their labels (another
+            // language, the 200 % font), so its height and width come from them. Width: at least 260 dp, the
+            // widest label's one line width when that is more, never past the screen less its margins; height
+            // up to 60 % of the screen, then the list scrolls. A custom Layout places it once measured, as
+            // Compose's custom layouts recipe does (https://developer.android.com/develop/ui/compose/layouts/custom).
+            Layout(
+                content = {
+                    Box(
+                        Modifier
+                            .graphicsLayer {
+                                val v = pane.value
+                                alpha = v.coerceIn(0f, 1f)
+                                scaleX = 0.6f + 0.4f * v
+                                scaleY = 0.6f + 0.4f * v
+                                transformOrigin = TransformOrigin(spot.originX, spot.originY)
+                            }
+                            .shadow(10.dp, shape, clip = false, ambientColor = Color.Black.copy(alpha = 0.2f), spotColor = Color.Black.copy(alpha = 0.2f))
+                            .then(if (glass != null) Modifier.dialogGlass(shape, glass, blur) else Modifier.background(MaterialTheme.colorScheme.surfaceContainerHigh, shape))
+                            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { }
+                    ) {
+                        Column(Modifier.verticalScroll(rememberScrollState()).padding(vertical = 6.dp)) {
+                            items.forEachIndexed { i, entry ->
+                                if (i > 0) HorizontalDivider(Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                                PillRow(entry) {
+                                    state.close()
+                                    entry.action()
+                                }
+                            }
                         }
                     }
+                },
+                modifier = Modifier.fillMaxSize()
+            ) { measurables, outer ->
+                val box = measurables.first()
+                val maxW = (screenW - 2 * margin).toInt().coerceAtLeast(0)
+                val minW = PANE_WIDTH.roundToPx().coerceAtMost(maxW)
+                val contentW = box.maxIntrinsicWidth(Constraints.Infinity)
+                val wideW = contentW.coerceIn(minW, maxW)
+                // A small item (an app icon in a grid) is narrower than the wide pane: its pane is sized to its
+                // content, 200 to 280 dp, and placed against the item as Launcher3's ArrowPopup does.
+                val small = lifted && item.width < wideW
+                val paneW = if (small) {
+                    contentW.coerceIn(SMALL_MIN.roundToPx().coerceAtMost(maxW), SMALL_MAX.roundToPx().coerceAtMost(maxW))
+                } else wideW
+                val placeable = box.measure(Constraints(minWidth = paneW, maxWidth = paneW, maxHeight = (screenH * 0.6f).toInt()))
+                val paneH = placeable.height.toFloat()
+                val below = item.bottom + gap + paneH <= screenH - margin
+                val above = item.top - gap - paneH >= margin
+                val farX = (screenW - paneW - margin).coerceAtLeast(margin)
+                val paneX: Float
+                val paneY: Float
+                if (small) {
+                    val beside = !below && !above
+                    paneY = when {
+                        below -> item.bottom + gap
+                        above -> item.top - gap - paneH
+                        else -> ((screenH - paneH) / 2).coerceAtLeast(margin)
+                    }
+                    paneX = if (!beside) {
+                        placeAboutItem(item.left, item.right, paneW.toFloat(), screenW, margin, rtl).coerceIn(margin, farX)
+                    } else {
+                        // Neither above nor below fits: beside the item, on its right in LTR (left in RTL),
+                        // else on the other side, else centred.
+                        val rightSide = item.right + gap
+                        val leftSide = item.left - gap - paneW
+                        val rightFits = rightSide + paneW <= screenW - margin
+                        val leftFits = leftSide >= margin
+                        when {
+                            !rtl && rightFits -> rightSide
+                            rtl && leftFits -> leftSide
+                            leftFits -> leftSide
+                            rightFits -> rightSide
+                            else -> (screenW - paneW) / 2f
+                        }.coerceIn(margin, farX)
+                    }
+                } else {
+                    paneY = when {
+                        !lifted -> (item.top + state.pressAt.y - paneH / 2).coerceIn(margin, (screenH - paneH - margin).coerceAtLeast(margin))
+                        below -> item.bottom + gap
+                        above -> item.top - gap - paneH
+                        else -> (screenH - paneH - margin)
+                    }
+                    paneX = (finger - paneW / 2).coerceIn(margin, farX)
                 }
+                val anchorX = if (small) (item.left + item.right) / 2f else finger
+                spot.originY = if (small && !below && !above) 0.5f else if (!lifted || below || !above) 0f else 1f
+                spot.originX = ((anchorX - paneX) / paneW).coerceIn(0f, 1f)
+                layout(outer.maxWidth, outer.maxHeight) { placeable.place(paneX.toInt(), paneY.toInt()) }
             }
         }
+    }
+}
+
+/** Where the pane's scale grows from, set by its layout and read by its graphics layer when it draws. */
+private class PaneSpot {
+    var originX = 0.5f
+    var originY = 0f
+}
+
+/**
+ * The pane's left edge for a small item, as Launcher3's ArrowPopup.orientAboutObject chooses it
+ * (https://github.com/LineageOS/android_packages_apps_Trebuchet/blob/lineage-22.2/src/com/android/launcher3/popup/ArrowPopup.java):
+ * the item's left edge if the pane fits from there (right edge first in RTL), else the other edge, else centred.
+ */
+private fun placeAboutItem(left: Float, right: Float, paneW: Float, screenW: Float, margin: Float, rtl: Boolean): Float {
+    val leftAligned = left
+    val rightAligned = right - paneW
+    val canLeft = leftAligned + paneW <= screenW - margin
+    val canRight = rightAligned >= margin
+    return when {
+        !rtl && canLeft -> leftAligned
+        rtl && canRight -> rightAligned
+        !rtl && canRight -> rightAligned
+        rtl && canLeft -> leftAligned
+        else -> (screenW - paneW) / 2f
     }
 }
 
@@ -252,16 +337,18 @@ private fun PillRow(item: PillItem, onDone: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
-            .height(ROW_HEIGHT)
+            // 50 dp at least, growing with the label: it wraps between words (a longer language, the 200 %
+            // font), and a single word too wide for the pane shrinks last (TextAutoSize.StepBased,
+            // https://developer.android.com/develop/ui/compose/text/autosize).
+            .heightIn(min = ROW_HEIGHT)
             .clickable { play.run(item.motion, onDone) }
-            .padding(horizontal = 18.dp)
+            .padding(horizontal = 18.dp, vertical = 12.dp)
     ) {
-        Text(
+        val style = MaterialTheme.typography.bodyLarge
+        BasicText(
             item.label,
-            style = MaterialTheme.typography.bodyLarge,
-            color = ink,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
+            style = style.copy(color = ink),
+            autoSize = TextAutoSize.StepBased(minFontSize = 9.sp, maxFontSize = style.fontSize, stepSize = 0.5.sp),
             modifier = Modifier.weight(1f)
         )
         Icon(
@@ -278,4 +365,6 @@ private fun PillRow(item: PillItem, onDone: () -> Unit) {
 }
 
 private val PANE_WIDTH = 260.dp
+private val SMALL_MIN = 200.dp
+private val SMALL_MAX = 280.dp
 private val ROW_HEIGHT = 50.dp
