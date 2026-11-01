@@ -3,6 +3,8 @@ package helium314.keyboard.latin
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.SharedPreferences
+import android.view.inputmethod.InputMethodSubtype
 import androidx.core.content.edit
 import helium314.keyboard.compat.isDeviceLocked
 import helium314.keyboard.compat.isUserLocked
@@ -32,6 +34,7 @@ import helium314.keyboard.latin.utils.LayoutUtilsCustom
 import helium314.keyboard.latin.utils.Log
 import helium314.keyboard.latin.utils.ScriptUtils.SCRIPT_LATIN
 import helium314.keyboard.latin.utils.ScriptUtils.script
+import helium314.keyboard.latin.utils.SubtypeLocaleUtils
 import helium314.keyboard.latin.utils.SubtypeSettings
 import helium314.keyboard.latin.utils.SubtypeUtilsAdditional
 import helium314.keyboard.latin.utils.ToolbarKey
@@ -52,10 +55,18 @@ import kotlin.collections.component1
 import kotlin.collections.component2
 import kotlin.collections.set
 
+// Keyboard: HeliBoard's versionCode that our code is merged up to. AppUpgrade's ladder (HeliBoard's, thresholds in
+// HeliBoard's numbering) runs against this number, stored apart from our own versionCode (Settings.PREF_UPSTREAM_VERSION_CODE).
+// Raise it at each upstream merge, to the versionCode of the merged HeliBoard commit (app/build.gradle.kts).
+const val UPSTREAM_VERSION_CODE = 4201
+
+// Source: https://github.com/HeliBorg/HeliBoard/blob/main/app/src/main/java/helium314/keyboard/latin/AppUpgrade.kt (checkVersionUpgrade)
+// Keyboard: also runs when the upstream code stored is not ours yet (existing installs, ladder keyed on HeliBoard's numbering)
 fun checkVersionUpgrade(context: Context) {
     val prefs = context.prefs()
     val oldVersion = prefs.getInt(Settings.PREF_VERSION_CODE, 0)
-    if (oldVersion != BuildConfig.VERSION_CODE)
+    val oldUpstream = prefs.getInt(Settings.PREF_UPSTREAM_VERSION_CODE, 0)
+    if (oldVersion != BuildConfig.VERSION_CODE || oldUpstream != UPSTREAM_VERSION_CODE)
         AppUpgrade.onUpgrade(context)
 }
 
@@ -81,13 +92,29 @@ fun transferOldPinnedClips(context: Context) {
 }
 
 private object AppUpgrade {
+    // Source: https://github.com/HeliBorg/HeliBoard/blob/main/app/src/main/java/helium314/keyboard/latin/AppUpgrade.kt (onUpgrade)
+    // Keyboard: the ladder is keyed on HeliBoard's numbering (PREF_UPSTREAM_VERSION_CODE), our versionCode only tracks our updates
     fun onUpgrade(context: Context) {
         val prefs = context.prefs()
         val oldVersion = prefs.getInt(Settings.PREF_VERSION_CODE, 0)
-        if (oldVersion == 0) {
+        val storedUpstream = prefs.getInt(Settings.PREF_UPSTREAM_VERSION_CODE, 0)
+        if (oldVersion == 0 && storedUpstream == 0) {
             // fresh install -> no need to upgrade, as this does things like keeping old defaults which is on wanted on actual upgrade
-            prefs.edit { putInt(Settings.PREF_VERSION_CODE, BuildConfig.VERSION_CODE) }
+            prefs.edit {
+                putInt(Settings.PREF_VERSION_CODE, BuildConfig.VERSION_CODE)
+                putInt(Settings.PREF_UPSTREAM_VERSION_CODE, UPSTREAM_VERSION_CODE)
+            }
             return
+        }
+        val oldUpstream = when {
+            storedUpstream != 0 -> storedUpstream
+            oldVersion in 1..999 -> {
+                // an install of ours from before the upstream code was stored: its prefs are in the current format, but the
+                // ladder ran on them at each update, with our small versionCode read as HeliBoard's. Undo that, run no block.
+                repairAfterWrongLadder(context)
+                UPSTREAM_VERSION_CODE
+            }
+            else -> oldVersion // HeliBoard's own numbering, e.g. a backup made with HeliBoard restored
         }
         // clear extracted dictionaries, in case updated version contains newer ones
         DictionaryInfoUtils.getCacheDirectories(context).forEach {
@@ -96,6 +123,144 @@ private object AppUpgrade {
                     file.delete()
             }
         }
+        if (oldUpstream < UPSTREAM_VERSION_CODE)
+            upgradeFromUpstream(context, oldUpstream)
+        upgradeToolbarPrefs(prefs)
+        LayoutUtilsCustom.onLayoutFileChanged() // just to be sure
+        prefs.edit {
+            putInt(Settings.PREF_VERSION_CODE, BuildConfig.VERSION_CODE)
+            putInt(Settings.PREF_UPSTREAM_VERSION_CODE, UPSTREAM_VERSION_CODE)
+        }
+    }
+
+    // Keyboard: one repairing step, never lets an exception out (App.onCreate calls this)
+    private fun repairStep(name: String, step: () -> Unit) {
+        runCatching(step).onFailure { Log.e("upgrade", "repair of $name failed", it) }
+    }
+
+    // Source: inverse of the blocks 2000, 2302, 2305, 2306, 3201 and 3901 of
+    // https://github.com/HeliBorg/HeliBoard/blob/main/app/src/main/java/helium314/keyboard/latin/AppUpgrade.kt
+    // Keyboard: one-time repair of what the ladder wrote on current-format prefs, each step the inverse of its block
+    private fun repairAfterWrongLadder(context: Context) {
+        val prefs = context.prefs()
+        // reverses 3901: the key gap scales it sets on non-tablets (1.75 / 1.1); our default applies again
+        repairStep("key gap scales") {
+            val written = listOf(1.75f, 1.1f, 1.75f, 1.1f) // indices 0..3, as the block writes them
+            written.forEachIndexed { i, value ->
+                val key = createPrefKeyForBooleanSettings(Settings.PREF_KEY_GAP_SCALE_PREFIX, i, 2)
+                if (runCatching { prefs.contains(key) && prefs.getFloat(key, 0f) == value }.getOrDefault(false))
+                    prefs.edit { remove(key) }
+            }
+        }
+        // reverses 2000: it forces the language switch key on when the old setting exists; our default (off) applies again
+        repairStep("language switch key") { prefs.edit { remove(Settings.PREF_SHOW_LANGUAGE_SWITCH_KEY) } }
+        // reverses 2000 and 2305: the pinned toolbar pref it resets and the separators it rewrites; kept only if it parses
+        repairStep("toolbar prefs") {
+            listOf(Settings.PREF_PINNED_TOOLBAR_KEYS, Settings.PREF_TOOLBAR_KEYS, Settings.PREF_CLIPBOARD_TOOLBAR_KEYS).forEach {
+                if (prefs.contains(it) && !isToolbarPrefValid(prefs.getString(it, "")!!))
+                    prefs.edit { remove(it) }
+            }
+        }
+        // reverses 3201: it overwrites the suggest punctuation setting from the bigram setting
+        repairStep("suggest punctuation") { prefs.edit { remove(Settings.PREF_SUGGEST_PUNCTUATION) } }
+        // reverses 2302: it rewrites the custom toolbar key codes (all read as null from the current format)
+        repairStep("custom toolbar key codes") {
+            if (prefs.contains(Settings.PREF_TOOLBAR_CUSTOM_KEY_CODES) && !isCustomKeyCodesUsable(prefs.getString(Settings.PREF_TOOLBAR_CUSTOM_KEY_CODES, "")!!))
+                prefs.edit { remove(Settings.PREF_TOOLBAR_CUSTOM_KEY_CODES) }
+        }
+        // reverses 2305 and 2306: the subtype separators it changes and the subtypes it rebuilds; additional first, as
+        // an enabled or selected subtype may be one of them
+        repairStep("additional subtypes") {
+            repairSubtypePref(prefs, Settings.PREF_ADDITIONAL_SUBTYPES) { isSubtypeEntryValid(it) }
+        }
+        repairStep("enabled subtypes") {
+            val resourceSubtypes = getResourceSubtypes(context.resources)
+            repairSubtypePref(prefs, Settings.PREF_ENABLED_SUBTYPES) { isSubtypeEntryValid(it) && isKnownSubtype(prefs, resourceSubtypes, it) }
+        }
+        repairStep("selected subtype") {
+            val resourceSubtypes = getResourceSubtypes(context.resources)
+            repairSubtypePref(prefs, Settings.PREF_SELECTED_SUBTYPE) { isSubtypeEntryValid(it) && isKnownSubtype(prefs, resourceSubtypes, it) }
+        }
+    }
+
+    // Source: the parsing of getEnabledToolbarKeys and upgradeToolbarPref in
+    // https://github.com/HeliBorg/HeliBoard/blob/main/app/src/main/java/helium314/keyboard/latin/utils/ToolbarUtils.kt
+    // Keyboard: every entry must be "KEY:true" or "KEY:false" with a known ToolbarKey, entries joined by Separators.ENTRY
+    private fun isToolbarPrefValid(value: String): Boolean =
+        value.isEmpty() || value.split(Separators.ENTRY).all { entry ->
+            val split = entry.split(Separators.KV)
+            split.size == 2 && (split[1] == "true" || split[1] == "false")
+                && runCatching { ToolbarKey.valueOf(split[0]) }.isSuccess
+        }
+
+    // Source: readCustomKeyCodes / writeCustomKeyCodes in
+    // https://github.com/HeliBorg/HeliBoard/blob/main/app/src/main/java/helium314/keyboard/latin/utils/ToolbarUtils.kt
+    // Keyboard: entries "KEY,code,code" joined by ";", a code being an int or "null"; a pref where no entry has a code
+    // holds nothing to keep (that is what 2302 leaves behind), so it is not usable either
+    private fun isCustomKeyCodesUsable(value: String): Boolean {
+        if (value.isEmpty()) return true
+        val entries = value.split(";").map { it.split(",") }
+        val parses = entries.all { s ->
+            s.size == 3 && runCatching { ToolbarKey.valueOf(s[0]) }.isSuccess
+                && s.drop(1).all { it == "null" || it.toIntOrNull() != null }
+        }
+        return parses && entries.any { s -> s.drop(1).any { it != "null" } }
+    }
+
+    // Source: SettingsSubtype.toSettingsSubtype and LayoutType.getLayoutMap in
+    // https://github.com/HeliBorg/HeliBoard/blob/main/app/src/main/java/helium314/keyboard/latin/settings/SettingsSubtype.kt
+    // Keyboard: an entry is "language tag§extra,values": known extra value keys only, the layout set a list of
+    // "LAYOUTTYPE:name" joined by Separators.ENTRY (a name never holds "=" or a separator)
+    private fun isSubtypeEntryValid(entry: String): Boolean {
+        if (entry.count { it.toString() == Separators.SET } != 1 || Separators.SETS in entry) return false
+        val subtype = entry.toSettingsSubtype()
+        if (subtype.locale.toLanguageTag() == "und" || entry.substringBefore(Separators.SET).isBlank()) return false
+        // the two Android IME keys are in every resource subtype (res/xml/method.xml, Constants.Subtype.ExtraValue's comment)
+        val known = setOf("TrySuppressingImeSwitcher", "SupportTouchPositionCorrection", ExtraValue.ASCII_CAPABLE,
+            ExtraValue.ENABLED_WHEN_DEFAULT_IS_NOT_ASCII_CAPABLE, ExtraValue.EMOJI_CAPABLE,
+            ExtraValue.NO_SHIFT_KEY, ExtraValue.NO_SHIFT_PROXIMITY_CORRECTION, ExtraValue.UNTRANSLATABLE_STRING_IN_SUBTYPE_NAME,
+            ExtraValue.KEYBOARD_LAYOUT_SET, ExtraValue.IS_ADDITIONAL_SUBTYPE, ExtraValue.COMBINING_RULES, ExtraValue.POPUP_ORDER,
+            ExtraValue.HINT_ORDER, ExtraValue.SECONDARY_LOCALES, ExtraValue.MORE_POPUPS, ExtraValue.LOCALIZED_NUMBER_ROW)
+        return subtype.extraValues.split(",").filter { it.isNotBlank() }.all { element ->
+            val key = element.substringBefore("=")
+            if (key !in known) return@all false
+            if (key != ExtraValue.KEYBOARD_LAYOUT_SET) return@all true
+            element.substringAfter("=", "").split(Separators.ENTRY).all { layout ->
+                val s = layout.split(Separators.KV)
+                s.size == 2 && s[1].isNotBlank() && '=' !in s[1]
+                    && runCatching { LayoutType.valueOf(s[0]) }.isSuccess
+            }
+        }
+    }
+
+    // Source: loadEnabledSubtypes in
+    // https://github.com/HeliBorg/HeliBoard/blob/main/app/src/main/java/helium314/keyboard/latin/utils/SubtypeSettings.kt
+    // Keyboard: an enabled or selected subtype is read as an additional subtype, the fallback one, or the resource subtype
+    // of the same locale and main layout
+    private fun isKnownSubtype(prefs: SharedPreferences, resourceSubtypes: List<InputMethodSubtype>, entry: String): Boolean {
+        val subtype = entry.toSettingsSubtype()
+        if (subtype.isAdditionalSubtype(prefs) || subtype == SettingsSubtype.fallbackSubtype) return true
+        val mainLayout = subtype.mainLayoutName() ?: SubtypeLocaleUtils.QWERTY
+        return resourceSubtypes.any { it.locale() == subtype.locale && it.mainLayoutNameOrQwerty() == mainLayout }
+    }
+
+    // Source: SubtypeSettings.createSettingsSubtypes (entries split by Separators.SETS) in
+    // https://github.com/HeliBorg/HeliBoard/blob/main/app/src/main/java/helium314/keyboard/latin/utils/SubtypeSettings.kt
+    // Keyboard: keeps the entries accepted, drops the others, removes the pref when entries were there and none is left
+    private fun repairSubtypePref(prefs: SharedPreferences, key: String, isValid: (String) -> Boolean) {
+        if (!prefs.contains(key)) return
+        val value = prefs.getString(key, "")!!
+        val entries = value.split(Separators.SETS).filter { it.isNotEmpty() }
+        val kept = entries.filter { runCatching { isValid(it) }.getOrDefault(false) }
+        if (kept.size == entries.size) return
+        if (kept.isEmpty()) prefs.edit { remove(key) }
+        else prefs.edit { putString(key, kept.joinToString(Separators.SETS)) }
+    }
+
+    // Source: the blocks of https://github.com/HeliBorg/HeliBoard/blob/main/app/src/main/java/helium314/keyboard/latin/AppUpgrade.kt
+    // Keyboard: HeliBoard's ladder, oldVersion in HeliBoard's numbering (the upstream code stored), not our versionCode
+    private fun upgradeFromUpstream(context: Context, oldVersion: Int) {
+        val prefs = context.prefs()
         if (oldVersion <= 1000) { // upgrade old custom layouts name
             val oldShiftSymbolsFile = getCustomLayoutFile("custom.shift_symbols", context)
             if (oldShiftSymbolsFile.exists()) {
@@ -708,9 +873,6 @@ private object AppUpgrade {
                 prefs.edit { remove("emoji_recent_keys")  }
             }
         }
-        upgradeToolbarPrefs(prefs)
-        LayoutUtilsCustom.onLayoutFileChanged() // just to be sure
-        prefs.edit { putInt(Settings.PREF_VERSION_CODE, BuildConfig.VERSION_CODE) }
     }
 
     // old variant for old folder structure
