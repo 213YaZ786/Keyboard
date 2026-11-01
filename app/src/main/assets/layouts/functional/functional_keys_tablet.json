@@ -20,6 +20,7 @@
   [
     { "label": "symbol_alpha" },
     { "$": "variation_selector",
+      "default":  { "label": "comma", "labelFlags": 1073741824 },
       "email":    { "label": "@", "labelFlags": 1073741824, "groupId": 1, "type": "function" },
       "uri":      { "label": "/", "labelFlags": 1073741824, "groupId": 1, "type": "function" }
     },

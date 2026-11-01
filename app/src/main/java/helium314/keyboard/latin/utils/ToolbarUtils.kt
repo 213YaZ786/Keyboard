@@ -151,20 +151,25 @@ enum class ToolbarMode {
 val toolbarKeyStrings = entries.associateWithTo(EnumMap(ToolbarKey::class.java)) { it.toString().lowercase(Locale.US) }
 
 val defaultToolbarPref by lazy {
-    // Keyboard: the clipboard and its clear key only, and the mic; every other tool is a box to check in Settings >
-    // Advanced > Toolbar (iOS's bar has no tools, Gboard hides its tool panel behind settings). EMOJI is not here: the
-    // bottom row has its key. TRANSLATE is Gboard's toolbar Translate (hidden unless Translator is installed). VOICE stays
-    // last: the Glass bar draws it in its own slot at the right end
+    // Keyboard: the mic only (the clipboard keys and Translate are pinned, defaultPinnedToolbarPref); every other tool is
+    // a box to check in Settings > Advanced > Toolbar (iOS's bar has no tools, Gboard hides its tool panel behind
+    // settings). EMOJI is not here: the bottom row has its key. The Glass bar draws VOICE in its own slot at the right end
     // (SuggestionStripView.setupGlassSlots), the other styles show it as the last tool. Order and keys are HeliBoard's
     // ToolbarKey list (this file), https://github.com/HeliBorg/HeliBoard/blob/main/app/src/main/java/helium314/keyboard/latin/utils/ToolbarUtils.kt
-    val default = listOf(CLIPBOARD, CLEAR_CLIPBOARD, TRANSLATE, VOICE)
+    // The clipboard keys are pinned now (defaultPinnedToolbarPref), so they are not tools too: they would show twice.
+    val default = listOf(VOICE)
     val others = entries.filterNot { it in default || it == CLOSE_HISTORY }
     default.joinToString(Separators.ENTRY) { it.name + Separators.KV + true } + Separators.ENTRY +
             others.joinToString(Separators.ENTRY) { it.name + Separators.KV + false }
 }
 
+// Keyboard: CLIPBOARD and CLEAR_CLIPBOARD pinned (iOS 26's bar keeps its place, no tool jumps in or out): HeliBoard's pinned
+// keys stay beside the suggestions (SuggestionStripView.addKeyToPinnedKeys / updateKeys), the Glass bar puts them at the
+// left. TRANSLATE is pinned too (Gboard's toolbar Translate, hidden unless Translator is installed): the Glass bar no
+// longer shows the tools, so a tool left in the toolbar could not be reached.
+// https://github.com/HeliBorg/HeliBoard/blob/main/app/src/main/java/helium314/keyboard/latin/utils/ToolbarUtils.kt
 val defaultPinnedToolbarPref = entries.filterNot { it == CLOSE_HISTORY }.joinToString(Separators.ENTRY) {
-    it.name + Separators.KV + false
+    it.name + Separators.KV + (it == CLIPBOARD || it == CLEAR_CLIPBOARD || it == TRANSLATE)
 }
 
 val defaultClipboardToolbarPref by lazy {

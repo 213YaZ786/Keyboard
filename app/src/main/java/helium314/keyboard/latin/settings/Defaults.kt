@@ -76,10 +76,11 @@ object Defaults {
     const val PREF_KEY_USE_PERSONALIZED_DICTS = true
     const val PREF_KEY_USE_DOUBLE_SPACE_PERIOD = true
     const val PREF_BLOCK_POTENTIALLY_OFFENSIVE = true
-    // Keyboard: both on, as iOS's and Gboard's bottom row; HeliBoard's functional layout then shows the language key when
-    // several languages are enabled, else the emoji key
+    // Keyboard: language key off, emoji key on: ?123, comma, emoji, space, period, enter as Gboard's bottom row (its own
+    // language switch key setting is off by default); the language changes by a long press on the space bar
+    // (PREF_SPACE_TO_CHANGE_LANG, on)
     // https://github.com/HeliBorg/HeliBoard/blob/main/app/src/main/java/helium314/keyboard/latin/settings/Defaults.kt
-    const val PREF_SHOW_LANGUAGE_SWITCH_KEY = true
+    const val PREF_SHOW_LANGUAGE_SWITCH_KEY = false
     const val PREF_LANGUAGE_SWITCH_KEY = "internal"
     const val PREF_SHOW_EMOJI_KEY = true
     const val PREF_SHOW_DPAD_KEY = true
@@ -97,8 +98,15 @@ object Defaults {
     @JvmField
     // DEFAULT_SIZE_SCALE for portrait, 0 for landscape (normal and folded)
     val PREF_BOTTOM_PADDING_SCALE = arrayOf(DEFAULT_SIZE_SCALE, 0f, DEFAULT_SIZE_SCALE, 0f)
+    // Keyboard: the keys' outer margin as iOS 26's: 6.5 pt of a 402 pt wide iPhone (1.617 % of the width; measured in
+    // OpenWhispr's PR https://github.com/OpenWhispr/openwhispr/pull/2726, values only). A key already keeps half the key gap
+    // from the padding (config_key_horizontal_gap_holo 1.089 %p / 2), and KeyboardParams.readAttributes multiplies
+    // config_keyboard_left_padding (8 %p) by this scale, so the scale is (1.617 - 1.089 / 2) / 8. Tablets and landscape have
+    // other gaps (0.9 to 1.565 %p) and keep the same scale: their margin lands between 1.5 and 1.9 % of the width.
+    // HeliBoard's own setting: https://github.com/HeliBorg/HeliBoard/blob/main/app/src/main/java/helium314/keyboard/latin/settings/Defaults.kt
+    private const val IOS_SIDE_PADDING_SCALE = (6.5f / 402f * 100f - 1.089f / 2f) / 8f
     @JvmField
-    val PREF_SIDE_PADDING_SCALE = Array(8) { 0f }
+    val PREF_SIDE_PADDING_SCALE = Array(8) { IOS_SIDE_PADDING_SCALE }
     @JvmField
     val PREF_KEY_GAP_SCALE = Array(4) { DEFAULT_SIZE_SCALE }
     const val PREF_FONT_SCALE = DEFAULT_SIZE_SCALE
@@ -187,10 +195,11 @@ object Defaults {
     const val PREF_QUICK_PIN_TOOLBAR_KEYS = false
     val PREF_PINNED_TOOLBAR_KEYS = defaultPinnedToolbarPref
     val PREF_TOOLBAR_KEYS = defaultToolbarPref
-    // Keyboard: both on, the Glass bar shows the tools when nothing is typed and suggestions replace them, as Gboard's
-    // (HeliBoard's own "Auto show toolbar" and "Auto hide toolbar", SettingsValues.mAutoShowToolbar / mAutoHideToolbar)
-    const val PREF_AUTO_SHOW_TOOLBAR = true
-    const val PREF_AUTO_HIDE_TOOLBAR = true
+    // Keyboard: both off (HeliBoard's own values), the bar never swaps the tools and the suggestions: the pinned keys, the
+    // suggestions and the mic keep their place, as iOS 26's bar
+    // https://github.com/HeliBorg/HeliBoard/blob/main/app/src/main/java/helium314/keyboard/latin/settings/Defaults.kt
+    const val PREF_AUTO_SHOW_TOOLBAR = false
+    const val PREF_AUTO_HIDE_TOOLBAR = false
     val PREF_CLIPBOARD_TOOLBAR_KEYS = defaultClipboardToolbarPref
     const val PREF_ABC_AFTER_EMOJI = false
     const val PREF_ABC_AFTER_CLIP = false

@@ -5,10 +5,13 @@ import android.Manifest
 import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.PackageManager
+import helium314.keyboard.keyboard.KeyboardSwitcher
 import helium314.keyboard.keyboard.internal.keyboard_parser.floris.KeyCode
 import helium314.keyboard.latin.LatinIME
+import helium314.keyboard.latin.R
 import helium314.keyboard.latin.RichInputMethodManager
 import helium314.keyboard.latin.settings.Settings
+import helium314.keyboard.latin.suggestions.SuggestionStripView
 import java.util.Locale
 
 /**
@@ -18,7 +21,8 @@ import java.util.Locale
  * phone's own on-device recognizer (Recognizers); this class is the keyboard's side: the right to the microphone, the
  * words into the field (InputLogic.dictationComposing and onTextInput), the stop button
  * (SuggestionStripView.setDictating), and the end of the dictation when the user types, the keyboard closes or the
- * field changes. With neither Voice nor an on-device recognizer, the mic opens Store (Voice is installed from it).
+ * field changes. With neither Voice nor an on-device recognizer, the bar says Voice is not installed and offers Store
+ * (VoiceMissingView; Voice is installed from Store).
  * Never in incognito mode nor in a password field (SettingsValues.mIncognitoModeEnabled covers both, as
  * isTranslateKeyShown in ToolbarUtils does for Translate).
  *
@@ -91,8 +95,14 @@ class DictationController(private val ime: LatinIME) : KeyboardRecognizer.Listen
         }
         val voice = Recognizers.voice(ime)
         if (voice == null && !Recognizers.onDevice(ime)) {
-            // nobody to listen: Voice is installed from Store
-            Recognizers.storeIntent(ime)?.let { ime.startActivity(it) }
+            // nobody to listen: the bar says so and offers Store, where Voice is installed from (VoiceMissingView, shown as
+            // HeliBoard shows an inline autofill view, SuggestionStripView.setExternalSuggestionView with its close button,
+            // https://github.com/HeliBorg/HeliBoard/blob/main/app/src/main/java/helium314/keyboard/latin/LatinIME.java);
+            // the strip is found in the input view as KeyboardSwitcher does (findViewById R.id.suggestion_strip_view)
+            val strip = KeyboardSwitcher.getInstance().wrapperView?.rootView?.findViewById<SuggestionStripView>(R.id.suggestion_strip_view)
+            val store = Recognizers.storeIntent(ime)
+            if (strip != null) strip.setExternalSuggestionView(VoiceMissingView(ime) { store?.let { ime.startActivity(it) } }, true)
+            else store?.let { ime.startActivity(it) }
             return
         }
         triedOnDevice = voice == null

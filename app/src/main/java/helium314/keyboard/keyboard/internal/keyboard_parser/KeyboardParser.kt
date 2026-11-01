@@ -237,14 +237,8 @@ class KeyboardParser(private val params: KeyboardParams, private val context: Co
         // replace comma / period if 2 keys in normal bottom row
         if (baseKeys.last().size == 2) {
             val newComma = baseKeys.last()[0]
-            // Keyboard: the default bottom row has no comma key any more; the layout's own first key then goes left of
-            // the space bar, where HeliBoard's comma key stood (dvorak, halmak, hcesar keep their key)
-            val isComma = { key: KeyData -> key.label == KeyLabel.COMMA || key.groupId == KeyData.GROUP_COMMA }
-            if (functionalKeysBottom.none(isComma)) {
-                val spaceAt = functionalKeysBottom.indexOfFirst { it.label == KeyLabel.SPACE }
-                if (spaceAt >= 0) functionalKeysBottom.add(spaceAt, newComma.copy(newGroupId = 1, newType = newComma.type, newLabelFlags = newComma.labelFlags))
-            } else functionalKeysBottom.replaceFirst(
-                isComma,
+            functionalKeysBottom.replaceFirst(
+                { it.label == KeyLabel.COMMA || it.groupId == KeyData.GROUP_COMMA},
                 { newComma.copy(newGroupId = 1, newType = newComma.type, newLabelFlags = it.labelFlags or newComma.labelFlags) }
             )
             val newPeriod = baseKeys.last()[1]

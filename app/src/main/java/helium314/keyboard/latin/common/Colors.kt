@@ -42,6 +42,11 @@ import helium314.keyboard.latin.settings.Defaults
 import helium314.keyboard.latin.settings.Settings
 import helium314.keyboard.latin.utils.prefs
 
+// Keyboard: the Glass style writes the language on the space bar in the letters' key text colour (iOS writes it in the label
+// colour), at Material's high emphasis text opacity, 87 % (https://m2.material.io/design/color/text-legibility.html#legibility-standards);
+// the colour's alpha is where MainKeyboardView's fade-out of the language name ends (mLanguageOnSpacebarFinalAlpha)
+private const val GLASS_SPACE_BAR_TEXT_ALPHA = 222
+
 interface Colors {
     // these theme parameters should no be in here, but are still used
     /** used in KeyboardView for label placement */
@@ -156,6 +161,7 @@ class DynamicColors(context: Context, override val themeStyle: String, override 
     private val keyText = getKeyText(context)
     private val keyHintText = getKeyHintText(context)
     private val spaceBarText = getSpaceBarText(context)
+    private val glassSpaceBarText = ColorUtils.setAlphaComponent(keyText, GLASS_SPACE_BAR_TEXT_ALPHA) // Keyboard
 
     private fun getAccent(context: Context) = if (isNight) ContextCompat.getColor(context, android.R.color.system_accent1_100)
         else ContextCompat.getColor(context, android.R.color.system_accent1_200)
@@ -341,7 +347,7 @@ class DynamicColors(context: Context, override val themeStyle: String, override 
             KEY_ICON, POPUP_KEY_ICON, ONE_HANDED_MODE_BUTTON, EMOJI_CATEGORY, TOOL_BAR_KEY, FUNCTIONAL_KEY_TEXT,
             EMOJI_SEARCH_TEXT, CLIPBOARD_SUGGESTION_ICON -> keyText
         KEY_HINT_TEXT -> keyHintText
-        SPACE_BAR_TEXT -> spaceBarText
+        SPACE_BAR_TEXT -> if (themeStyle == STYLE_GLASS) glassSpaceBarText else spaceBarText // Keyboard
         FUNCTIONAL_KEY_BACKGROUND, EMOJI_SEARCH_BACKGROUND -> if (!isNight) functionalKey else doubleAdjustedKeyBackground
         SPACE_BAR_BACKGROUND -> spaceBar
         MORE_SUGGESTIONS_WORD_BACKGROUND, MAIN_BACKGROUND -> background
@@ -448,6 +454,7 @@ class DefaultColors (
     /** further brightened or darkened variant of [adjustedBackground] */
     private val doubleAdjustedBackground: Int
     private val adjustedSuggestionText = brightenOrDarken(suggestionText, true)
+    private val glassSpaceBarText = ColorUtils.setAlphaComponent(keyText, GLASS_SPACE_BAR_TEXT_ALPHA) // Keyboard
 
     private val backgroundFilter = colorFilter(background)
     private val adjustedBackgroundFilter: ColorFilter
@@ -544,7 +551,7 @@ class DefaultColors (
         KEY_TEXT, REMOVE_SUGGESTION_ICON, FUNCTIONAL_KEY_TEXT, KEY_ICON, EMOJI_KEY_TEXT,
             POPUP_KEY_TEXT, POPUP_KEY_ICON, KEY_PREVIEW_TEXT, EMOJI_SEARCH_TEXT, CLIPBOARD_SUGGESTION_ICON -> keyText
         KEY_HINT_TEXT -> keyHintText
-        SPACE_BAR_TEXT -> spaceBarText
+        SPACE_BAR_TEXT -> if (themeStyle == STYLE_GLASS) glassSpaceBarText else spaceBarText // Keyboard
         FUNCTIONAL_KEY_BACKGROUND, EMOJI_SEARCH_BACKGROUND -> functionalKey
         SPACE_BAR_BACKGROUND -> spaceBar
         MORE_SUGGESTIONS_WORD_BACKGROUND, MAIN_BACKGROUND -> background

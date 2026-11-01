@@ -134,25 +134,6 @@ sealed interface KeyData : AbstractKeyData {
                 if (columns != null)
                     popupKeys[0] = "${Key.POPUP_KEYS_AUTO_COLUMN_ORDER}${columns - 1}"
             }
-            // Keyboard: no comma key beside the space bar (iOS, Gboard), so the language's comma leads the period's popups;
-            // HeliBoard's own lists (LocaleKeyboardInfos "punctuation", more_popups_all.txt) already start with it, the
-            // ones of Arabic or Persian do not
-            val comma = params.mLocaleKeyboardInfos.labelComma
-            if (popupKeys.none { it == comma || it == "\\$comma" }) {
-                val order = popupKeys.firstOrNull()
-                val first = if (order != null && (order.startsWith(Key.POPUP_KEYS_AUTO_COLUMN_ORDER) || order.startsWith(Key.POPUP_KEYS_FIXED_COLUMN_ORDER))) 1 else 0
-                popupKeys.add(first, if (comma == ",") "\\," else comma)
-            }
-            // Keyboard: the settings key right after the comma, so a long press on the period offers the comma and the gear
-            // (Gboard's comma key long press). The popup key is the one of getCommaPopupKeys above ("!icon/settings_key|!code/key_settings",
-            // HeliBoard's syntax), the column count follows adjustAutoColumnOrder in LocaleKeyboardInfos (two lines).
-            if (params.mId.element.isAlphabet && !params.mId.deviceLocked) {
-                val commaIndex = popupKeys.indexOfFirst { it == comma || it == "\\$comma" }
-                popupKeys.add(commaIndex + 1, "!icon/settings_key|!code/key_settings")
-                val auto = popupKeys.indexOfFirst { it.startsWith(Key.POPUP_KEYS_AUTO_COLUMN_ORDER) }
-                if (auto >= 0)
-                    popupKeys[auto] = "${Key.POPUP_KEYS_AUTO_COLUMN_ORDER}${(popupKeys.size / 2).coerceAtMost(9)}"
-            }
             return popupKeys
         }
 

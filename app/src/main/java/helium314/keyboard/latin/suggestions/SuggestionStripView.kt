@@ -228,19 +228,31 @@ class SuggestionStripView(context: Context, attrs: AttributeSet?, defStyle: Int)
         // The words take exactly what the two slots leave (0 dp wide with weight 1, LinearLayout.LayoutParams.weight),
         // so the last one never runs under the voice key
         suggestionsStrip.layoutParams = (suggestionsStrip.layoutParams as LinearLayout.LayoutParams).apply { width = 0 }
-        if (!withVoiceKey) return
-        val mic = createToolbarKey(context, ToolbarKey.VOICE)
-        // The voice key's slot: the round button's size (its circle centred in the slot), and the same distance from the
-        // screen edge as the keys' own outer margin: half the keys' horizontal gap, computed as KeyboardParams and
-        // ClipboardLayoutParams do (config_key_horizontal_gap_holo of the keyboard's width, times the gap scale)
+        // The suggestions change in place, as iOS's bar: no LayoutTransition on the wrapper (android:animateLayoutChanges
+        // in suggestions_strip.xml sets one), https://developer.android.com/reference/android/animation/LayoutTransition
+        wrapper.layoutTransition = null
+        // The keys' outer margin from the screen edge (iOS 26: 6.5 pt of 402): the side padding KeyboardParams.readAttributes
+        // applies (config_keyboard_left_padding times the side padding scale) plus half the keys' horizontal gap
+        // (config_key_horizontal_gap_holo of the keyboard's width, times the gap scale), as ClipboardLayoutParams computes the gap
         val settingsValues = Settings.getValues()
         val keyboardWidth = ResourceUtils.getKeyboardWidth(context, settingsValues)
         val keyGap = resources.getFraction(R.fraction.config_key_horizontal_gap_holo, keyboardWidth, keyboardWidth) * settingsValues.mKeyGapScale
+        val sidePadding = resources.getFraction(R.fraction.config_keyboard_left_padding, keyboardWidth, keyboardWidth) * settingsValues.mSidePaddingScale
+        val outerMargin = (sidePadding + keyGap / 2).toInt()
+        // The pinned keys sit at the left of the suggestions (HeliBoard puts them at their right), their first at the keys' margin
+        wrapper.removeView(pinnedKeys)
+        wrapper.addView(pinnedKeys, wrapper.indexOfChild(suggestionsStrip), LinearLayout.LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.MATCH_PARENT)
+            .apply { marginStart = outerMargin })
+        if (!withVoiceKey) return
+        val mic = createToolbarKey(context, ToolbarKey.VOICE)
+        // The voice key's slot: the round button's size (its circle centred in the slot), at the keys' margin from the edge
         mic.layoutParams = LinearLayout.LayoutParams(ResourceUtils.getStripButtonSize(resources), LayoutParams.MATCH_PARENT)
-            .apply { marginEnd = (keyGap / 2).toInt() }
+            .apply { marginEnd = outerMargin }
         setupKey(mic, colors)
         (mic.layoutParams as LinearLayout.LayoutParams).weight = 0f // setupKey gives the tools a share of the row
-        mic.background = GlassKeyDrawable.forStripButton(context, colors, mic, accent = true)
+        // On the functional keys' ground (Kind.FUNCTIONAL, the ?123 key's tint, darker than the accent) and their icon colour
+        mic.background = GlassKeyDrawable.forStripButton(context, colors, mic)
+        colors.setColor(mic, ColorType.KEY_ICON)
         glassVoiceKey = mic
         wrapper.addView(mic)
     }
@@ -316,12 +328,9 @@ class SuggestionStripView(context: Context, attrs: AttributeSet?, defStyle: Int)
         )
         isExternalSuggestionVisible = false
         updateKeys()
-        // Keyboard: with no suggestion drawn in the strip the tools stay, as Gboard's bar does, and the suggestions replace
-        // them only when one is there (LatinIME.setSuggestedWords hides the toolbar then). HeliBoard's LatinIME
-        // setNeutralSuggestionStrip (HeliBoard/.../latin/LatinIME.java) shows the tools only at the start of a line or on a
-        // selection, which left empty slots between; the same "Auto show toolbar" setting turns this off.
-        if (isGlass && Settings.getValues().mAutoShowToolbar && suggestionsStrip.children.none { it is TextView && it.text.isNotEmpty() })
-            setToolbarVisibility(true)
+        // Keyboard: no swap of the tools and the suggestions in the Glass bar (iOS 26's bar keeps its place): the pinned keys,
+        // the suggestions and the mic stay, so HeliBoard's own code stands here (the "Auto show toolbar" and "Auto hide
+        // toolbar" settings are off by default, Defaults)
     }
 
     /**
@@ -357,7 +366,9 @@ class SuggestionStripView(context: Context, attrs: AttributeSet?, defStyle: Int)
         if (addCloseButton) {
             val wrapper = LinearLayout(context)
             suggestionsStrip.doOnNextLayout {
-                wrapper.layoutParams = LinearLayout.LayoutParams(suggestionsStrip.width - 30.dpToPx(resources), LayoutParams.MATCH_PARENT)
+                // Keyboard: the Glass close button is the round button's size, not 30 dp
+                val closeWidth = if (isGlass) ResourceUtils.getStripButtonSize(resources) else 30.dpToPx(resources)
+                wrapper.layoutParams = LinearLayout.LayoutParams(suggestionsStrip.width - closeWidth, LayoutParams.MATCH_PARENT)
             }
             wrapper.addView(view)
             suggestionsStrip.addView(wrapper)

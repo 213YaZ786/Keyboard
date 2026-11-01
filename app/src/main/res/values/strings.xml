@@ -235,6 +235,9 @@
     <string name="learned_words_deleted">Deleted</string>
     <!-- Keyboard: the stop button of dictation -->
     <string name="dictation_stop">Stop dictation</string>
+    <!-- Keyboard: the bar's line when the mic has no recognizer to listen with, and its button (opens Store) -->
+    <string name="dictation_voice_missing">Voice is not installed</string>
+    <string name="dictation_voice_install">Install with Store</string>
     <!-- Keyboard: the Network switch, the update mode and the dictionaries downloaded on a tap -->
     <string name="network_title">Network</string>
     <string name="update_mode_title">Updates</string>
