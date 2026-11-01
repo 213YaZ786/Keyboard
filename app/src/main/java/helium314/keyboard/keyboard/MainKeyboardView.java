@@ -706,6 +706,24 @@ public final class MainKeyboardView extends KeyboardView implements DrawingProxy
         invalidateKey(mSpaceKey);
     }
 
+    // Keyboard: what the space bar shows besides the key, for KeyboardView's rest image: the language format and the "..." hint.
+    // Source: the conditions of onDrawKeyTopVisuals below, https://github.com/HeliBorg/HeliBoard/blob/main/app/src/main/java/helium314/keyboard/keyboard/MainKeyboardView.java
+    @Override
+    protected int restSignatureOf(@NonNull final Key key) {
+        if (key.getCode() != Constants.CODE_SPACE) return 0;
+        return 1 + 2 * mLanguageOnSpacebarFormatType + (mHasMultipleEnabledIMEsOrSubtypes ? 1 : 0);
+    }
+
+    // Keyboard: the space bar is drawn over the rest image while its language fades (the image has the settled language).
+    // Source: the fade of startDisplayLanguageOnSpacebar / setLanguageOnSpacebarAnimAlpha above,
+    // https://github.com/HeliBorg/HeliBoard/blob/main/app/src/main/java/helium314/keyboard/keyboard/MainKeyboardView.java
+    @Override
+    protected boolean drawsOverRestImage(@NonNull final Key key) {
+        return key.getCode() == Constants.CODE_SPACE
+                && mLanguageOnSpacebarFormatType != LanguageOnSpacebarUtils.FORMAT_TYPE_NONE
+                && mLanguageOnSpacebarAnimAlpha != mLanguageOnSpacebarFinalAlpha;
+    }
+
     @Override
     protected void onDrawKeyTopVisuals(@NonNull final Key key, @NonNull final Canvas canvas,
             @NonNull final Paint paint, @NonNull final KeyDrawParams params) {
@@ -839,7 +857,8 @@ public final class MainKeyboardView extends KeyboardView implements DrawingProxy
             paint.clearShadowLayer();
         }
         paint.setColor(mLanguageOnSpacebarTextColor);
-        paint.setAlpha(mLanguageOnSpacebarAnimAlpha);
+        // Keyboard: the rest image shows the settled language, the fade is drawn over it (drawsOverRestImage)
+        paint.setAlpha(isDrawingRestImage() ? mLanguageOnSpacebarFinalAlpha : mLanguageOnSpacebarAnimAlpha);
         if (!fitsTextIntoWidth(width, spaceText, paint)) {
             final float textWidth = TypefaceUtils.getStringWidth(spaceText, paint);
             paint.setTextScaleX((width - mLanguageOnSpacebarHorizontalMargin * 2) / textWidth);
