@@ -156,9 +156,11 @@ public final class Constants {
     // How many continuous deletes at which to start deleting at a higher speed.
     public static final int DELETE_ACCELERATE_AT = 20;
     // How many continuous deletes at which each repeat removes the whole previous word, as iOS and Gboard do
-    // after a moment of holding: 400 ms (config_key_repeat_start_timeout) + 42 * 50 ms (config_key_repeat_interval)
-    // is about 2.5 s.
-    public static final int DELETE_WORD_AT = 42;
+    // after a moment of holding. Repeat k is the k-th delete of a hold: repeat 1 comes after 400 ms
+    // (config_key_repeat_start_timeout), then the delays shrink by 0.85 from 50 ms to 20 ms
+    // (PointerTracker.startKeyRepeatTimer: 50, 43, 36, 31, 26, 22, then 20 ms), so repeat 7 is at about 608 ms
+    // and each later one 20 ms after; repeat 52, the first above 51, comes at about 1.5 s.
+    public static final int DELETE_WORD_AT = 51;
 
     public static final String WORD_SEPARATOR = " ";
 

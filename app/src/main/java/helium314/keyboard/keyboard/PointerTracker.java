@@ -1350,8 +1350,26 @@ public final class PointerTracker implements PointerTrackerQueue.Element,
         callListenerOnCodeInput(key, code, mKeyX, mKeyY, SystemClock.uptimeMillis(), true);
     }
 
+    // Held Delete repeats faster and faster: each delay is 0.85 times the previous one, from the
+    // fixed interval (50 ms) down to 20 ms. The other repeating keys keep the fixed interval.
+    private static final float DELETE_REPEAT_INTERVAL_FACTOR = 0.85f;
+    private static final int DELETE_REPEAT_MIN_INTERVAL = 20;
+
+    // Structure from AOSP LatinIME PointerTracker.startKeyRepeatTimer (start timeout, then interval), with a
+    // shrinking interval for Delete (our change; AOSP, FlorisBoard and Unexpected Keyboard use a fixed one):
+    // https://android.googlesource.com/platform/packages/inputmethods/LatinIME/+/refs/heads/main/java/src/com/android/inputmethod/keyboard/PointerTracker.java
     private void startKeyRepeatTimer(final int repeatCount) {
-        final int delay = (repeatCount == 1) ? sParams.mKeyRepeatStartTimeout : sParams.mKeyRepeatInterval;
+        final int delay;
+        if (repeatCount == 1) {
+            delay = sParams.mKeyRepeatStartTimeout;
+        } else if (mCurrentRepeatingKeyCode == KeyCode.DELETE) {
+            // repeat 2 waits the full interval, repeat 3 0.85 times it, and so on
+            final double shrunk = sParams.mKeyRepeatInterval
+                    * Math.pow(DELETE_REPEAT_INTERVAL_FACTOR, repeatCount - 2);
+            delay = (int) Math.round(Math.max(DELETE_REPEAT_MIN_INTERVAL, shrunk));
+        } else {
+            delay = sParams.mKeyRepeatInterval;
+        }
         sTimerProxy.startKeyRepeatTimerOf(this, repeatCount, delay);
     }
 
