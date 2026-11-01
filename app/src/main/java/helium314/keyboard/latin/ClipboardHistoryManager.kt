@@ -63,7 +63,11 @@ class ClipboardHistoryManager(
         expiryHandler.removeCallbacks(expireSensitive)
         // the chip of a sensitive clip goes with it, as FlorisBoard's suggestion leaves with the item
         // (ClipboardSuggestionProvider in ime/nlp/NlpManager.kt, https://github.com/florisboard/florisboard)
-        val clip = clipboardManager.primaryClip
+        // the clip is read only when the history or the clipboard chip is on, as HeliBoard's onPrimaryClipChanged (history)
+        // and getClipboardSuggestionView (mSuggestClipboardContent) do
+        // (https://github.com/HeliBorg/HeliBoard/blob/main/app/src/main/java/helium314/keyboard/latin/ClipboardHistoryManager.kt)
+        val settings = latinIME.mSettings.current
+        val clip = if (settings.mClipboardHistoryEnabled || settings.mSuggestClipboardContent) clipboardManager.primaryClip else null
         if (clip != null && latinIME.mSettings.current.mClipboardSensitiveExpiry
             && ClipboardPrivacy.isExpired(ClipboardManagerCompat.getClipSensitivity(clip.description) == true,
                 ClipboardManagerCompat.getClipTimestamp(clip), System.currentTimeMillis()))

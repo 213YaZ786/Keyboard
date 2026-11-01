@@ -164,6 +164,16 @@ public class LatinIME extends InputMethodService implements
     private final BroadcastReceiver mDictionaryPackInstallReceiver =
             new DictionaryPackInstallBroadcastReceiver(this);
 
+    // Keyboard: a package added, removed or changed makes Recognizers ask the PackageManager again, once, instead of at
+    // every settings reload. Same package filter as the dictionary packs above (HeliBoard's LatinIME.onCreate,
+    // https://github.com/HeliBorg/HeliBoard/blob/main/app/src/main/java/helium314/keyboard/latin/LatinIME.java).
+    private final BroadcastReceiver mRecognizersChangeReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            helium314.keyboard.latin.dictation.Recognizers.INSTANCE.packagesChanged();
+        }
+    };
+
     private final BroadcastReceiver mDictionaryDumpBroadcastReceiver =
             new DictionaryDumpBroadcastReceiver(this);
 
@@ -583,6 +593,8 @@ public class LatinIME extends InputMethodService implements
         packageFilter.addAction(Intent.ACTION_PACKAGE_REMOVED);
         packageFilter.addDataScheme(SCHEME_PACKAGE);
         registerReceiver(mDictionaryPackInstallReceiver, packageFilter);
+        packageFilter.addAction(Intent.ACTION_PACKAGE_CHANGED); // Keyboard: Voice or a recognizer enabled or disabled
+        registerReceiver(mRecognizersChangeReceiver, packageFilter);
 
         final IntentFilter newDictFilter = new IntentFilter();
         newDictFilter.addAction(DictionaryPackConstants.NEW_DICTIONARY_INTENT_ACTION);
@@ -723,6 +735,7 @@ public class LatinIME extends InputMethodService implements
             foldableObserver.unregister(this);
         unregisterReceiver(mRingerModeChangeReceiver);
         unregisterReceiver(mDictionaryPackInstallReceiver);
+        unregisterReceiver(mRecognizersChangeReceiver);
         unregisterReceiver(mDictionaryDumpBroadcastReceiver);
         unregisterReceiver(mRestartAfterDeviceUnlockReceiver);
         unregisterReceiver(mEmojiSearchReceiver);
@@ -789,7 +802,8 @@ public class LatinIME extends InputMethodService implements
     }
 
     public void updateSuggestionStripView(View view) {
-        mSuggestionStripView = mSettings.getCurrent().mToolbarMode == ToolbarMode.HIDDEN || isEmojiSearch()?
+        // Keyboard: the Translate panel's field shows no strip either, as the emoji search field (isTranslate, below)
+        mSuggestionStripView = mSettings.getCurrent().mToolbarMode == ToolbarMode.HIDDEN || isEmojiSearch() || isTranslate()?
                         null : view.findViewById(R.id.suggestion_strip_view);
         if (hasSuggestionStripView()) {
             mSuggestionStripView.setRtl(mRichImm.getCurrentSubtype().isRtlSubtype());
@@ -1034,6 +1048,11 @@ public class LatinIME extends InputMethodService implements
         // (https://github.com/HeliBorg/HeliBoard/blob/main/app/src/main/java/helium314/keyboard/latin/LatinIME.java)
         if (EmojiFirst.wanted(editorInfo))
             mHandler.postDelayed(mKeyboardSwitcher::setEmojiKeyboard, 100);
+
+        // Keyboard: a translation that came back before this field was current goes in now (onTranslateDone), a beat
+        // later as the line above does it
+        if (mPendingTranslation != null)
+            mHandler.postDelayed(this::insertPendingTranslation, 100);
 
         if (TRACE) Debug.startMethodTracing("/data/trace/latinime");
     }
@@ -1689,6 +1708,10 @@ public class LatinIME extends InputMethodService implements
     @Override
     public void addWordAndConfirm(final String word) {
         if (word == null || word.isEmpty()) return;
+        // Nothing is saved in an incognito or no-learning field (mIncognitoModeEnabled covers IME_FLAG_NO_PERSONALIZED_LEARNING
+        // and password fields; Gboard saves nothing in incognito) nor from the Translate panel, where a tap is a plain pick,
+        // no check mark. AOSP's addWordToUserDictionary itself ignores the auto-add setting, so only these cases stop it.
+        if (mSettings.getCurrent().mIncognitoModeEnabled || isTranslate()) return;
         // As AOSP: a word capitalised only by the automatic capitals is saved in lower case
         final Locale locale = mDictionaryFacilitator.getCurrentLocale();
         final CapsMode capsMode = mInputLogic.mLastComposedWord.mCapitalizedMode;
@@ -1888,20 +1911,56 @@ public class LatinIME extends InputMethodService implements
     // LatinIME.java (GPL-3.0) https://github.com/HeliBorg/HeliBoard/blob/main/app/src/main/java/helium314/keyboard/latin/LatinIME.java
     // the result handed back is the translation instead of an emoji
     public void launchTranslate() {
+        // Keyboard: never a second panel while the first one's field is the current one (the intent's flags are upstream's)
+        if (isTranslate()) return;
+        mPendingTranslation = null;
+        final EditorInfo host = getCurrentInputEditorInfo();
+        mTranslateHostPackage = host == null ? null : host.packageName;
         startActivity(new Intent().setClass(this, TranslateActivity.class)
                           .setFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_MULTIPLE_TASK));
     }
 
+    // Keyboard: the translation is never dropped. It wins over IME_CLOSED; when the panel's field is still the current
+    // one it waits (3 s at most) for the app's field, then goes in (onStartInputViewInternal, insertPendingTranslation)
+    private String mPendingTranslation;
+    private String mTranslateHostPackage;
+    private final Runnable mPendingTranslationExpiry = () -> mPendingTranslation = null;
+
+    // onEmojiSearchDone above, with the text first: HeliBoard's LatinIME.onEmojiSearchDone (the result committed with
+    // onTextInput only when !isEmojiSearch(), else dropped)
+    // https://github.com/HeliBorg/HeliBoard/blob/main/app/src/main/java/helium314/keyboard/latin/LatinIME.java
     private void onTranslateDone(Intent intent) {
+        final String text = intent.getStringExtra(TranslateActivity.TEXT_KEY);
+        final boolean hasText = text != null && !text.isEmpty();
         // the field of the app must be the current one again, not the panel's
-        if (isTranslate()) return;
-        if (intent.getBooleanExtra(TranslateActivity.IME_CLOSED_KEY, false)) {
-            requestHideSelf(0);
+        if (isTranslate()) {
+            if (hasText) {
+                mPendingTranslation = text;
+                mHandler.removeCallbacks(mPendingTranslationExpiry);
+                mHandler.postDelayed(mPendingTranslationExpiry, 3000);
+            }
             return;
         }
-        final String text = intent.getStringExtra(TranslateActivity.TEXT_KEY);
-        if (text != null && !text.isEmpty())
+        if (hasText) {
             onTextInput(text);
+            return;
+        }
+        if (intent.getBooleanExtra(TranslateActivity.IME_CLOSED_KEY, false))
+            requestHideSelf(0);
+    }
+
+    // The same commit as onEmojiSearchDone's onTextInput, a beat after the app's field is current (HeliBoard's
+    // onStartInputViewInternal posts setEmojiKeyboard after 100 ms the same way), only into the field of the app the
+    // panel was opened from, and only once
+    // https://github.com/HeliBorg/HeliBoard/blob/main/app/src/main/java/helium314/keyboard/latin/LatinIME.java
+    private void insertPendingTranslation() {
+        final String text = mPendingTranslation;
+        if (text == null || isTranslate()) return;
+        mPendingTranslation = null;
+        mHandler.removeCallbacks(mPendingTranslationExpiry);
+        final EditorInfo current = getCurrentInputEditorInfo();
+        if (current == null || !java.util.Objects.equals(current.packageName, mTranslateHostPackage)) return;
+        onTextInput(text);
     }
 
     public boolean isTranslate() {

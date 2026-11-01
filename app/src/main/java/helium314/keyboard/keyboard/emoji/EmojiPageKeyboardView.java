@@ -48,7 +48,11 @@ import helium314.keyboard.latin.common.CoordinateUtils;
 import helium314.keyboard.latin.settings.Settings;
 import kotlin.Unit;
 
+import helium314.keyboard.latin.utils.ExecutorUtils;
+
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.WeakHashMap;
 
 /**
@@ -178,6 +182,11 @@ public final class EmojiPageKeyboardView extends KeyboardView implements
     private boolean mAnimated;
     private boolean mOnScreen;
     private final HashMap<Key, AnimatedImageDrawable> mAnimations = new HashMap<>(); // null: no GIF, drawn as text
+    // the key of each animation, so that one frame invalidates its key alone
+    private final IdentityHashMap<Drawable, Key> mKeyOfAnimation = new IdentityHashMap<>();
+    // keys whose GIF is being decoded (drawn as text meanwhile); mLoadGeneration changes with the page, a late answer is dropped
+    private final HashSet<Key> mLoading = new HashSet<>();
+    private int mLoadGeneration;
 
     void setAnimated(final boolean animated) {
         if (mAnimated == animated) return;
@@ -193,6 +202,35 @@ public final class EmojiPageKeyboardView extends KeyboardView implements
             animation.setCallback(null);
         }
         mAnimations.clear();
+        mKeyOfAnimation.clear();
+        mLoading.clear();
+        mLoadGeneration++;
+    }
+
+    /**
+     * Decodes the GIF of [key] off the main thread and posts the drawable back to this view, which then invalidates that
+     * key alone; until then the key draws its text label. Off-thread work on HeliBoard's ExecutorUtils KEYBOARD executor
+     * (as ExpandableBinaryDictionary.asyncExecuteTaskWithWriteLock and ContactsContentObserver run theirs,
+     * https://github.com/HeliBorg/HeliBoard/blob/main/app/src/main/java/helium314/keyboard/latin/utils/ExecutorUtils.java),
+     * the answer posted to the main Handler as View.post does.
+     */
+    private void loadAnimationAsync(@NonNull final Key key, @NonNull final String label) {
+        mLoading.add(key);
+        final int generation = mLoadGeneration;
+        final Context context = getContext().getApplicationContext();
+        ExecutorUtils.getBackgroundExecutor(ExecutorUtils.KEYBOARD).execute(() -> {
+            final AnimatedImageDrawable loaded = AnimatedEmoji.load(context, label);
+            mHandler.post(() -> {
+                if (generation != mLoadGeneration) return; // another page or mode: the answer is not for this view any more
+                mLoading.remove(key);
+                mAnimations.put(key, loaded);
+                if (loaded == null) return; // no GIF: the text label already shows
+                mKeyOfAnimation.put(loaded, key);
+                loaded.setCallback(this);
+                if (mOnScreen) loaded.start();
+                invalidateKey(key);
+            });
+        });
     }
 
     private void updateAnimationsPlaying() {
@@ -218,12 +256,15 @@ public final class EmojiPageKeyboardView extends KeyboardView implements
 
     @Override
     protected boolean verifyDrawable(@NonNull final Drawable who) {
-        return mAnimations.containsValue(who) || super.verifyDrawable(who);
+        return mKeyOfAnimation.containsKey(who) || super.verifyDrawable(who);
     }
 
     @Override
     public void invalidateDrawable(@NonNull final Drawable who) {
-        if (mAnimations.containsValue(who)) invalidateAllKeys();
+        // one frame of a GIF redraws its key alone: invalidateAllKeys would mark every key and the whole view dirty
+        // (KeyboardView.invalidateKey invalidates the key's rectangle only, as upstream's LatinIME KeyboardView)
+        final Key key = mKeyOfAnimation.get(who);
+        if (key != null) invalidateKey(key);
         else super.invalidateDrawable(who);
     }
 
@@ -235,12 +276,10 @@ public final class EmojiPageKeyboardView extends KeyboardView implements
             return;
         }
         if (!mAnimations.containsKey(key)) {
-            final AnimatedImageDrawable loaded = AnimatedEmoji.load(getContext(), key.getLabel());
-            mAnimations.put(key, loaded);
-            if (loaded != null) {
-                loaded.setCallback(this);
-                if (mOnScreen) loaded.start();
-            }
+            // not decoded yet: the text label meanwhile, the GIF replaces it when loadAnimationAsync answers
+            if (!mLoading.contains(key)) loadAnimationAsync(key, key.getLabel());
+            super.onDrawKeyTopVisuals(key, canvas, paint, params);
+            return;
         }
         final AnimatedImageDrawable animation = mAnimations.get(key);
         if (animation == null) {

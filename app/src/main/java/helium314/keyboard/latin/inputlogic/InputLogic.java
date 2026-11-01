@@ -247,6 +247,13 @@ public final class InputLogic {
         mConnection.beginBatchEdit();
         if (GestureDataGatheringKt.useBackgroundGathering && mConnection.hasSelection())
             BackgroundGatheringCache.INSTANCE.onEditSelection(mConnection.getSelectedText(0), mConnection.getTextBeforeCursor(40, 0), mConnection.getTextAfterCursor(40, 0));
+        if (mDictationComposing) {
+            // Keyboard: the dictation's finished words replace its partial words in the field (commitText below, which
+            // also updates the connection's caches); the WordComposer lets go of the partials first, so that they are
+            // not auto-corrected and committed a second time (DictationController.committed)
+            mDictationComposing = false;
+            resetComposingState(false);
+        }
         if (mWordComposer.isComposingWord()) {
             if (mWordComposer.isCursorFrontOrMiddleOfComposingWord()) {
                 if (GestureDataGatheringKt.useBackgroundGathering)
@@ -1796,7 +1803,9 @@ public final class InputLogic {
             return;
         boolean wasAutoCapitalized = mWordComposer.wasAutoCapitalized() && !mWordComposer.isMostlyCaps();
         String word = StringUtilsKt.stripTrailingSeparatorsAndConnectors(suggestion, settingsValues.mSpacingAndPunctuations);
-        if (settingsValues.mIncognitoModeEnabled) {
+        // Keyboard: what is typed in the Translate panel's field learns nothing, as in an incognito field (HeliBoard does
+        // nothing of the kind for its emoji search field: only IME_FLAG_NO_PERSONALIZED_LEARNING, mNoLearning, does)
+        if (settingsValues.mIncognitoModeEnabled || mLatinIME.isTranslate()) {
             // don't add to history, but still adjust confidences
             // otherwise incognito input fields can be very annoying when the wrong language is active
             mDictionaryFacilitator.adjustConfidences(word, wasAutoCapitalized);
@@ -2473,10 +2482,30 @@ public final class InputLogic {
     // typed is committed first, as HeliBoard does when the keyboard closes (commitTyped with NOT_A_SEPARATOR), and the
     // space before the words follows insertAutomaticSpaceIfOptionsAndTextAllow above (a space unless one is there).
 
-    /** Dictation starts: the word being typed is committed, so the dictated words follow it. */
+    // The three steps below go through the WordComposer as the gesture (batch input) path does, so that it and the
+    // connection's caches match the field: start = onStartBatchInput, partials = onUpdateTailBatchInputCompleted
+    // (mWordComposer.setBatchInputWord + setComposingTextInternal), end and final words = the commit of a batch word.
+    // Sources: HeliBoard's InputLogic onStartBatchInput / onUpdateTailBatchInputCompleted / onTextInput
+    // https://github.com/HeliBorg/HeliBoard/blob/main/app/src/main/java/helium314/keyboard/latin/inputlogic/InputLogic.java
+    // and AOSP LatinIME's InputLogic.onUpdateTailBatchInputCompleted
+    // https://android.googlesource.com/platform/packages/inputmethods/LatinIME/+/refs/heads/main/java/src/com/android/inputmethod/latin/inputlogic/InputLogic.java
+    // true while the WordComposer holds the dictation's partial words
+    private boolean mDictationComposing;
+
+    /** Dictation starts: what was composing is committed or reset (onStartBatchInput), so the dictated words follow it. */
     public void dictationBegin(final SettingsValues settingsValues) {
+        mWordBeingCorrectedByCursor = null;
+        mDictationComposing = false;
         mConnection.beginBatchEdit();
-        commitTyped(settingsValues, LastComposedWord.NOT_A_SEPARATOR);
+        if (mWordComposer.isComposingWord()) {
+            if (mWordComposer.isCursorFrontOrMiddleOfComposingWord()) {
+                // as onTextInput: stop composing, otherwise the words end up at the end of the current word
+                mConnection.finishComposingText();
+                resetComposingState(false);
+            } else {
+                commitTyped(settingsValues, LastComposedWord.NOT_A_SEPARATOR);
+            }
+        }
         resetComposingState(true /* alsoResetLastComposedWord */);
         mConnection.endBatchEdit();
     }
@@ -2495,13 +2524,17 @@ public final class InputLogic {
     /** Dictation: the words being recognised, shown in the field in place of the previous ones. */
     public void dictationComposing(final CharSequence words) {
         mConnection.beginBatchEdit();
-        mConnection.setComposingText(words, 1);
+        mWordComposer.setBatchInputWord(words.toString()); // as onUpdateTailBatchInputCompleted
+        setComposingTextInternal(words, 1);
+        mDictationComposing = mWordComposer.isComposingWord();
         mConnection.endBatchEdit();
     }
 
-    /** Dictation is over: what is still composing stays in the field as written. */
+    /** Dictation is over: what is still composing stays in the field as written, and leaves the WordComposer. */
     public void dictationEnd() {
         mConnection.finishComposingText();
+        resetComposingState(false);
+        mDictationComposing = false;
     }
 
     /**
@@ -2947,7 +2980,9 @@ public final class InputLogic {
     }
 
     public void updateEmojiDictionary(Locale locale) {
-        if (Settings.getValues().mInlineEmojiSearch && Settings.getValues().needsToLookupSuggestions() && ! mLatinIME.isEmojiSearch()) {
+        if (Settings.getValues().mInlineEmojiSearch && Settings.getValues().needsToLookupSuggestions()
+                // Keyboard: nor in the Translate panel's field (LatinIME.isTranslate), as in the emoji search field
+                && ! mLatinIME.isEmojiSearch() && ! mLatinIME.isTranslate()) {
             if (mEmojiDictionaryFacilitator == null || ! mEmojiDictionaryFacilitator.isForLocale(locale)) {
                 closeEmojiDictionary();
                 var dictFile = DictionaryInfoUtils.getCachedDictForLocaleAndType(locale, "emoji", mLatinIME);

@@ -62,6 +62,18 @@ object Recognizers {
         voice(context)?.let { context.packageManager.getLaunchIntentForPackage(it.packageName) }
             ?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
 
+    // The answer of anyway(), kept until a package is added, removed or changed: SettingsValues asks at every settings
+    // reload and each ask was several PackageManager binder calls. HeliBoard refreshes its dictionary packages from the
+    // ACTION_PACKAGE_ADDED / ACTION_PACKAGE_REMOVED receiver the same way (LatinIME.onCreate and
+    // DictionaryPackInstallBroadcastReceiver:
+    // https://github.com/HeliBorg/HeliBoard/blob/main/app/src/main/java/helium314/keyboard/latin/LatinIME.java);
+    // here LatinIME's mRecognizersChangeReceiver, on the same package filter, calls [packagesChanged].
+    @Volatile private var anywayCache: Boolean? = null
+
+    /** A package was added, removed or changed: the next anyway() asks the PackageManager again. */
+    fun packagesChanged() { anywayCache = null }
+
     /** The mic key has something to do: a recognizer to listen with, or Store to get Voice from. */
-    fun anyway(context: Context): Boolean = voice(context) != null || onDevice(context) || storeIntent(context) != null
+    fun anyway(context: Context): Boolean = anywayCache
+        ?: (voice(context) != null || onDevice(context) || storeIntent(context) != null).also { anywayCache = it }
 }
