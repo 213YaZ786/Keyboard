@@ -46,7 +46,8 @@ fun Theme(dark: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit
         // Keyboard: liquid glass over the colour scheme, as Calculator's AppSurface (ui/theme/AppSurface.kt):
         // the glass for every zone, and the page's text colour for what sits on transparent surfaces.
         // CompositionLocalProvider: https://developer.android.com/develop/ui/compose/compositionlocal
-        val look = rememberGlassLook(MaterialTheme.colorScheme, true)
+        // quiet glass, as SMS's AppSurface (https://github.com/213YaZ786/SMS/blob/main/app/src/main/java/com/yaz/sms/ui/theme/AppSurface.kt)
+        val look = rememberGlassLook(MaterialTheme.colorScheme, true, quiet = true)
         CompositionLocalProvider(LocalGlass provides look, LocalContentColor provides MaterialTheme.colorScheme.onBackground) {
             content()
         }

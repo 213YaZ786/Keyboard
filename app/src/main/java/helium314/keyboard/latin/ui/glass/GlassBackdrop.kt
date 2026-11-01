@@ -171,7 +171,7 @@ private class GlassFloatingNode(
             }
         }
         val radius = cornerRadius(outline)
-        val key = listOf(area, radius, tint, lens, look.dark, density)
+        val key = listOf(area, radius, tint, lens, look.dark, density, look.quiet)
         if (key != effectKey) {
             own.renderEffect = runCatching { effect(area, margin.toFloat(), radius) }
                 .onFailure { shaderFailed = true; android.util.Log.w("Glass", "lens failed", it) }
@@ -180,7 +180,9 @@ private class GlassFloatingNode(
         }
         // The zones' soft shadow (GlassZone), so a round action over the white of the ground still shows
         // as glass (the user, 2026-10-28: "on dirait pas du liquid glass"), as iOS 26's buttons keep theirs.
-        drawIntoCanvas { canvas ->
+        // Quiet glass has no shadow (Haze's materials, https://github.com/chrisbanes/haze/blob/main/haze-materials/src/commonMain/kotlin/dev/chrisbanes/haze/blur/materials/HazeMaterials.kt;
+        // the long press menu's pane, dialogGlass; the user, 2026-11-01).
+        if (!look.quiet) drawIntoCanvas { canvas ->
             val paint = androidx.compose.ui.graphics.Paint().apply { color = look.ground }
             paint.asFrameworkPaint().setShadowLayer(10f * density, 0f, 3.5f * density, android.graphics.Color.argb(if (look.dark) 110 else 34, 0, 0, 0))
             canvas.drawOutline(outline, paint)
@@ -188,7 +190,11 @@ private class GlassFloatingNode(
         clipPath(Path().apply { addOutline(outline) }) {
             translate(-margin.toFloat(), -margin.toFloat()) { drawLayer(own) }
         }
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU || shaderFailed) {
+        if (look.quiet) {
+            // The blurred layer, one flat tint, the hairline (as dialogGlass).
+            drawOutline(outline, tint)
+            drawOutline(outline, rimBrush(look, size.height), style = Stroke(width = 1.4f * density))
+        } else if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU || shaderFailed) {
             drawOutline(outline, tint)
             drawOutline(outline, rimBrush(look, size.height), style = Stroke(width = 1.2f * density))
         }
@@ -196,6 +202,12 @@ private class GlassFloatingNode(
     }
 
     private fun ContentDrawScope.effect(area: IntSize, margin: Float, radius: Float): androidx.compose.ui.graphics.RenderEffect {
+        if (look.quiet) {
+            // Only the blur, at the dialog's BlurBehind radii (Haze's materials, https://github.com/chrisbanes/haze/blob/main/haze-materials/src/commonMain/kotlin/dev/chrisbanes/haze/blur/materials/HazeMaterials.kt;
+            // the long press menu's pane, dialogGlass; the user, 2026-11-01): no lens.
+            val r = (if (look.dark) 8f else 16f) * density
+            return RenderEffect.createBlurEffect(r, r, Shader.TileMode.CLAMP).asComposeRenderEffect()
+        }
         val frost = RenderEffect.createBlurEffect(2f * density, 2f * density, Shader.TileMode.CLAMP)
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return frost.asComposeRenderEffect()
         // A shader the phone's engine refuses leaves frosted glass, never a crash.

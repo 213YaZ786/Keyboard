@@ -66,6 +66,15 @@ private class GlassZoneNode(var shape: Shape, var look: GlassLook, var lens: Flo
 
     override fun ContentDrawScope.draw() {
         val outline = shape.createOutline(size, layoutDirection, this)
+        if (look.quiet) {
+            // Quiet glass: one flat tint and the hairline, no shader, bevel, specular or shadow. Haze's
+            // materials (https://github.com/chrisbanes/haze/blob/main/haze-materials/src/commonMain/kotlin/dev/chrisbanes/haze/blur/materials/HazeMaterials.kt)
+            // and the long press menu's pane (dialogGlass), the user, 2026-11-01.
+            drawOutline(outline, look.zoneTint)
+            drawOutline(outline, rimBrush(look, size.height), style = Stroke(width = 1.4f * density))
+            drawContent()
+            return
+        }
         val zone = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && window.width > 0f && !shaderFailed) {
             runCatching { zoneShader(outline) }
                 .onFailure { shaderFailed = true; android.util.Log.w("Glass", "zone shader failed", it) }

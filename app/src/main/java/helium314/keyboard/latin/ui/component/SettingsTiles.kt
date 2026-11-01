@@ -156,7 +156,12 @@ fun SettingsListDetail(
         ) {
             SettingsHeaderSpacer(padding)
             Spacer(Modifier.height(24.dp))
-            sections.forEach { SectionListRow(it, selected = it == section) { onSection(it) } }
+            // The sections as a segmented list: SegmentedGap between the rows (see SectionListRow).
+            Column(verticalArrangement = Arrangement.spacedBy(SegmentedGap)) {
+                sections.forEachIndexed { index, it ->
+                    SectionListRow(it, index, sections.size, selected = it == section) { onSection(it) }
+                }
+            }
             Spacer(Modifier.windowInsetsBottomHeight(WindowInsets.navigationBars))
         }
         // The page starts at the top again for each section.
@@ -182,14 +187,18 @@ fun SettingsListDetail(
  * and TalkBack reads it as a button that is expanded or collapsed (a state description, as Compose's
  * accessibility guide gives a toggling control:
  * https://developer.android.com/develop/ui/compose/accessibility/semantics).
+ * The rows form a segmented list: row [index] of [count] has its own tile, large outer corners on the first and
+ * the last, small inner ones; the caller spaces the rows by SegmentedGap. segmentedShape and SegmentedGap are the
+ * base kit's port of androidx material3's ListItemDefaults.segmentedShapes and ListTokens.SegmentedGap
+ * (https://github.com/androidx/androidx/blob/androidx-main/compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/ListItemDefaults.kt).
  */
 @Composable
-private fun SectionListRow(section: SettingsSection, selected: Boolean, expanded: Boolean? = null, onClick: () -> Unit) {
+private fun SectionListRow(section: SettingsSection, index: Int, count: Int, selected: Boolean, expanded: Boolean? = null, onClick: () -> Unit) {
     val haptics = rememberHaptics()
     ZoneSurface(
-        // A zone on the page: Material 3's extra large corner, as the tiles (ShapeDefaults,
-        // https://developer.android.com/reference/kotlin/androidx/compose/material3/ShapeDefaults).
-        shape = androidx.compose.material3.ShapeDefaults.ExtraLarge,
+        // A tile of a segmented list (SegmentedShapes.kt, the base kit's port of androidx material3's
+        // ListItemDefaults.segmentedShapes, source above).
+        shape = segmentedShape(index, count),
         accent = selected,
         onClick = {
             haptics.tick()
@@ -197,7 +206,6 @@ private fun SectionListRow(section: SettingsSection, selected: Boolean, expanded
         },
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp)
             .semantics {
                 if (expanded == null) this.selected = selected
                 else {
@@ -229,10 +237,11 @@ fun SettingsFoldedSections(
     tilesOf: @Composable (SettingsSection) -> Unit
 ) {
     Column {
-        sections.forEach { which ->
+        sections.forEachIndexed { index, which ->
             val expanded = which == open
-            Box(Modifier.padding(horizontal = 16.dp)) {
-                SectionListRow(which, selected = expanded, expanded = expanded) { onOpen(if (expanded) null else which) }
+            // The rows are a segmented list: SegmentedGap above every row but the first (SegmentedShapes.kt).
+            Box(Modifier.padding(start = 16.dp, end = 16.dp, top = if (index > 0) SegmentedGap else 0.dp)) {
+                SectionListRow(which, index, sections.size, selected = expanded, expanded = expanded) { onOpen(if (expanded) null else which) }
             }
             AnimatedVisibility(
                 visible = expanded,

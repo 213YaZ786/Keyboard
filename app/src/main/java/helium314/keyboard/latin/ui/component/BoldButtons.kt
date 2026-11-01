@@ -17,6 +17,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
@@ -40,20 +41,25 @@ val ButtonGap: Dp = 12.dp
 fun boldBorder(enabled: Boolean = true, color: Color = MaterialTheme.colorScheme.primary): BorderStroke =
     BorderStroke(BoldEdge, if (enabled) color else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f))
 
-/** [filled] keeps a tonal fill inside the edge, for the one main action of a place. */
+/**
+ * [filled] keeps a tonal fill inside the edge, for the one main action of a place.
+ * [shape] is Material's own `shape` parameter of OutlinedButton
+ * (androidx/androidx compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/Button.kt),
+ * carried through our glass: a button inside a card takes ShapeDefaults.Large.
+ */
 @Composable
 fun BoldButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     filled: Boolean = false,
+    shape: Shape = ButtonDefaults.outlinedShape,
     content: @Composable RowScope.() -> Unit
 ) {
     // In glass, a pane of glass with its label in the accent and no edge;
     // the main action of a place keeps a wash of the accent inside.
     val glass = LocalGlass.current
     if (glass != null) {
-        val shape = ButtonDefaults.outlinedShape
         OutlinedButton(
             onClick = onClick,
             modifier = modifier
@@ -74,6 +80,7 @@ fun BoldButton(
         onClick = onClick,
         modifier = modifier,
         enabled = enabled,
+        shape = shape,
         colors = if (filled) ButtonDefaults.filledTonalButtonColors() else ButtonDefaults.outlinedButtonColors(),
         border = boldBorder(enabled),
         content = content
@@ -83,17 +90,18 @@ fun BoldButton(
 /**
  * A quiet action beside a louder one, Skip or Back next to Next: a text
  * button, and in glass a small pane of glass like every other button, so no
- * control floats bare over the ambient light.
+ * control floats bare over the ambient light. [shape] is Material's own
+ * `shape` parameter of TextButton (androidx/androidx, material3 Button.kt).
  */
 @Composable
 fun QuietButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
+    shape: Shape = ButtonDefaults.textShape,
     content: @Composable RowScope.() -> Unit
 ) {
     val glass = LocalGlass.current
-    val shape = ButtonDefaults.textShape
     TextButton(
         onClick = onClick,
         modifier = if (glass == null) modifier else modifier.glassZone(shape, glass, lens = 1f),

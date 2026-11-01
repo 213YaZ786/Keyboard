@@ -59,24 +59,34 @@ class GlassLook(
     /** The tint of a floating control: lighter, it carries only icons. */
     val floatTint: Color,
     /** The tint of the drop that marks the chosen tab or the switched on state. */
-    val accentTint: Color
+    val accentTint: Color,
+    /**
+     * The quiet glass: a blur, one flat translucent tint and the hairline rim, nothing else (no lens,
+     * bevel, specular or shadow). Haze's materials, https://github.com/chrisbanes/haze/blob/main/haze-materials/src/commonMain/kotlin/dev/chrisbanes/haze/blur/materials/HazeMaterials.kt
+     * (Apache-2.0); the long press menu's pane (dialogGlass), the user, 2026-11-01.
+     */
+    val quiet: Boolean = false
 )
 
 val LocalGlass = staticCompositionLocalOf<GlassLook?> { null }
 
 /** The glass for [scheme], or null when [enabled] is false. */
 @Composable
-fun rememberGlassLook(scheme: ColorScheme, enabled: Boolean): GlassLook? = remember(scheme, enabled) {
-    if (enabled) glassLookOf(scheme) else null
-}
+fun rememberGlassLook(scheme: ColorScheme, enabled: Boolean, quiet: Boolean = false): GlassLook? =
+    remember(scheme, enabled, quiet) {
+        if (enabled) glassLookOf(scheme, quiet) else null
+    }
 
 /**
  * The glass for [scheme], outside Compose too (Keyboard's keys, drawn on a View's canvas).
  * The body of rememberGlassLook moved out of remember, which wraps a plain factory as in
  * Jetpack Compose's state guide (https://developer.android.com/develop/ui/compose/state).
  */
-fun glassLookOf(scheme: ColorScheme): GlassLook {
+fun glassLookOf(scheme: ColorScheme, quiet: Boolean = false): GlassLook {
     val dark = scheme.background.luminance() < 0.5f
+    // Quiet: the fill of the long press menu's pane (dialogGlass), between Haze's thin and regular
+    // tints (https://github.com/chrisbanes/haze/blob/main/haze-materials/src/commonMain/kotlin/dev/chrisbanes/haze/blur/materials/HazeMaterials.kt), the user, 2026-11-01.
+    val quietFill = if (dark) Color(0xFF121212).copy(alpha = 0.62f) else Color(0xFFFAFAFA).copy(alpha = 0.72f)
     return GlassLook(
         dark = dark,
         ground = scheme.background,
@@ -87,12 +97,13 @@ fun glassLookOf(scheme: ColorScheme): GlassLook {
             Halo(0.80f, 0.95f, 0.40f, scheme.primary.copy(alpha = 0.22f))
         ),
         // Clear enough for the light behind to show through, as polished glass.
-        zoneTint = if (dark) scheme.surfaceContainerLow.copy(alpha = 0.34f) else Color.White.copy(alpha = 0.32f),
-        floatTint = if (dark) scheme.surfaceContainerLow.copy(alpha = 0.34f) else Color.White.copy(alpha = 0.42f),
+        zoneTint = if (quiet) quietFill else if (dark) scheme.surfaceContainerLow.copy(alpha = 0.34f) else Color.White.copy(alpha = 0.32f),
+        floatTint = if (quiet) quietFill else if (dark) scheme.surfaceContainerLow.copy(alpha = 0.34f) else Color.White.copy(alpha = 0.42f),
         // By night a deep wash of the accent, so what sits on it reads light as all the night's text.
         // By day as clear as the floating glass (0.70 drowned the rim and the bevel: a flat disc,
         // the send button, 2026-10-17), so a chosen or prominent pane stays polished glass.
-        accentTint = if (dark) scheme.primary.copy(alpha = 0.30f) else scheme.primaryContainer.copy(alpha = 0.42f)
+        accentTint = if (dark) scheme.primary.copy(alpha = 0.30f) else scheme.primaryContainer.copy(alpha = 0.42f),
+        quiet = quiet
     )
 }
 

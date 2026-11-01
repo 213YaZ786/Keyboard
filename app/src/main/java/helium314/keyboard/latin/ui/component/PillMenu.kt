@@ -27,6 +27,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ShapeDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
@@ -333,6 +334,9 @@ private fun PillRow(item: PillItem, onDone: () -> Unit) {
     val scope = rememberCoroutineScope()
     val play = remember { PillPlay(scope) }
     val ink = if (item.danger) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
+    // The press: Android 12's sparkle ripple clipped to the row's own shape, Material 3's Large (16 dp, the
+    // rule's shape for what sits inside a pane), 6 dp in from the pane's edges as iOS 26's highlight is.
+    val pressed = rememberSparklePress(ShapeDefaults.Large, horizontal = 6.dp)
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
@@ -341,7 +345,7 @@ private fun PillRow(item: PillItem, onDone: () -> Unit) {
             // font), and a single word too wide for the pane shrinks last (TextAutoSize.StepBased,
             // https://developer.android.com/develop/ui/compose/text/autosize).
             .heightIn(min = ROW_HEIGHT)
-            .clickable { play.run(item.motion, onDone) }
+            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = pressed) { play.run(item.motion, onDone) }
             .padding(horizontal = 18.dp, vertical = 12.dp)
     ) {
         val style = MaterialTheme.typography.bodyLarge
