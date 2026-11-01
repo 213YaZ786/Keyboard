@@ -856,6 +856,16 @@ public class Key implements Comparable<Key> {
         mLocked = locked;
     }
 
+    // Keyboard: getters of the two states selectBackgroundDrawable reads, for KeyboardView's rest image; same shape as
+    // View.isPressed, https://developer.android.com/reference/android/view/View#isPressed()
+    public final boolean isPressed() {
+        return mPressed;
+    }
+
+    public final boolean isLocked() {
+        return mLocked;
+    }
+
     @NonNull
     public Rect getHitBox() {
         return mHitBox;

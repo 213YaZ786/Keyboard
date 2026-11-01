@@ -16,6 +16,8 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Paint.Align;
+import android.graphics.Path;
+import android.graphics.Picture;
 import android.graphics.PorterDuff;
 import android.graphics.Rect;
 import android.graphics.Typeface;
@@ -45,6 +47,8 @@ import helium314.keyboard.latin.suggestions.MoreSuggestions;
 import helium314.keyboard.latin.suggestions.MoreSuggestionsView;
 import helium314.keyboard.latin.utils.TypefaceUtils;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 
 /** A view that renders a virtual {@link Keyboard}. */
@@ -103,6 +107,29 @@ public class KeyboardView extends View {
     /** The canvas for the above mutable keyboard bitmap */
     @NonNull
     private final Canvas mOffscreenCanvas = new Canvas();
+    // Keyboard: the offscreen buffer of the software path (above) extended to the hardware path, for the main keyboard.
+    // Set by MainKeyboardView. Source: HeliBoard's own KeyboardView.onDraw / mOffscreenBuffer, identical in LineageOS
+    // https://github.com/LineageOS/android_packages_inputmethods_LatinIME/blob/HEAD/java/src/com/android/inputmethod/keyboard/KeyboardView.java
+    protected boolean mDrawsRestImage = false;
+    /** All keys at rest, rendered by the GPU through a Picture (androidx LayerSnapshot / ink ImageDiffer way) */
+    private Bitmap mRestImage;
+    /** Set by invalidateAllKeys: the rest image no longer shows the keys */
+    private boolean mRestImageStale = true;
+    /** True while the rest image is recorded: keys are drawn not pressed, not lit */
+    private boolean mDrawingRestImage = false;
+    /** Once createBitmap(Picture) failed, the view draws every key at every frame as before */
+    private boolean mRestImageFailed = false;
+    /** Keys drawn over the rest image in this frame */
+    private final ArrayList<Key> mOverlayKeys = new ArrayList<>();
+    /** Keys drawn over the rest image in the last frame only because a finger pressed them */
+    private final HashSet<Key> mLastPressedOverlays = new HashSet<>();
+    /** True while keys are drawn over the rest image: a glass key then leaves out its shadow, the image has it */
+    private boolean mDrawingOverlay = false;
+    /** The glass body of an overlay key, cut out of the rest image */
+    private final Path mBodyPath = new Path();
+    /** Where the view lay in main_keyboard_frame when the rest image was drawn, and now (readGroundPlace) */
+    private final float[] mRestGround = new float[4];
+    private final float[] mGroundNow = new float[4];
     @NonNull
     private final Paint mPaint = new Paint();
     private final Paint.FontMetrics mFontMetrics = new Paint.FontMetrics();
@@ -250,6 +277,7 @@ public class KeyboardView extends View {
     protected void onDraw(@NonNull final Canvas canvas) {
         super.onDraw(canvas);
         if (canvas.isHardwareAccelerated()) {
+            if (mDrawsRestImage && !mRestImageFailed && onDrawWithRestImage(canvas)) return; // Keyboard: rest image
             onDrawKeyboard(canvas);
             return;
         }
@@ -264,6 +292,168 @@ public class KeyboardView extends View {
             onDrawKeyboard(mOffscreenCanvas);
         }
         canvas.drawBitmap(mOffscreenBuffer, 0.0f, 0.0f, null);
+    }
+
+    /**
+     * Keyboard: one frame of the hardware path with the rest image. The keys at rest are drawn once into a Picture and
+     * turned into a bitmap by the GPU (Bitmap.createBitmap(Picture), so the glass shader works); each frame draws that
+     * bitmap, then only the keys that show a pressed state (pressed, locked) or a light (KeyLight) over it, as
+     * the offscreen buffer of upstream redraws only the invalidated keys. Returns false when the frame must be
+     * drawn the old way (no keyboard, no size, createBitmap(Picture) failed).
+     * Sources: HeliBoard / LineageOS KeyboardView.onDraw and mOffscreenBuffer
+     * https://github.com/LineageOS/android_packages_inputmethods_LatinIME/blob/HEAD/java/src/com/android/inputmethod/keyboard/KeyboardView.java ;
+     * Picture to bitmap as Compose's snapshot of a layer
+     * https://github.com/androidx/androidx/blob/androidx-main/compose/ui/ui-graphics/src/androidMain/kotlin/androidx/compose/ui/graphics/layer/LayerSnapshot.android.kt
+     * and https://developer.android.com/reference/android/graphics/Bitmap#createBitmap(android.graphics.Picture)
+     */
+    private boolean onDrawWithRestImage(@NonNull final Canvas canvas) {
+        final Keyboard keyboard = getKeyboard();
+        final int width = getWidth();
+        final int height = getHeight();
+        if (keyboard == null || width == 0 || height == 0) return false;
+        updateDrawSettings();
+
+        // Which keys show more than the rest image: pressed or locked now, or lit by the easter egg.
+        mOverlayKeys.clear();
+        final HashSet<Key> pressedOverlays = new HashSet<>();
+        for (final Key key : keyboard.getSortedKeys()) {
+            if (key.isSpacer()) continue;
+            final boolean pressed = key.isPressed();
+            if (pressed || key.isLocked() || litOf(key) > 0f) {
+                mOverlayKeys.add(key);
+                if (pressed && !key.isLocked() && litOf(key) <= 0f) pressedOverlays.add(key);
+            }
+        }
+
+        // The image is rebuilt on invalidateAllKeys, a size change, and for an invalidated key that is neither shown
+        // over it now nor was drawn only as pressed in the last frame (its label or icon changed). A key released
+        // after a press needs no rebuild: the image already shows it at rest.
+        boolean rebuild = mRestImage == null || mRestImageStale
+                || mRestImage.getWidth() != width || mRestImage.getHeight() != height;
+        // ... and when the view lies elsewhere in the keyboard frame than when the image was drawn (the glass bends the ground behind it)
+        if (!rebuild) {
+            readGroundPlace(mGroundNow);
+            rebuild = !Arrays.equals(mGroundNow, mRestGround);
+        }
+        if (!rebuild) {
+            for (final Key key : mInvalidatedKeys) {
+                if (!keyboard.hasKey(key) || mOverlayKeys.contains(key) || mLastPressedOverlays.contains(key)) continue;
+                rebuild = true;
+                break;
+            }
+        }
+        if (rebuild && !buildRestImage(keyboard, width, height)) {
+            mRestImageFailed = true;
+            freeOffscreenBuffer();
+            return false;
+        }
+
+        if (mOverlayKeys.isEmpty()) {
+            canvas.drawBitmap(mRestImage, 0f, 0f, null);
+        } else {
+            // The pressed key is drawn whole over the image: its place in the image is cut out so that a
+            // translucent key background is not drawn twice. A glass key cuts only its body's rounded rect (its
+            // shadow and the ground around stay the image's, the key is then drawn without a second shadow);
+            // any other background cuts its rectangle.
+            canvas.save();
+            for (final Key key : mOverlayKeys) {
+                final int x = key.getDrawX() + getPaddingLeft() - mKeyBackgroundPadding.left;
+                final int y = key.getY() + getPaddingTop() - mKeyBackgroundPadding.top;
+                final int w = key.getDrawWidth() + mKeyBackgroundPadding.left + mKeyBackgroundPadding.right;
+                final int h = key.getHeight() + mKeyBackgroundPadding.top + mKeyBackgroundPadding.bottom;
+                final Drawable background = key.isSpacer() ? null : key.selectBackgroundDrawable(
+                        mKeyBackground, mFunctionalKeyBackground, mSpacebarBackground, mActionKeyBackground);
+                if (background instanceof GlassKeyDrawable) {
+                    background.setBounds(0, 0, w, h); // as onDrawKeyBackground, a glass key always fills its key
+                    if (((GlassKeyDrawable) background).bodyPath(mBodyPath)) {
+                        mBodyPath.offset(x, y);
+                        canvas.clipOutPath(mBodyPath);
+                        continue;
+                    }
+                }
+                mClipRect.set(x, y, x + w, y + h);
+                canvas.clipOutRect(mClipRect);
+            }
+            canvas.drawBitmap(mRestImage, 0f, 0f, null);
+            canvas.restore();
+            mDrawingOverlay = true;
+            try {
+                for (final Key key : mOverlayKeys) {
+                    onDrawKey(key, canvas, mPaint);
+                }
+            } finally {
+                mDrawingOverlay = false;
+            }
+        }
+
+        mLastPressedOverlays.clear();
+        mLastPressedOverlays.addAll(pressedOverlays);
+        mInvalidatedKeys.clear();
+        mInvalidateAllKeys = false;
+        return true;
+    }
+
+    /**
+     * Keyboard: records every key at rest into a Picture and renders it into mRestImage. False if the platform refuses.
+     * Source: Bitmap.createBitmap(Picture), https://developer.android.com/reference/android/graphics/Bitmap#createBitmap(android.graphics.Picture) ;
+     * Picture recording as in androidx ink's ImageDiffer and Compose's LayerSnapshot (see onDrawWithRestImage)
+     */
+    private boolean buildRestImage(@NonNull final Keyboard keyboard, final int width, final int height) {
+        final Picture picture = new Picture();
+        final Canvas recorder = picture.beginRecording(width, height);
+        mDrawingRestImage = true;
+        try {
+            for (final Key key : keyboard.getSortedKeys()) {
+                onDrawKey(key, recorder, mPaint);
+            }
+        } catch (Throwable t) {
+            return false;
+        } finally {
+            mDrawingRestImage = false;
+            picture.endRecording();
+        }
+        try {
+            final Bitmap image = Bitmap.createBitmap(picture);
+            if (mRestImage != null) mRestImage.recycle();
+            mRestImage = image;
+            mRestImageStale = false;
+            readGroundPlace(mRestGround);
+            return true;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    /**
+     * Keyboard: where this view lies in main_keyboard_frame (left, top, then the frame's width and height), the walk
+     * GlassKeyDrawable.place makes to place the ground behind a glass key (left + translationX, top + translationY of each
+     * parent up to the frame); without a frame, 0, 0 and this view's size. Source: View.getLeft / getTranslationX,
+     * https://developer.android.com/reference/android/view/View#getLeft()
+     */
+    private void readGroundPlace(@NonNull final float[] out) {
+        float dx = 0f;
+        float dy = 0f;
+        View v = this;
+        while (v != null && v.getId() != R.id.main_keyboard_frame) {
+            dx += v.getLeft() + v.getTranslationX();
+            dy += v.getTop() + v.getTranslationY();
+            v = v.getParent() instanceof View ? (View) v.getParent() : null;
+        }
+        out[0] = v == null ? 0f : dx;
+        out[1] = v == null ? 0f : dy;
+        out[2] = v == null ? getWidth() : v.getWidth();
+        out[3] = v == null ? getHeight() : v.getHeight();
+    }
+
+    /** Keyboard: how much the easter egg's light glows on this key now, 0 when none runs (the value onDrawKeyBackground uses) */
+    private float litOf(@NonNull final Key key) {
+        return mKeyLight == null ? 0f : mKeyLight.litAt(key.getDrawX() + key.getDrawWidth() / 2f);
+    }
+
+    /** Keyboard: the egg's frame: the rest image stays, the lit keys are drawn over it again (see onDrawWithRestImage) */
+    private void invalidateForLight() {
+        if (mDrawsRestImage && mRestImage != null && isHardwareAccelerated()) invalidate();
+        else invalidateAllKeys();
     }
 
     private boolean maybeAllocateOffscreenBuffer() {
@@ -282,6 +472,12 @@ public class KeyboardView extends View {
     }
 
     private void freeOffscreenBuffer() {
+        if (mRestImage != null) { // Keyboard: the rest image goes with the buffer
+            mRestImage.recycle();
+            mRestImage = null;
+        }
+        mRestImageStale = true;
+        mLastPressedOverlays.clear();
         mOffscreenCanvas.setBitmap(null);
         mOffscreenCanvas.setMatrix(null);
         if (mOffscreenBuffer != null) {
@@ -290,15 +486,21 @@ public class KeyboardView extends View {
         }
     }
 
+    // Keyboard: the first lines of onDrawKeyboard (upstream's, unchanged), shared with onDrawWithRestImage
+    // https://github.com/HeliBorg/HeliBoard/blob/main/app/src/main/java/helium314/keyboard/keyboard/KeyboardView.java
+    private void updateDrawSettings() {
+        mShowsHints = Settings.getValues().mShowsHints;
+        final float scale = Settings.getValues().mKeyboardHeightScale;
+        mIconScaleFactor = scale < 0.8f ? scale + 0.2f : 1f;
+    }
+
     private void onDrawKeyboard(@NonNull final Canvas canvas) {
         final Keyboard keyboard = getKeyboard();
         if (keyboard == null) {
             return;
         }
 
-        mShowsHints = Settings.getValues().mShowsHints;
-        final float scale = Settings.getValues().mKeyboardHeightScale;
-        mIconScaleFactor = scale < 0.8f ? scale + 0.2f : 1f;
+        updateDrawSettings();
         final Paint paint = mPaint;
         final Drawable background = getBackground();
         // Calculate clip region and set.
@@ -353,6 +555,9 @@ public class KeyboardView extends View {
         if (!key.isSpacer()) {
             final Drawable background = key.selectBackgroundDrawable(
                     mKeyBackground, mFunctionalKeyBackground, mSpacebarBackground, mActionKeyBackground);
+            // Keyboard: the rest image shows every key released (Key.selectBackgroundDrawable's own state table)
+            if (mDrawingRestImage)
+                background.setState(Key.KeyBackgroundState.STATES[key.getBackgroundType()].getState(false));
             onDrawKeyBackground(key, canvas, background);
         }
         onDrawKeyTopVisuals(key, canvas, paint, params);
@@ -386,13 +591,18 @@ public class KeyboardView extends View {
         if (background instanceof GlassKeyDrawable) { // Keyboard: the glass bends the ground behind the key
             ((GlassKeyDrawable) background).place(this, key.getDrawX() + getPaddingLeft() + bgX, key.getY() + getPaddingTop() + bgY);
             // easter eggs 4 and 5: the light of this key at this frame (KeyLight), 0 when none runs
-            if (mKeyLight != null)
-                ((GlassKeyDrawable) background).setLit(mKeyLight.litAt(key.getDrawX() + key.getDrawWidth() / 2f));
+            if (mKeyLight != null && !mDrawingRestImage) // the rest image is drawn without light
+                ((GlassKeyDrawable) background).setLit(litOf(key));
         }
+        // Keyboard: over the rest image a glass key leaves out its shadow (the image has it)
+        if (background instanceof GlassKeyDrawable && mDrawingOverlay) ((GlassKeyDrawable) background).setDrawShadow(false);
         canvas.translate(bgX, bgY);
         background.draw(canvas);
         canvas.translate(-bgX, -bgY);
-        if (background instanceof GlassKeyDrawable) ((GlassKeyDrawable) background).setLit(0f);
+        if (background instanceof GlassKeyDrawable) {
+            ((GlassKeyDrawable) background).setLit(0f);
+            ((GlassKeyDrawable) background).setDrawShadow(true);
+        }
     }
 
     /**
@@ -401,7 +611,7 @@ public class KeyboardView extends View {
      * Source: ValueAnimator, https://developer.android.com/reference/android/animation/ValueAnimator
      */
     public void playKeyLight(@NonNull final KeyLight.Mode mode) {
-        if (mKeyLight == null) mKeyLight = new KeyLight(() -> { invalidateAllKeys(); return kotlin.Unit.INSTANCE; });
+        if (mKeyLight == null) mKeyLight = new KeyLight(() -> { invalidateForLight(); return kotlin.Unit.INSTANCE; });
         mKeyLight.start(mode, getWidth());
     }
 
@@ -456,7 +666,10 @@ public class KeyboardView extends View {
                     width = Math.min(bg.getBounds().bottom, bg.getBounds().right);
                 } else width = keyWidth;
                 final float ratio = Math.min(1.0f, (width * MAX_LABEL_RATIO) / TypefaceUtils.getStringWidth(label, paint));
-                if (key.needsAutoScale()) {
+                // Keyboard: on the emoji page every sign shrinks whole (HeliBoard's needsAutoScale branch), never narrowed
+                // by setTextScaleX: ﷽ ﷲ ﷺ ﷻ ﷴ ۞ ۩ ۝ keep their proportions
+                if (key.needsAutoScale() || this instanceof EmojiPageKeyboardView
+                        || (keyboard != null && keyboard.mId.getElement().isEmojiLayout())) {
                     final float autoSize = paint.getTextSize() * ratio;
                     paint.setTextSize(autoSize);
                 } else {
@@ -647,6 +860,7 @@ public class KeyboardView extends View {
     public void invalidateAllKeys() {
         mInvalidatedKeys.clear();
         mInvalidateAllKeys = true;
+        mRestImageStale = true; // Keyboard: the rest image is drawn again
         invalidate();
     }
 

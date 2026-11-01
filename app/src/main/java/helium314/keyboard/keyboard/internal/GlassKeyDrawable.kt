@@ -7,6 +7,7 @@ import android.graphics.Canvas
 import android.graphics.ColorFilter
 import android.graphics.LinearGradient
 import android.graphics.Paint
+import android.graphics.Path
 import android.graphics.PixelFormat
 import android.graphics.RectF
 import android.graphics.RuntimeShader
@@ -90,6 +91,27 @@ class GlassKeyDrawable(private val look: GlassLook, private val kind: Kind, cont
      * Colour mix: androidx.compose.ui.graphics.lerp (https://developer.android.com/reference/kotlin/androidx/compose/ui/graphics/package-summary#lerp(androidx.compose.ui.graphics.Color,androidx.compose.ui.graphics.Color,kotlin.Float))
      */
     var lit = 0f
+
+    /**
+     * False while KeyboardView draws the key over its rest image, which already holds the key's shadow; true otherwise.
+     * Like [lit], set by KeyboardView around one draw.
+     */
+    var drawShadow = true
+
+    /**
+     * Keyboard: the glass body of a key in the bounds, the rounded rect [draw] fills (same radius), in the drawable's own
+     * coordinates; false when the drawable is not a plain key (another shape, a panel). KeyboardView cuts it out of the rest
+     * image. Source: Path.addRoundRect, https://developer.android.com/reference/android/graphics/Path#addRoundRect(float,%20float,%20float,%20float,%20float,%20float,%20android.graphics.Path.Direction)
+     */
+    fun bodyPath(out: Path): Boolean {
+        val w = bounds.width().toFloat()
+        val h = bounds.height().toFloat()
+        if (w <= 0f || h <= 0f || shape != Shape.KEY || kind == Kind.PANEL || onlyPressed) return false
+        val radius = min((if (cornerDp > 0f) cornerDp else RADIUS_DP) * density, min(w, h) / 2f)
+        out.reset()
+        out.addRoundRect(bounds.left.toFloat(), bounds.top.toFloat(), bounds.right.toFloat(), bounds.bottom.toFloat(), radius, radius, Path.Direction.CW)
+        return true
+    }
 
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val shadowPaint = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -225,7 +247,9 @@ class GlassKeyDrawable(private val look: GlassLook, private val kind: Kind, cont
         setHalos(s, look, window)
         // A soft shadow under the key, so it floats over the light (the glass is opaque over it).
         shadowPaint.color = look.ground.toArgb()
-        shadowPaint.setShadowLayer(10f * density, 0f, 3.5f * density, android.graphics.Color.argb(if (look.dark) 110 else 34, 0, 0, 0))
+        // Keyboard: drawn again over the rest image, a key keeps the ground fill (opaque body) but not a second shadow
+        if (drawShadow) shadowPaint.setShadowLayer(10f * density, 0f, 3.5f * density, android.graphics.Color.argb(if (look.dark) 110 else 34, 0, 0, 0))
+        else shadowPaint.clearShadowLayer()
         canvas.drawRoundRect(rect, radius, radius, shadowPaint)
         // The shader is set again on each draw: the paint then takes its new uniforms.
         paint.shader = s

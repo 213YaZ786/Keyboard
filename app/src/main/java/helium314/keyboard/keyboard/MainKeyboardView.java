@@ -132,6 +132,9 @@ public final class MainKeyboardView extends KeyboardView implements DrawingProxy
 
     public MainKeyboardView(final Context context, final AttributeSet attrs, final int defStyle) {
         super(context, attrs, defStyle);
+        // Keyboard: the main keyboard keeps its keys at rest in an image on the hardware path (KeyboardView.onDrawWithRestImage,
+        // from the offscreen buffer of https://github.com/LineageOS/android_packages_inputmethods_LatinIME/blob/HEAD/java/src/com/android/inputmethod/keyboard/KeyboardView.java)
+        mDrawsRestImage = true;
 
         final DrawingPreviewPlacerView drawingPreviewPlacerView =
                 new DrawingPreviewPlacerView(new ContextThemeWrapper(context, R.style.platformActivityTheme), attrs);
