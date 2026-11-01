@@ -913,6 +913,8 @@ public class LatinIME extends InputMethodService implements
         SettingsValues currentSettingsValues = mSettings.getCurrent();
         boolean inputTypeChanged = !currentSettingsValues.isSameInputType(editorInfo);
         boolean isDifferentTextField = !restarting || inputTypeChanged;
+        // Keyboard: another field puts the "no voice" message away (AOSP dismisses its hint when the input restarts)
+        if (isDifferentTextField && hasSuggestionStripView()) mSuggestionStripView.dismissMessage();
 
         // we want to reload the settings before calling updateKeyboardTheme, because updateKeyboardTheme reads SettingsValues.mToolbarMode
         if (isDifferentTextField || !currentSettingsValues.hasSameOrientation(getResources().getConfiguration())) {
@@ -1488,6 +1490,10 @@ public class LatinIME extends InputMethodService implements
         // (dismissAddToDictionaryHint); the shift and layout keys leave it
         if (hasSuggestionStripView() && DictationController.Companion.endsDictation(event.getKeyCode()))
             mSuggestionStripView.dismissSavedWord();
+        // Keyboard: and the "no voice" message too, as AOSP's handleCharacter calls dismissAddToDictionaryHint "in case the
+        // hint was still displayed"; the suggestions of the typed word follow
+        if (hasSuggestionStripView() && DictationController.Companion.endsDictation(event.getKeyCode()))
+            mSuggestionStripView.dismissMessage();
         final InputTransaction completeInputTransaction =
                 mInputLogic.onCodeInput(mSettings.getCurrent(), event,
                         mKeyboardSwitcher.getKeyboardCapsMode(),
@@ -1675,6 +1681,8 @@ public class LatinIME extends InputMethodService implements
     // and there is a selection of text or it's the start of a line.
     @Override
     public void setNeutralSuggestionStrip() {
+        // Keyboard: the "no voice" message stays (SuggestionStripView.showMessage, AOSP's isShowingAddToDictionaryHint)
+        if (hasSuggestionStripView() && mSuggestionStripView.isShowingMessage()) return;
         final SettingsValues currentSettings = mSettings.getCurrent();
         if (tryShowClipboardSuggestion()) {
             // clipboard suggestion has been set
@@ -1730,6 +1738,8 @@ public class LatinIME extends InputMethodService implements
 
     @Override
     public void removeExternalSuggestions() {
+        // Keyboard: the close button (or Install) ends the "no voice" message first (AOSP dismissAddToDictionaryHint)
+        if (hasSuggestionStripView()) mSuggestionStripView.dismissMessage();
         setNeutralSuggestionStrip();
         mHandler.postResumeSuggestions(false);
     }

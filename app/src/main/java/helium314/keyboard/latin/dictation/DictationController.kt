@@ -101,7 +101,12 @@ class DictationController(private val ime: LatinIME) : KeyboardRecognizer.Listen
             // the strip is found in the input view as KeyboardSwitcher does (findViewById R.id.suggestion_strip_view)
             val strip = KeyboardSwitcher.getInstance().wrapperView?.rootView?.findViewById<SuggestionStripView>(R.id.suggestion_strip_view)
             val store = Recognizers.storeIntent(ime)
-            if (strip != null) strip.setExternalSuggestionView(VoiceMissingView(ime) { store?.let { ime.startActivity(it) } }, true)
+            // the message stays in the bar until a key, the close button, another field or Install (SuggestionStripView.showMessage);
+            // Install ends it as the close button does (LatinIME.removeExternalSuggestions)
+            if (strip != null) strip.showMessage(VoiceMissingView(ime) {
+                ime.removeExternalSuggestions()
+                store?.let { ime.startActivity(it) }
+            })
             else store?.let { ime.startActivity(it) }
             return
         }

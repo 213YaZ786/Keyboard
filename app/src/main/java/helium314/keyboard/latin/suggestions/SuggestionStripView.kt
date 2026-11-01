@@ -320,6 +320,10 @@ class SuggestionStripView(context: Context, attrs: AttributeSet?, defStyle: Int)
     }
 
     fun setSuggestions(suggestions: SuggestedWords, isRtlLanguage: Boolean) {
+        // Keyboard: a message the user asked for stays until it is dismissed, as AOSP LatinIME's add-to-dictionary hint
+        // (isSuggestionsStripVisible and maybeRetrieveOlderSuggestions check isShowingAddToDictionaryHint, branch jb-mr2-release)
+        // https://android.googlesource.com/platform/packages/inputmethods/LatinIME/+/refs/heads/jb-mr2-release/java/src/com/android/inputmethod/latin/LatinIME.java
+        if (isShowingMessage) return
         clear()
         setRtl(isRtlLanguage)
         suggestedWords = suggestions
@@ -353,6 +357,28 @@ class SuggestionStripView(context: Context, attrs: AttributeSet?, defStyle: Int)
 
     fun dismissSavedWord(): Boolean {
         if (!isShowingSavedWord) return false
+        clear()
+        return true
+    }
+
+    /**
+     * Keyboard: a message the user asked for (the mic with nobody to listen, VoiceMissingView) put in the bar with its close
+     * button and kept there while it shows: setSuggestions and the neutral strip leave it, as AOSP LatinIME leaves its
+     * add-to-dictionary hint (isShowingAddToDictionaryHint, dismissAddToDictionaryHint, branch jb-mr2-release)
+     * https://android.googlesource.com/platform/packages/inputmethods/LatinIME/+/refs/heads/jb-mr2-release/java/src/com/android/inputmethod/latin/LatinIME.java
+     * The view goes in as HeliBoard's inline autofill view does, setExternalSuggestionView. The flag is the strip's, like
+     * isShowingSavedWord above; clear() puts it down, so any other content replaces the message.
+     */
+    fun showMessage(view: View) {
+        setExternalSuggestionView(view, true)
+        isShowingMessage = true
+    }
+
+    var isShowingMessage = false
+        private set
+
+    fun dismissMessage(): Boolean {
+        if (!isShowingMessage) return false
         clear()
         return true
     }
@@ -646,6 +672,7 @@ class SuggestionStripView(context: Context, attrs: AttributeSet?, defStyle: Int)
     }
 
     private fun clear() {
+        isShowingMessage = false // Keyboard: see showMessage
         removeCallbacks(savedWordEnd)
         suggestionsStrip.removeAllViews()
         if (DEBUG_SUGGESTIONS) removeAllDebugInfoViews()
