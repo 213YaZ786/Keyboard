@@ -397,19 +397,19 @@ class SuggestTest {
 
         listOf(CapsMode.OFF, CapsMode.AUTO, CapsMode.AUTO_LOCKED).forEach { mode ->
             // not capitalized -> original suggestions
-            assertEquals(listOf("but", "buy", "bit", "😢", "Butter"),
+            assertEquals(listOf("but", "buy", "😢", "bit", "Butter"),
                 getSuggestedWords(false, "but", mode).mSuggestedWordInfoList.map { it.mWord })
 
             // capitalized -> capitalized suggestions
-            assertEquals(listOf("But", "Buy", "Bit", "😢", "Butter"),
+            assertEquals(listOf("But", "Buy", "😢", "Bit", "Butter"),
                 getSuggestedWords(false, "But", mode).mSuggestedWordInfoList.map { it.mWord })
 
             // more than one uppercase character, but not all -> original suggestions
-            assertEquals(listOf("BuT", "but", "buy", "bit", "😢", "Butter"),
+            assertEquals(listOf("BuT", "but", "😢", "buy", "bit", "Butter"),
                 getSuggestedWords(false, "BuT", mode).mSuggestedWordInfoList.map { it.mWord })
 
             // full uppercase typed word -> uppercase suggestions
-            assertEquals(listOf("BUT", "BUY", "BIT", "😢", "BUTTER"),
+            assertEquals(listOf("BUT", "BUY", "😢", "BIT", "BUTTER"),
                 getSuggestedWords(false, "BUT", mode).mSuggestedWordInfoList.map { it.mWord })
         }
     }
@@ -422,19 +422,19 @@ class SuggestTest {
             suggestion("😢", 85),
             suggestion("Butter", 80),
         ))
-        assertEquals(listOf("but", "buy", "bit", "😢", "Butter"),
+        assertEquals(listOf("but", "buy", "😢", "bit", "Butter"),
             getSuggestedWords(true, "", CapsMode.OFF).mSuggestedWordInfoList.map { it.mWord })
-        assertEquals(listOf("But", "Buy", "Bit", "😢", "Butter"),
+        assertEquals(listOf("But", "Buy", "😢", "Bit", "Butter"),
             getSuggestedWords(true, "", CapsMode.AUTO).mSuggestedWordInfoList.map { it.mWord })
-        assertEquals(listOf("BUT", "BUY", "BIT", "😢", "BUTTER"),
+        assertEquals(listOf("BUT", "BUY", "😢", "BIT", "BUTTER"),
             getSuggestedWords(true, "", CapsMode.AUTO_LOCKED).mSuggestedWordInfoList.map { it.mWord })
 
         nextWordSuggestions = glideTypingSuggestions
-        assertEquals(listOf("but", "buy", "bit", "😢", "Butter"),
+        assertEquals(listOf("but", "buy", "😢", "bit", "Butter"),
             getSuggestedWords(false, "", CapsMode.OFF).mSuggestedWordInfoList.map { it.mWord })
-        assertEquals(listOf("But", "Buy", "Bit", "😢", "Butter"),
+        assertEquals(listOf("But", "Buy", "😢", "Bit", "Butter"),
             getSuggestedWords(false, "", CapsMode.AUTO).mSuggestedWordInfoList.map { it.mWord })
-        assertEquals(listOf("BUT", "BUY", "BIT", "😢", "BUTTER"),
+        assertEquals(listOf("BUT", "BUY", "😢", "BIT", "BUTTER"),
             getSuggestedWords(false, "", CapsMode.AUTO_LOCKED).mSuggestedWordInfoList.map { it.mWord })
     }
 
@@ -450,19 +450,19 @@ class SuggestTest {
 
         val result = getSuggestedWords(false, "bur", CapsMode.OFF)
         assert(result.mWillAutoCorrect)
-        assertEquals(listOf("bur", "but", "bur", "bit", "buy", "😢", "Butter"), result.mSuggestedWordInfoList.map { it.mWord })
+        assertEquals(listOf("bur", "but", "😢", "bur", "bit", "buy", "Butter"), result.mSuggestedWordInfoList.map { it.mWord })
 
         val result2 = getSuggestedWords(false, "Bur", CapsMode.OFF)
         assert(result2.mWillAutoCorrect)
-        assertEquals(listOf("Bur", "But", "Bur", "Bit", "Buy", "😢", "Butter"), result2.mSuggestedWordInfoList.map { it.mWord })
+        assertEquals(listOf("Bur", "But", "😢", "Bur", "Bit", "Buy", "Butter"), result2.mSuggestedWordInfoList.map { it.mWord })
 
         val result3 = getSuggestedWords(false, "BUr", CapsMode.OFF)
         assert(!result3.mWillAutoCorrect)
-        assertEquals(listOf("BUr", "but", "bit", "buy", "😢", "Butter"), result3.mSuggestedWordInfoList.map { it.mWord })
+        assertEquals(listOf("BUr", "but", "😢", "bit", "buy", "Butter"), result3.mSuggestedWordInfoList.map { it.mWord })
 
         val result4 = getSuggestedWords(false, "BUR", CapsMode.OFF)
         assert(result4.mWillAutoCorrect)
-        assertEquals(listOf("BUR", "BUT", "BUR", "BIT", "BUY", "😢", "BUTTER"), result4.mSuggestedWordInfoList.map { it.mWord })
+        assertEquals(listOf("BUR", "BUT", "😢", "BUR", "BIT", "BUY", "BUTTER"), result4.mSuggestedWordInfoList.map { it.mWord })
     }
 
     @Test fun `suggestions use manual caps modes`() {
@@ -480,25 +480,25 @@ class SuggestTest {
         // shift -> capitalized suggestions
         val result = getSuggestedWords(false, "but", CapsMode.MANUAL)
         assert(!result.mWillAutoCorrect)
-        assertEquals(listOf("but", "But", "Buy", "Bit", "😢", "Butter"), result.mSuggestedWordInfoList.map { it.mWord })
+        assertEquals(listOf("but", "But", "😢", "Buy", "Bit", "Butter"), result.mSuggestedWordInfoList.map { it.mWord })
 
         // caps lock -> uppercase suggestions
-        assertEquals(listOf("but", "BUT", "BUY", "BIT", "😢", "BUTTER"),
+        assertEquals(listOf("but", "BUT", "😢", "BUY", "BIT", "BUTTER"),
             getSuggestedWords(false, "but", CapsMode.MANUAL_LOCKED).mSuggestedWordInfoList.map { it.mWord })
 
         // same for glide typing
         glideTypingSuggestions = tapTypingSuggestions
         val result2 = getSuggestedWords(true, "", CapsMode.MANUAL)
         assert(!result2.mWillAutoCorrect)
-        assertEquals(listOf("But", "Buy", "Bit", "😢", "Butter"), result2.mSuggestedWordInfoList.map { it.mWord })
-        assertEquals(listOf("BUT", "BUY", "BIT", "😢", "BUTTER"),
+        assertEquals(listOf("But", "Buy", "😢", "Bit", "Butter"), result2.mSuggestedWordInfoList.map { it.mWord })
+        assertEquals(listOf("BUT", "BUY", "😢", "BIT", "BUTTER"),
             getSuggestedWords(true, "", CapsMode.MANUAL_LOCKED).mSuggestedWordInfoList.map { it.mWord })
 
         // same for next word suggestions
         nextWordSuggestions = tapTypingSuggestions
-        assertEquals(listOf("But", "Buy", "Bit", "😢", "Butter"),
+        assertEquals(listOf("But", "Buy", "😢", "Bit", "Butter"),
             getSuggestedWords(false, "", CapsMode.MANUAL).mSuggestedWordInfoList.map { it.mWord })
-        assertEquals(listOf("BUT", "BUY", "BIT", "😢", "BUTTER"),
+        assertEquals(listOf("BUT", "BUY", "😢", "BIT", "BUTTER"),
             getSuggestedWords(false, "", CapsMode.MANUAL_LOCKED).mSuggestedWordInfoList.map { it.mWord })
     }
 
@@ -515,12 +515,12 @@ class SuggestTest {
         // shift -> capitalized suggestions
         val result = getSuggestedWords(false, "but", CapsMode.MANUAL)
         assert(result.mWillAutoCorrect)
-        assertEquals(listOf("but", "But", "Buy", "Bit", "😢", "Butter"), result.mSuggestedWordInfoList.map { it.mWord })
+        assertEquals(listOf("but", "But", "😢", "Buy", "Bit", "Butter"), result.mSuggestedWordInfoList.map { it.mWord })
 
         // caps lock -> uppercase suggestions
         val result2 = getSuggestedWords(false, "but", CapsMode.MANUAL_LOCKED)
         assert(result2.mWillAutoCorrect)
-        assertEquals(listOf("but", "BUT", "BUY", "BIT", "😢", "BUTTER"), result2.mSuggestedWordInfoList.map { it.mWord })
+        assertEquals(listOf("but", "BUT", "😢", "BUY", "BIT", "BUTTER"), result2.mSuggestedWordInfoList.map { it.mWord })
 
         glideTypingSuggestions = tapTypingSuggestions
         val result3 = getSuggestedWords(true, "", CapsMode.MANUAL)
@@ -528,7 +528,7 @@ class SuggestTest {
         // when pressing shift to capitalize it, autocorrect will only work if the typed word changes when capitalized. this does not work without typed word
         //assert(result3.mWillAutoCorrect)
         assertEquals("but", result3.typedWordInfo.mWord)
-        assertEquals(listOf("But", "Buy", "Bit", "😢", "Butter"), result3.mSuggestedWordInfoList.map { it.mWord })
+        assertEquals(listOf("But", "Buy", "😢", "Bit", "Butter"), result3.mSuggestedWordInfoList.map { it.mWord })
     }
 
     @Test fun `no caps mode autocorrect if word has many uppercase letters`() {
@@ -545,12 +545,12 @@ class SuggestTest {
         // shift -> capitalized suggestions
         val result = getSuggestedWords(false, "buT", CapsMode.MANUAL)
         assert(!result.mWillAutoCorrect)
-        assertEquals(listOf("buT", "BuT", "But", "Buy", "Bit", "😢", "Butter"), result.mSuggestedWordInfoList.map { it.mWord })
+        assertEquals(listOf("buT", "BuT", "😢", "But", "Buy", "Bit", "Butter"), result.mSuggestedWordInfoList.map { it.mWord })
 
         // caps lock -> uppercase suggestions
         val result2 = getSuggestedWords(false, "buT", CapsMode.MANUAL_LOCKED)
         assert(!result2.mWillAutoCorrect)
-        assertEquals(listOf("buT", "BUT", "BUY", "BIT", "😢", "BUTTER"), result2.mSuggestedWordInfoList.map { it.mWord })
+        assertEquals(listOf("buT", "BUT", "😢", "BUY", "BIT", "BUTTER"), result2.mSuggestedWordInfoList.map { it.mWord })
     }
 
     @Test fun `normal autocorrect works with manual caps modes`() {
@@ -566,12 +566,12 @@ class SuggestTest {
         // shift -> capitalized suggestions
         val result = getSuggestedWords(false, "bur", CapsMode.MANUAL)
         assert(result.mWillAutoCorrect)
-        assertEquals(listOf("bur", "But", "Bur", "Bit", "Buy", "😢", "Butter"), result.mSuggestedWordInfoList.map { it.mWord })
+        assertEquals(listOf("bur", "But", "😢", "Bur", "Bit", "Buy", "Butter"), result.mSuggestedWordInfoList.map { it.mWord })
 
         // caps lock -> uppercase suggestions
         val result2 = getSuggestedWords(false, "bur", CapsMode.MANUAL_LOCKED)
         assert(result2.mWillAutoCorrect)
-        assertEquals(listOf("bur", "BUT", "BUR", "BIT", "BUY", "😢", "BUTTER"), result2.mSuggestedWordInfoList.map { it.mWord })
+        assertEquals(listOf("bur", "BUT", "😢", "BUR", "BIT", "BUY", "BUTTER"), result2.mSuggestedWordInfoList.map { it.mWord })
 
         // score too low will correct to capitalized typed word (except if using very aggressive threshold)
         tapTypingSuggestions = suggestionResults(listOf(
@@ -583,14 +583,14 @@ class SuggestTest {
         ))
         val result3 = getSuggestedWords(false, "bur", CapsMode.MANUAL)
         assert(result3.mWillAutoCorrect)
-        assertEquals(listOf("bur", "Bur", "But", "Bit", "Buy", "😢", "Butter"), result3.mSuggestedWordInfoList.map { it.mWord })
+        assertEquals(listOf("bur", "Bur", "😢", "But", "Bit", "Buy", "Butter"), result3.mSuggestedWordInfoList.map { it.mWord })
 
         val result4 = getSuggestedWords(false, "bur", CapsMode.MANUAL_LOCKED)
         assert(result4.mWillAutoCorrect)
-        assertEquals(listOf("bur", "BUR", "BUT", "BIT", "BUY", "😢", "BUTTER"), result4.mSuggestedWordInfoList.map { it.mWord })
+        assertEquals(listOf("bur", "BUR", "😢", "BUT", "BIT", "BUY", "BUTTER"), result4.mSuggestedWordInfoList.map { it.mWord })
     }
 
-    private fun getSuggestedWords(gesture: Boolean, typedWord: String, capsMode: CapsMode): SuggestedWords {
+    private fun getSuggestedWords(gesture: Boolean, typedWord: String, capsMode: CapsMode, inputStyle: Int = 0): SuggestedWords {
         val wc = WordComposer()
         if (gesture) wc.setBatchInputPointers(InputPointers(1))
         if (typedWord.isNotEmpty()) {
@@ -618,8 +618,51 @@ class SuggestTest {
         suggest.clearNextWordSuggestionsCache()
         return suggest.getSuggestedWords(
             wc, NgramContext.EMPTY_PREV_WORDS_INFO, Keyboard(params), Settings.getValues().mSettingsValuesForSuggestion,
-            Settings.getValues().mAutoCorrectEnabled, 0, 0
+            Settings.getValues().mAutoCorrectEnabled, inputStyle, 0
         )
+    }
+
+    // Keyboard: Gboard shows the emoji matching the typed word in the strip's last slot
+    // https://www.androidheadlines.com/2020/10/updated-gboard-app-shows-an-extra-emoji-in-the-suggestion-strip.html
+    @Test fun `low scored emoji goes to the last slot of the strip, never to the first two`() {
+        tapTypingSuggestions = suggestionResults(listOf(
+            suggestion("Algérie", 200),
+            suggestion("Algérien", 190),
+            suggestion("Algériens", 180),
+            suggestion("Algériennes", 170),
+            suggestion("🇩🇿", 100, shortcut = true),
+        ))
+        // typing a known word: index 0 is the typed word (hidden), 1 centre, 2 left, 3 right end
+        val words = getSuggestedWords(false, "Algérie", CapsMode.OFF, SuggestedWords.INPUT_STYLE_TYPING)
+            .mSuggestedWordInfoList.map { it.mWord }
+        assertEquals(listOf("Algérie", "Algérien", "Algériens", "🇩🇿", "Algériennes"), words)
+        // typed word unknown: it is shown in the centre, so the right end is index 2
+        val unknown = getSuggestedWords(false, "Algé", CapsMode.OFF, SuggestedWords.INPUT_STYLE_TYPING)
+            .mSuggestedWordInfoList.map { it.mWord }
+        assertEquals(listOf("Algé", "Algérie", "🇩🇿", "Algérien", "Algériens", "Algériennes"), unknown)
+    }
+
+    @Test fun `emoji list helpers keep the first two places and short lists`() {
+        val emoji = suggestion("🇩🇿", 100)
+        val a = listOf(suggestion("a", 5), suggestion("b", 4), suggestion("c", 3))
+        // fewer than three words before the slot: nothing moves
+        val short = ArrayList(a.take(2) + emoji)
+        Suggest.moveEmojiToLastSlot(short, 3)
+        assertEquals(listOf("a", "b", "🇩🇿"), short.map { it.mWord })
+        // slot 3 with an emoji already in place, or an emoji sitting in the first two: untouched
+        val inPlace = ArrayList(a + emoji + suggestion("d", 2))
+        Suggest.moveEmojiToLastSlot(inPlace, 3)
+        assertEquals(listOf("a", "b", "c", "🇩🇿", "d"), inPlace.map { it.mWord })
+        val first = ArrayList(listOf(emoji) + a + suggestion("d", 2))
+        Suggest.moveEmojiToLastSlot(first, 3)
+        assertEquals(listOf("🇩🇿", "a", "b", "c", "d"), first.map { it.mWord })
+        // a slot below 2 never takes an emoji
+        val low = ArrayList(a + emoji)
+        Suggest.moveEmojiToLastSlot(low, 1)
+        assertEquals(listOf("a", "b", "c", "🇩🇿"), low.map { it.mWord })
+        // typed word shown (predictions): the right slot is index 2
+        assertEquals(2, Suggest.lastSlotIndex(SuggestedWords.INPUT_STYLE_PREDICTION, null, true))
+        assertEquals(3, Suggest.lastSlotIndex(SuggestedWords.INPUT_STYLE_TYPING, null, true))
     }
 
     private fun enableAutocorrect(autoCorrectThreshold: Float) {

@@ -149,6 +149,8 @@ class Suggest(private val mDictionaryFacilitator: DictionaryFacilitator) {
                 )
             }
         }
+        // Keyboard: the best emoji in the slot drawn at the right end of the strip, as Gboard's
+        moveEmojiToLastSlot(suggestionsList, lastSlotIndex(inputStyle, typedWordInfo, Settings.getValues().mGestureFloatingPreviewTextEnabled))
         val isTypedWordValid = firstOccurrenceOfTypedWordInSuggestions > -1 || (!resultsArePredictions && !allowsToBeAutoCorrected)
         return SuggestedWords(suggestionsList, suggestionResults.mRawSuggestions, typedWordInfo,
             isTypedWordValid, hasAutoCorrection || correctToCapitalizedWord, false, inputStyle, sequenceNumber)
@@ -340,6 +342,8 @@ class Suggest(private val mDictionaryFacilitator: DictionaryFacilitator) {
             BackgroundGatheringCache.addWord(wordData)
         }
 
+        // Keyboard: the best emoji in the slot drawn at the right end of the strip, as Gboard's
+        moveEmojiToLastSlot(suggestionsList, lastSlotIndex(inputStyle, pseudoTypedWordInfo, Settings.getValues().mGestureFloatingPreviewTextEnabled))
         val autocorrectCapitalization = addCapitalizedSuggestion && Settings.getValues().mAutoCorrectCapitalizedSuggestion && isCorrectionEnabled && !wordComposer.isCursorFrontOrMiddleOfComposingWord
         return SuggestedWords(suggestionsList, suggestionResults.mRawSuggestions, pseudoTypedWordInfo, true,
             autocorrectCapitalization, false, inputStyle, sequenceNumber)
@@ -516,6 +520,37 @@ class Suggest(private val mDictionaryFacilitator: DictionaryFacilitator) {
                     }
                 }
             }
+        }
+
+        /**
+         * Keyboard: index in the final suggestion list of the word the strip draws at its right end (centre + 1 of
+         * three slots; the strip mirrors its positions for RTL scripts, so it is the same index there, drawn at the
+         * far end). Same rules as the layout helper's getPositionInSuggestionStrip: with the typed word omitted
+         * (typing, batch tail) index 0 is hidden, 1 is the centre, 2 the left slot, 3 the right one; with the typed
+         * word shown (predictions, unknown typed word, batch update without preview) 0 or 1 is the centre, 2 the right one.
+         * https://github.com/HeliBorg/HeliBoard/blob/main/app/src/main/java/helium314/keyboard/latin/suggestions/SuggestionStripLayoutHelper.java
+         */
+        fun lastSlotIndex(inputStyle: Int, typedWordInfo: SuggestedWordInfo?, gestureFloatingPreviewTextEnabled: Boolean): Int {
+            val unknownTypedWord = inputStyle == SuggestedWords.INPUT_STYLE_TYPING && typedWordInfo != null
+                && (typedWordInfo.mSourceDict.mDictType == Dictionary.TYPE_USER_TYPED
+                    || typedWordInfo.mSourceDict.mDictType == Dictionary.TYPE_USER_HISTORY)
+            val omitTypedWord = !unknownTypedWord && (inputStyle == SuggestedWords.INPUT_STYLE_TYPING
+                || inputStyle == SuggestedWords.INPUT_STYLE_TAIL_BATCH
+                || (inputStyle == SuggestedWords.INPUT_STYLE_UPDATE_BATCH && gestureFloatingPreviewTextEnabled))
+            return if (omitTypedWord) 3 else 2
+        }
+
+        /**
+         * Keyboard: Gboard puts the emoji matching the typed word in the strip's last slot, in place of a third word
+         * https://www.androidheadlines.com/2020/10/updated-gboard-app-shows-an-extra-emoji-in-the-suggestion-strip.html
+         * Extends HeliBoard's makeFirstTwoSuggestionsNonEmoji (same file): the first (best scored) emoji past [slot]
+         * goes to [slot], the words between move one place on; the first two places are never touched.
+         */
+        fun moveEmojiToLastSlot(words: MutableList<SuggestedWordInfo>, slot: Int) {
+            if (slot < 2 || words.size <= slot + 1) return
+            val emojiIndex = words.subList(slot + 1, words.size).indexOfFirst { it.isEmoji }
+            if (emojiIndex < 0) return
+            words.add(slot, words.removeAt(emojiIndex + slot + 1))
         }
 
         /** reduces score of the first suggestion if next one is close and has more than a single letter */
