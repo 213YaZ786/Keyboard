@@ -131,12 +131,16 @@ object Translator {
             return bound
         }
 
-        /** [text] into the language [to] (a catalogue code); Translator detects the source. */
-        suspend fun translate(text: String, to: String): TranslationResult {
+        /**
+         * [text] into the language [to] (a catalogue code); Translator detects the source unless [from] (a catalogue
+         * code) names it. fromLanguage of ITranslationService.translate (offline-translator)
+         * https://github.com/DavidVentura/offline-translator/blob/main/app/src/main/aidl/dev/davidv/translator/ITranslationService.aidl
+         */
+        suspend fun translate(text: String, to: String, from: String = ""): TranslationResult {
             if (!bind()) return TranslationResult.Failed
             return try {
                 val remote = withTimeout(CONNECT_MS) { service.await() }
-                withTimeout(TRANSLATE_MS) { ask(remote, text, to) }
+                withTimeout(TRANSLATE_MS) { ask(remote, text, to, from) }
             } catch (e: CancellationException) {
                 if (e is TimeoutCancellationException) TranslationResult.Failed else throw e
             } catch (_: Exception) {
@@ -144,9 +148,9 @@ object Translator {
             }
         }
 
-        private suspend fun ask(remote: ITranslationService, text: String, to: String): TranslationResult {
+        private suspend fun ask(remote: ITranslationService, text: String, to: String, from: String): TranslationResult {
             val answer = CompletableDeferred<TranslationResult>()
-            remote.translate(text, "", to, object : ITranslationCallback.Stub() {
+            remote.translate(text, from, to, object : ITranslationCallback.Stub() {
                 override fun onTranslationResult(translatedText: String?) {
                     answer.complete(translatedText?.let { TranslationResult.Ok(it) } ?: TranslationResult.Failed)
                 }

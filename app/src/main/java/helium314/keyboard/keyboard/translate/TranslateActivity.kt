@@ -17,6 +17,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -28,7 +29,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.widthIn
@@ -45,6 +46,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -54,9 +56,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.selected
@@ -70,6 +73,7 @@ import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.core.content.edit
+import helium314.keyboard.keyboard.KeyboardSwitcher
 import helium314.keyboard.keyboard.emoji.EmojiSearchActivity.PrivateImeOptions
 import helium314.keyboard.latin.R
 import helium314.keyboard.latin.RichInputMethodManager
@@ -118,25 +122,74 @@ class TranslateActivity : ComponentActivity() {
     private val handler = Handler(Looper.getMainLooper())
     private val session by lazy { Translator.Session(this) }
 
+    // The list of every language (More) is open; read by the closer, so it is state of the activity, not of the panel
+    private var moreOpen by mutableStateOf(false)
+
     // The keyboard was shown and went away (Back, or another app took the focus): the panel goes with it.
     // Ported from EmojiSearchActivity.closer
+    // https://github.com/HeliBorg/HeliBoard/blob/main/app/src/main/java/helium314/keyboard/keyboard/emoji/EmojiSearchActivity.kt
+    // Changed: lowering the keyboard while the list of languages is open closes that list and keeps the panel (the
+    // keyboard is then waited for again); only with nothing open does the panel close
     private val closer = Runnable {
         if (!imeVisible) {
-            imeClosed = true
-            finish()
+            if (moreOpen) {
+                moreOpen = false
+                imeOpened = false
+            } else {
+                imeClosed = true
+                finish()
+            }
         }
     }
 
+    // Ported from EmojiSearchActivity.init (KeyboardSwitcher.resetKeyboardStateToAlphabet): the panel opens on the letters
+    // https://github.com/HeliBorg/HeliBoard/blob/main/app/src/main/java/helium314/keyboard/keyboard/emoji/EmojiSearchActivity.kt
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        KeyboardSwitcher.getInstance().resetKeyboardStateToAlphabet()
         enableEdgeToEdge()
         setContent { Theme { Panel() } }
+    }
+
+    /**
+     * Whether the keyboard is up, decided from the panel's measured bottom as EmojiSearchActivity.onGloballyPositioned
+     * does: the panel sits on the keys, so a bottom well above the screen's bottom means the keyboard is shown.
+     * Ported from EmojiSearchActivity (imeVisible = bottom < screenHeight - 100, imeOpened once visible, the closer
+     * armed only when the keyboard was opened and is gone)
+     * https://github.com/HeliBorg/HeliBoard/blob/main/app/src/main/java/helium314/keyboard/keyboard/emoji/EmojiSearchActivity.kt
+     * Changed: the screen height is WindowMetrics' (Display.getHeight is deprecated,
+     * https://developer.android.com/reference/android/view/WindowManager#getCurrentWindowMetrics()), less the navigation
+     * bar, which the panel stays above when the keyboard is down.
+     */
+    private fun onPanelPositioned(bottom: Int, navigationBarBottom: Int) {
+        val screenHeight = windowManager.currentWindowMetrics.bounds.height()
+        imeVisible = bottom < screenHeight - navigationBarBottom - IME_MARGIN_PX
+        handler.removeCallbacks(closer)
+        if (imeVisible) imeOpened = true
+        else if (imeOpened) handler.postDelayed(closer, 200)
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
         imeOpened = false
         imeVisible = false
+    }
+
+    /**
+     * Translator detects the source; when it cannot (COULD_NOT_DETECT_LANGUAGE, short texts), ask once more with the
+     * keyboard's current language as the source, and show the error only if that fails too. The source language is
+     * ITranslationService.translate's fromLanguage (Translator's AIDL, offline-translator)
+     * https://github.com/DavidVentura/offline-translator/blob/main/app/src/main/aidl/dev/davidv/translator/ITranslationService.aidl
+     * The fallback is SwiftKey's Translator ("detect", the keyboard's language when it cannot) and Gboard's chosen source
+     * language; no code of theirs is used.
+     */
+    private suspend fun translateWithFallback(request: Request): TranslationResult {
+        val first = session.translate(request.text, request.to)
+        if (first != TranslationResult.NotDetected) return first
+        val from = Translator.codeFor(RichInputMethodManager.getInstance().currentSubtype.locale)
+        if (from == null || from == request.to) return first
+        val second = session.translate(request.text, request.to, from)
+        return if (second == TranslationResult.Failed) first else second
     }
 
     // The result goes to LatinIME, which commits it into the app's field. Ported from EmojiSearchActivity.onStop
@@ -158,24 +211,43 @@ class TranslateActivity : ComponentActivity() {
     private data class Request(val text: String, val to: String)
     private data class Answer(val request: Request, val result: TranslationResult?)
 
-    @OptIn(ExperimentalLayoutApi::class, FlowPreview::class, ExperimentalCoroutinesApi::class)
+    // The window's own height, measured (BoxWithConstraints), is what the panel's height comes from
+    // https://developer.android.com/develop/ui/compose/layouts/constraints-modifiers
     @Composable
     private fun Panel() {
+        BoxWithConstraints(Modifier.fillMaxSize()) { PanelBody(maxHeight) }
+    }
+
+    /**
+     * The panel takes a height once and keeps it: laid out under a bound (55 % of the window, at most 340 dp), its height
+     * is measured with onGloballyPositioned and then fixed, as EmojiSearchActivity measures its column (heightPx,
+     * heightDp) and announces it in the private IME options, so the keyboard leaves exactly that gap. What is inside
+     * (the translation, the list of languages) scrolls in the space it has and never makes the panel grow.
+     * Ported from EmojiSearchActivity.onCreate (onGloballyPositioned, heightPx, heightDp)
+     * https://github.com/HeliBorg/HeliBoard/blob/main/app/src/main/java/helium314/keyboard/keyboard/emoji/EmojiSearchActivity.kt
+     */
+    @OptIn(ExperimentalLayoutApi::class, FlowPreview::class, ExperimentalCoroutinesApi::class)
+    @Composable
+    private fun PanelBody(windowHeight: Dp) {
         val scheme = MaterialTheme.colorScheme
         val haptics = rememberHaptics()
         val density = LocalDensity.current
-        val configuration = LocalConfiguration.current
-        // Fixed, in dp: 55 % of the height, at most 340 dp. A phone on its side (under 480 dp high) has a gap of about a
-        // quarter of its height above the keys: one row of pills, then the field, the translation and Insert side by side
-        val compact = configuration.screenHeightDp < 480
-        val panelHeight = if (compact) (configuration.screenHeightDp * 0.26f).dp else minOf(PANEL_MAX_HEIGHT, (configuration.screenHeightDp * 0.55f).dp)
-        val panelHeightPx = with(density) { panelHeight.roundToPx() }
+        // A phone on its side (under 480 dp high) has a gap of about a quarter of its height above the keys: one row of
+        // pills, then the field, the translation and Insert side by side
+        val compact = windowHeight < 480.dp
+        val maxPanel = if (compact) windowHeight * 0.26f else minOf(PANEL_MAX_HEIGHT, windowHeight * 0.55f)
+        // measured once per window height (a turn of the screen measures again); the bound announces it until then,
+        // and it is the height the first layout takes, so the private IME options never change under the field
+        var measuredPx by remember(windowHeight) { mutableIntStateOf(0) }
+        val panelHeight = if (measuredPx > 0) with(density) { measuredPx.toDp() } else maxPanel
+        val panelHeightPx = if (measuredPx > 0) measuredPx else with(density) { maxPanel.roundToPx() }
+        val navigationBarBottom = WindowInsets.navigationBars.getBottom(density)
 
         val uiLocale = Locale.getDefault()
         val codes = remember { targetCodes() }
         var target by remember { mutableStateOf(initialTarget(this, codes)) }
         var recents by remember { mutableStateOf(readRecents(this)) }
-        var expanded by remember { mutableStateOf(false) }
+        val expanded = moreOpen
         // the pills: the keyboard's languages, the last chosen, the target if it is neither (kept in a former session)
         val shownCodes = (codes + recents + target).distinct()
         // More: every other language of Translator, by name in the language of the screen
@@ -197,7 +269,7 @@ class TranslateActivity : ComponentActivity() {
             snapshotFlow { Request(text.text.trim(), target) }
                 .distinctUntilChanged()
                 .debounce(DEBOUNCE_MS)
-                .mapLatest { Answer(it, if (it.text.isEmpty()) null else session.translate(it.text, it.to)) }
+                .mapLatest { Answer(it, if (it.text.isEmpty()) null else translateWithFallback(it)) }
                 .collect { answer = it }
         }
 
@@ -213,18 +285,6 @@ class TranslateActivity : ComponentActivity() {
             (shown as? TranslationResult.Ok)?.let { insert(it.text) }
         }
 
-        // Is the keyboard shown? Its inset in this window, https://developer.android.com/develop/ui/compose/system/insets
-        val keyboardUp = WindowInsets.ime.getBottom(density) > 0
-        LaunchedEffect(keyboardUp) {
-            imeVisible = keyboardUp
-            if (keyboardUp) {
-                imeOpened = true
-                handler.removeCallbacks(closer)
-            } else if (imeOpened) {
-                handler.postDelayed(closer, 200)
-            }
-        }
-
         Box(
             modifier = Modifier.fillMaxSize().background(Color(0x80000000))
                 .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { finish() }
@@ -232,7 +292,13 @@ class TranslateActivity : ComponentActivity() {
             contentAlignment = Alignment.BottomCenter
         ) {
             Box(
-                modifier = Modifier.fillMaxWidth().height(panelHeight)
+                modifier = Modifier.fillMaxWidth()
+                    .then(if (measuredPx > 0) Modifier.height(panelHeight) else Modifier.heightIn(max = maxPanel))
+                    .onGloballyPositioned {
+                        // measured once, then kept; the keyboard is up when the panel's bottom is well above the screen's
+                        if (measuredPx == 0) measuredPx = it.size.height
+                        onPanelPositioned(it.localToScreen(Offset(0f, it.size.height.toFloat())).y.toInt(), navigationBarBottom)
+                    }
                     .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
                     .glassGround(LocalGlass.current, scheme.background)
                     .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { },
@@ -301,7 +367,7 @@ class TranslateActivity : ComponentActivity() {
                                 prefs().edit { putString(PREF_RECENT, recents.joinToString(",")) }
                             }
                         }
-                        expanded = false
+                        moreOpen = false
                     }
                     // the target language, as pills: the keyboard's languages, the last chosen, then More
                     // (the whole flow in place; two lines at most and they scroll, one line when compact)
@@ -313,7 +379,7 @@ class TranslateActivity : ComponentActivity() {
                     Box(chipsModifier.verticalScroll(rememberScrollState())) {
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             shownCodes.forEach { code -> Pill(languageName(code, uiLocale), code == target, pill) { choose(code) } }
-                            Pill(stringResource(R.string.translate_more), expanded, pill) { expanded = !expanded }
+                            Pill(stringResource(R.string.translate_more), expanded, pill) { moreOpen = !moreOpen }
                             if (expanded && !compact) others.forEach { code -> Pill(languageName(code, uiLocale), code == target, pill) { choose(code) } }
                         }
                     }
@@ -402,6 +468,7 @@ class TranslateActivity : ComponentActivity() {
         private val PANEL_MAX_HEIGHT: Dp = 340.dp
         private val CHIPS_MAX_HEIGHT: Dp = 104.dp
         private const val DEBOUNCE_MS = 300L
+        private const val IME_MARGIN_PX = 100 // EmojiSearchActivity: imeVisible = bottom < screenHeight - 100
 
         // Ported from EmojiSearchActivity.decodePrivateImeOptions / encodePrivateImeOptions, with this panel's own prefix
         fun decodePrivateImeOptions(editorInfo: EditorInfo?): PrivateImeOptions = PrivateImeOptions(
