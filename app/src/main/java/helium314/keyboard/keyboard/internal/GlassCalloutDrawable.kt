@@ -137,6 +137,19 @@ open class GlassCalloutDrawable(private val look: GlassLook, context: Context) :
         val tint = look.floatTint
         canvas.save()
         canvas.translate(bounds.left.toFloat(), bounds.top.toFloat())
+        if (look.quiet) {
+            // Keyboard: quiet glass, GlassZoneNode.draw's quiet branch (latin/ui/glass/GlassZone.kt): the flat tint and the
+            // hairline rim, no shader, no shadow. No blur of what lies behind in an IME window: the ground under the tint
+            // hides the keys the bubble covers. https://github.com/chrisbanes/haze/blob/main/haze-materials/src/commonMain/kotlin/dev/chrisbanes/haze/blur/materials/HazeMaterials.kt
+            paint.shader = null
+            paint.color = look.ground.toArgb()
+            canvas.drawPath(path, paint)
+            paint.color = tint.toArgb()
+            canvas.drawPath(path, paint)
+            stroke(canvas, h, 1f)
+            canvas.restore()
+            return
+        }
         // CalloutStyle.shadowColor (black 10 %) and shadowRadius (5), drawn before the glass; the ground under it
         // so the callout is opaque over the keys beside it.
         shadowPaint.color = look.ground.toArgb()
@@ -191,7 +204,7 @@ open class GlassCalloutDrawable(private val look: GlassLook, context: Context) :
 
     // GlassKeyDrawable.drawPane's rim (rimGradient) as a stroke along the outline.
     private fun stroke(canvas: Canvas, h: Float, strength: Float) {
-        rimPaint.strokeWidth = GlassKeyDrawable.RIM_STROKE_DP * density
+        rimPaint.strokeWidth = (if (look.quiet) GlassKeyDrawable.QUIET_RIM_STROKE_DP else GlassKeyDrawable.RIM_STROKE_DP) * density
         rimPaint.shader = GlassKeyDrawable.rimGradient(look, h, strength)
         canvas.drawPath(path, rimPaint)
         rimPaint.shader = null

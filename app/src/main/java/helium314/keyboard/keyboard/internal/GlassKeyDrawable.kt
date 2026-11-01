@@ -215,7 +215,9 @@ class GlassKeyDrawable(private val look: GlassLook, private val kind: Kind, cont
         canvas.translate(bounds.left.toFloat() + dx, bounds.top.toFloat() + dy)
         rect.set(0f, 0f, w, h)
         var drawn = false
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !shaderFailed && window.width > 0f) {
+        // Keyboard: quiet glass (look.quiet), GlassZoneNode.draw's quiet branch: one flat tint and the hairline rim, no
+        // shader, bevel, specular or shadow (drawPane); https://github.com/chrisbanes/haze/blob/main/haze-materials/src/commonMain/kotlin/dev/chrisbanes/haze/blur/materials/HazeMaterials.kt
+        if (!look.quiet && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !shaderFailed && window.width > 0f) {
             drawn = try {
                 drawGlass(canvas, w, h, radius, tint)
                 true
@@ -260,9 +262,20 @@ class GlassKeyDrawable(private val look: GlassLook, private val kind: Kind, cont
     // Port of the fallback in GlassZoneNode.draw: the tint, then rimBrush as a stroke of 1.2 dp (Modules glass/GlassZone.kt).
     private fun drawPane(canvas: Canvas, w: Float, h: Float, radius: Float, tint: Color) {
         paint.shader = null
+        if (look.quiet) {
+            // Keyboard: no blur of what lies behind in an IME window. A panel hides the keys under it with the ground; a
+            // tint of the accent (the action key, a pressed key) lies on the quiet fill, as a chosen drop on a zone.
+            if (kind == Kind.PANEL) {
+                paint.color = look.ground.toArgb()
+                canvas.drawRoundRect(rect, radius, radius, paint)
+            } else if (tint != look.zoneTint) {
+                paint.color = look.zoneTint.toArgb()
+                canvas.drawRoundRect(rect, radius, radius, paint)
+            }
+        }
         paint.color = tint.toArgb()
         canvas.drawRoundRect(rect, radius, radius, paint)
-        val stroke = RIM_STROKE_DP * density
+        val stroke = (if (look.quiet) QUIET_RIM_STROKE_DP else RIM_STROKE_DP) * density // GlassZoneNode.draw: quiet rim 1.4 dp
         rimPaint.strokeWidth = stroke
         rimPaint.shader = rimGradient(look, h) // Keyboard: the gradient moved to the companion, shared with GlassCalloutDrawable
         val inset = stroke / 2f
@@ -289,6 +302,9 @@ class GlassKeyDrawable(private val look: GlassLook, private val kind: Kind, cont
 
         internal const val RIM_STROKE_DP = 1.2f
 
+        /** The hairline of the quiet glass: GlassZoneNode.draw's `Stroke(width = 1.4f * density)` when look.quiet. */
+        internal const val QUIET_RIM_STROKE_DP = 1.4f
+
         /**
          * rimBrush (Modules glass/GlassZone.kt, latin/ui/glass/GlassZone.kt in the app) as an
          * android.graphics.LinearGradient (https://developer.android.com/reference/android/graphics/LinearGradient):
@@ -310,7 +326,7 @@ class GlassKeyDrawable(private val look: GlassLook, private val kind: Kind, cont
          * then glassLookOf (Modules glass/Glass.kt), as the other apps' glass.
          */
         fun lookFor(context: Context, dark: Boolean): GlassLook =
-            glassLookOf(if (dark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context))
+            glassLookOf(if (dark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context), quiet = true) // Keyboard: quiet glass, the user, 2026-11-01
 
         /**
          * The glass pane for the view of popup keys or more suggestions (Kind.PANEL), its own window.

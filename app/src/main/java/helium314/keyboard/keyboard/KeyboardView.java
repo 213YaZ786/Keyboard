@@ -23,6 +23,7 @@ import android.graphics.Rect;
 import android.graphics.Typeface;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.NinePatchDrawable;
+import android.os.Build;
 import android.text.TextUtils;
 import android.util.AttributeSet;
 import android.util.Log;
@@ -35,6 +36,7 @@ import helium314.keyboard.keyboard.emoji.EmojiPageKeyboardView;
 import helium314.keyboard.keyboard.internal.GlassCalloutItemDrawable;
 import helium314.keyboard.keyboard.internal.GlassKeyDrawable;
 import helium314.keyboard.keyboard.internal.KeyLight;
+import helium314.keyboard.keyboard.internal.KeySparkle;
 import helium314.keyboard.keyboard.internal.KeyDrawParams;
 import helium314.keyboard.keyboard.internal.KeyVisualAttributes;
 import helium314.keyboard.keyboard.internal.keyboard_parser.floris.KeyCode;
@@ -151,6 +153,10 @@ public class KeyboardView extends View {
     private boolean mDrawingOverlay = false;
     /** The glass body of an overlay key, cut out of the rest image */
     private final Path mBodyPath = new Path();
+    /** The sparkle ripple of a pressed key (Glass style, main keyboard); null when off. Its keys are drawn over the rest image. */
+    @Nullable
+    protected KeySparkle mKeySparkle;
+    private final Path mSparklePath = new Path();
     private final float[] mGroundNow = new float[4];
     @NonNull
     private final Paint mPaint = new Paint();
@@ -245,6 +251,7 @@ public class KeyboardView extends View {
         }
 
         mKeyboard = keyboard;
+        if (mKeySparkle != null) mKeySparkle.clear(); // Keyboard: the ripples belong to the keys of the old keyboard
         mKeyScaleForText = (float) Math.sqrt(1 / Settings.getValues().mKeyboardHeightScale);
         int scale = Math.min(2 * keyboard.mMostCommonKeyWidth, keyboard.mMostCommonKeyHeight - keyboard.mVerticalGap);
         int scaledKeySize = (int) (scale * mKeyScaleForText);
@@ -339,7 +346,8 @@ public class KeyboardView extends View {
         mOverlayKeys.clear();
         for (final Key key : keyboard.getSortedKeys()) {
             if (key.isSpacer()) continue;
-            if (key.isPressed() || key.isLocked() || litOf(key) > 0f || drawsOverRestImage(key)) mOverlayKeys.add(key);
+            if (key.isPressed() || key.isLocked() || litOf(key) > 0f || drawsOverRestImage(key)
+                    || (mKeySparkle != null && mKeySparkle.isRunning(key))) mOverlayKeys.add(key);
         }
 
         // The image is kept while what it was drawn for still holds: the keyboard, the size, the settings, where the view
@@ -527,6 +535,36 @@ public class KeyboardView extends View {
         out[3] = v == null ? getHeight() : v.getHeight();
     }
 
+    /**
+     * Keyboard: turns on the sparkle ripple of a pressed key, for the Glass style on Android 13 and later (RuntimeShader).
+     * Each frame of a ripple invalidates its key. Source: SparklePress (Modules), whose node draws AOSP's RippleShader,
+     * https://github.com/aosp-mirror/platform_frameworks_base/blob/main/graphics/java/android/graphics/drawable/RippleShader.java ;
+     * View.invalidate(l, t, r, b), https://developer.android.com/reference/android/view/View#invalidate(int,%20int,%20int,%20int)
+     */
+    protected final void enableKeySparkle() {
+        if (!mColors.getThemeStyle().equals(STYLE_GLASS) || Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return;
+        mKeySparkle = KeySparkle.forColors(getContext(), mColors, key -> {
+            final int x = key.getX() + getPaddingLeft();
+            final int y = key.getY() + getPaddingTop();
+            invalidate(x, y, x + key.getWidth(), y + key.getHeight());
+        });
+    }
+
+    /**
+     * Keyboard: the ripple of a key, between its background and its label, clipped to the body of its glass key. Only on a
+     * glass key; the background's bounds are set by onDrawKeyBackground, the canvas is at the key's top left.
+     * Source: SparklePressNode.draw (the ripple drawn behind the content, clipped to the shape), AOSP's RippleDrawable
+     * https://github.com/aosp-mirror/platform_frameworks_base/blob/main/graphics/java/android/graphics/drawable/RippleDrawable.java
+     */
+    private void drawKeySparkle(@NonNull final Key key, @NonNull final Canvas canvas, @NonNull final Drawable background) {
+        if (mKeySparkle == null || mDrawingRestImage || !(background instanceof GlassKeyDrawable)
+                || !((GlassKeyDrawable) background).bodyPath(mSparklePath)) return;
+        canvas.translate(-mKeyBackgroundPadding.left, -mKeyBackgroundPadding.top); // where onDrawKeyBackground draws it
+        mKeySparkle.draw(canvas, key, mSparklePath, background.getBounds().width(), background.getBounds().height(),
+                mKeyBackgroundPadding.left, mKeyBackgroundPadding.top);
+        canvas.translate(mKeyBackgroundPadding.left, mKeyBackgroundPadding.top);
+    }
+
     /** Keyboard: how much the easter egg's light glows on this key now, 0 when none runs (the value onDrawKeyBackground uses) */
     private float litOf(@NonNull final Key key) {
         return mKeyLight == null ? 0f : mKeyLight.litAt(key.getDrawX() + key.getDrawWidth() / 2f);
@@ -641,6 +679,7 @@ public class KeyboardView extends View {
             if (mDrawingRestImage)
                 background.setState(Key.KeyBackgroundState.STATES[key.getBackgroundType()].getState(false));
             onDrawKeyBackground(key, canvas, background);
+            if (mKeySparkle != null && mKeySparkle.isRunning(key)) drawKeySparkle(key, canvas, background);
         }
         onDrawKeyTopVisuals(key, canvas, paint, params);
 
@@ -967,6 +1006,7 @@ public class KeyboardView extends View {
     protected void onDetachedFromWindow() {
         super.onDetachedFromWindow();
         stopKeyLight();
+        if (mKeySparkle != null) mKeySparkle.clear(); // Keyboard: no ripple runs once the view is gone
         freeOffscreenBuffer();
     }
 

@@ -125,6 +125,9 @@ public final class MainKeyboardView extends KeyboardView implements DrawingProxy
     private final int mLanguageOnSpacebarHorizontalMargin;
 
     private MainKeyboardAccessibilityDelegate mAccessibilityDelegate;
+    // Keyboard: the last landing of a finger in this view's pixels (see onTouchEvent), the ripple's start
+    private float mTouchX = -1f;
+    private float mTouchY = -1f;
 
     public MainKeyboardView(final Context context, final AttributeSet attrs) {
         this(context, attrs, R.attr.mainKeyboardViewStyle);
@@ -135,6 +138,7 @@ public final class MainKeyboardView extends KeyboardView implements DrawingProxy
         // Keyboard: the main keyboard keeps its keys at rest in an image on the hardware path (KeyboardView.onDrawWithRestImage,
         // from the offscreen buffer of https://github.com/LineageOS/android_packages_inputmethods_LatinIME/blob/HEAD/java/src/com/android/inputmethod/keyboard/KeyboardView.java)
         mDrawsRestImage = true;
+        enableKeySparkle(); // Keyboard: a pressed key sparkles as Android 12's ripple (Glass style), see KeySparkle
 
         final DrawingPreviewPlacerView drawingPreviewPlacerView =
                 new DrawingPreviewPlacerView(new ContextThemeWrapper(context, R.style.platformActivityTheme), attrs);
@@ -369,10 +373,31 @@ public final class MainKeyboardView extends KeyboardView implements DrawingProxy
         if (keyboard == null) {
             return;
         }
+        startKeySparkle(key, keyboard);
         mKeyPreviewDrawParams.setVisibleOffset(-keyboard.mVerticalGap);
         if (withPreview && key.hasPreview() && mKeyPreviewDrawParams.isPopupEnabled()) {
             showKeyPreview(key);
         }
+    }
+
+    /**
+     * Keyboard: starts the ripple of a key at the touch that pressed it (else at the key's centre, for a finger that slid
+     * onto it), unless animations are off (ValueAnimator.areAnimatorsEnabled, which follows the animator duration scale),
+     * or in a password field. Source: SparklePressNode, PressInteraction.Press's pressPosition
+     * (latin/ui/component/SparklePress.kt); https://developer.android.com/reference/android/animation/ValueAnimator#areAnimatorsEnabled()
+     */
+    private void startKeySparkle(@NonNull final Key key, @NonNull final Keyboard keyboard) {
+        if (mKeySparkle == null || key.isSpacer() || !android.animation.ValueAnimator.areAnimatorsEnabled()
+                || keyboard.mId.isPasswordInput()) return;
+        final float originX = key.getDrawX() + getPaddingLeft();
+        final float originY = key.getY() + getPaddingTop();
+        float x = mTouchX - originX;
+        float y = mTouchY - originY;
+        if (x < 0f || y < 0f || x > key.getDrawWidth() || y > key.getHeight()) { // not on this key: its centre
+            x = key.getDrawWidth() / 2f;
+            y = key.getHeight() / 2f;
+        }
+        mKeySparkle.press(key, x, y);
     }
 
     private void showKeyPreview(@NonNull final Key key) {
@@ -392,6 +417,7 @@ public final class MainKeyboardView extends KeyboardView implements DrawingProxy
     public void onKeyReleased(@NonNull final Key key, final boolean withAnimation) {
         key.onReleased();
         invalidateKey(key);
+        if (mKeySparkle != null) mKeySparkle.release(key); // Keyboard: the ripple finishes, then fades
         if (key.hasPreview()) {
             if (withAnimation) {
                 dismissKeyPreview(key);
@@ -488,6 +514,7 @@ public final class MainKeyboardView extends KeyboardView implements DrawingProxy
         if (popupKeys == null) {
             return null;
         }
+        if (mKeySparkle != null) mKeySparkle.release(key); // Keyboard: a key that opens a panel stops sparkling
         Keyboard popupKeysKeyboard = mPopupKeysKeyboardCache.get(key);
         if (popupKeysKeyboard == null) {
             // {@link KeyPreviewDrawParams#mPreviewVisibleWidth} should have been set at
@@ -588,6 +615,13 @@ public final class MainKeyboardView extends KeyboardView implements DrawingProxy
     public boolean onTouchEvent(final MotionEvent event) {
         if (getKeyboard() == null) {
             return false;
+        }
+        // Keyboard: where the finger landed, for the ripple (onKeyPressed has no position). Source: MotionEvent.getActionIndex / getX,
+        // https://developer.android.com/reference/android/view/MotionEvent#getActionIndex()
+        final int action = event.getActionMasked();
+        if (action == MotionEvent.ACTION_DOWN || action == MotionEvent.ACTION_POINTER_DOWN) {
+            mTouchX = event.getX(event.getActionIndex());
+            mTouchY = event.getY(event.getActionIndex());
         }
         if (mNonDistinctMultitouchHelper != null) {
             if (event.getPointerCount() > 1 && mTimerHandler.isInKeyRepeat()) {
