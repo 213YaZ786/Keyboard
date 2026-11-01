@@ -49,10 +49,12 @@ class TranslatorTest {
     }
 
     @Test
-    fun `Norwegian keeps its three codes`() {
+    fun `Norwegian is Bokmal only, as Language's catalogue`() {
+        // Language's index_v7.json (Firefox's selection) has nb, not nn nor no:
+        // /home/yghouar/Claude Code/APK/YAZ/Language/app/src/main/assets/index_v7.json, engine/catalog/languages.py
         assertEquals("nb", code("nb-NO"))
-        assertEquals("nn", code("nn"))
-        assertEquals("no", code("no"))
+        assertNull(code("nn"))
+        assertNull(code("no"))
     }
 
     @Test

@@ -10,14 +10,14 @@ import android.speech.SpeechRecognizer
 import helium314.keyboard.latin.BuildConfig
 
 /**
- * Who hears the keyboard's dictation: our Voice app, else the phone's own on-device recognizer; and when neither is
- * there, Store (Voice is installed from it). Nothing is bound or opened before the package behind the name is one of
+ * Who hears the keyboard's dictation: our Language app, else the phone's own on-device recognizer; and when neither is
+ * there, Store (Language is installed from it). Nothing is bound or opened before the package behind the name is one of
  * ours and signed with the key of this app.
  *
  * Sources: the package check is the phone kit's Sisters (Modules/shared/phone/main/core/dial/Sisters.kt.tpl:
  * the package must be in our list, then PackageManager.checkSignatures, the ".debug" packages only in a debug build)
  * https://developer.android.com/reference/android/content/pm/PackageManager#checkSignatures(java.lang.String,%20java.lang.String)
- * The service is named as Voice declares it (VoiceRecognitionService, an exported android.speech.RecognitionService)
+ * The service is named as Language declares it (VoiceRecognitionService, an exported android.speech.RecognitionService)
  * and bound by SpeechRecognizer.createSpeechRecognizer(context, ComponentName)
  * https://developer.android.com/reference/android/speech/SpeechRecognizer#createSpeechRecognizer(android.content.Context,%20android.content.ComponentName)
  * The on-device recognizer is SpeechRecognizer.isOnDeviceRecognitionAvailable (API 33), as the voice kit's SystemSpeech
@@ -25,9 +25,9 @@ import helium314.keyboard.latin.BuildConfig
  */
 object Recognizers {
 
-    private const val VOICE = "com.yaz.voice"
+    private const val VOICE = "com.yaz.language"
     private const val STORE = "com.yaz.store"
-    private const val VOICE_SERVICE = "com.yaz.voice.recognition.VoiceRecognitionService"
+    private const val VOICE_SERVICE = "com.yaz.language.recognition.VoiceRecognitionService"
 
     /** The packages of one of our apps: the release one, and the debug one in a debug build only. */
     internal fun packages(app: String): List<String> =

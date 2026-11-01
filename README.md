@@ -15,7 +15,8 @@ Keyboard for Android, a fork of [HeliBoard](https://github.com/HeliBorg/HeliBoar
 - [Scribe-Android](https://github.com/scribe-org/Scribe-Android) (GPL-3.0): the
   CMake build of the dictionary engine.
 - [Translator](https://github.com/DavidVentura/offline-translator) (GPL-3.0): the
-  interface of its translation service (AIDL files), used by the Translate tool.
+  interface of its translation service (AIDL files), served by our Language app
+  and used by the Translate tool.
 - [URLCheck](https://github.com/TrianguloY/URLCheck) (CC BY 4.0): the
   cleaning of pasted links, with the tracking rules of
   [ClearURLs](https://github.com/ClearURLs/Rules) (LGPL-3.0) and the

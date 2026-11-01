@@ -31,52 +31,82 @@ sealed interface TranslationResult {
 }
 
 /**
- * Translation on the phone by DavidVentura/offline-translator ("Translator", GPL-3.0), through the service
- * it exports: AidlTranslationService, bound with the action "dev.davidv.translator.ITranslationService" on
- * its package, its four AIDL files copied unchanged (root/app/src/main/aidl/dev/davidv/translator)
+ * Translation on the phone by Language (our app, offline-translator's "Translator" merged into it, GPL-3.0),
+ * through offline-translator's AIDL service: AidlTranslationService, bound with the action
+ * "dev.davidv.translator.ITranslationService" on Language's package, its four AIDL files copied unchanged
+ * (root/app/src/main/aidl/dev/davidv/translator)
  * https://github.com/DavidVentura/offline-translator/blob/main/app/src/main/java/dev/davidv/translator/AidlTranslationService.kt
+ * Language exports it behind the signature permission com.yaz.language.permission.TRANSLATE.
  *
- * Nothing is bound before the package behind the name is Translator itself: its signing certificate must be
- * the one published in its README. The text goes to that app only; nothing is logged.
+ * Nothing is bound before the package is ours: Language's, signed with the same key as this app. The text
+ * goes to that app only; nothing is logged.
  *
  * Shared across the apps of this base: edit Modules/shared, then run sync.sh.
  */
 object Translator {
 
-    const val PACKAGE = "dev.davidv.translator"
     private const val ACTION = "dev.davidv.translator.ITranslationService"
-
-    /** SHA-256 of Translator's signing certificate (its README, checked on the installed APK). */
-    private const val CERT_SHA256 = "2b3806e745d809018a51be58d0635ffc74cc9733439407ab1ed0424a4db3e1fb"
     private const val CONNECT_MS = 5_000L
     private const val TRANSLATE_MS = 30_000L
 
     /**
-     * The languages of Translator's catalogue (index_v6.json, "languages"):
-     * https://github.com/DavidVentura/offline-translator/blob/main/app/src/main/assets/index_v6.json
+     * The packages of Language: the release one, and the debug one in a debug build only. Ported as it is from
+     * Sisters.packages (phone kit, shared/phone/main/core/dial/Sisters.kt.tpl), for the one app "language".
      */
-    val catalogue = setOf(
-        "ar", "az", "be", "bg", "bn", "bs", "ca", "cs", "da", "de", "el", "en", "es", "et", "eu", "fa", "fi", "fr",
-        "gl", "gu", "he", "hi", "hr", "hu", "id", "is", "it", "ja", "ka", "kn", "ko", "lt", "lv", "ml", "mr", "ms",
-        "nb", "nl", "nn", "no", "pl", "pt", "ro", "ru", "sk", "sl", "sq", "sr", "sv", "sw", "ta", "te", "th", "tl",
-        "tr", "ug", "uk", "ur", "vi", "zh", "zh_hant"
-    )
+    private fun packages(): List<String> =
+        if (helium314.keyboard.latin.BuildConfig.DEBUG) listOf("com.yaz.language", "com.yaz.language.debug") else listOf("com.yaz.language")
 
     /**
-     * Whether Translator is installed and signed with its own certificate. PackageManager.hasSigningCertificate
-     * https://developer.android.com/reference/android/content/pm/PackageManager#hasSigningCertificate(java.lang.String,%20byte[],%20int)
-     * in the spirit of Sisters.isOurs (phone kit), here against a fixed certificate.
+     * Whether [pkg] is Language's and has this app's signature. Ported from Sisters.isOurs (phone kit,
+     * shared/phone/main/core/dial/Sisters.kt.tpl), from the comparison of signatures of PackageManager.checkSignatures
+     * https://developer.android.com/reference/android/content/pm/PackageManager#checkSignatures(java.lang.String,%20java.lang.String)
      */
-    fun installed(context: Context): Boolean = runCatching {
-        val cert = CERT_SHA256.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
-        context.packageManager.hasSigningCertificate(PACKAGE, cert, PackageManager.CERT_INPUT_SHA256)
+    private fun isOurs(context: Context, pkg: String?): Boolean {
+        if (pkg == null || pkg !in packages()) return false
+        if (pkg == context.packageName) return true
+        return runCatching { context.packageManager.checkSignatures(context.packageName, pkg) == PackageManager.SIGNATURE_MATCH }
+            .getOrDefault(false)
+    }
+
+    /**
+     * Whether [pkg] exports the translation service: the explicit intent (action and package) resolves, as the
+     * bound services guide resolves a service before binding
+     * https://developer.android.com/develop/background-work/services/bound-services
+     * PackageManager.queryIntentServices
+     * https://developer.android.com/reference/android/content/pm/PackageManager#queryIntentServices(android.content.Intent,%20int)
+     * (the app's manifest lists the package in queries).
+     */
+    @Suppress("DEPRECATION")
+    private fun serves(context: Context, pkg: String): Boolean = runCatching {
+        context.packageManager.queryIntentServices(Intent(ACTION).setPackage(pkg), 0).isNotEmpty()
     }.getOrDefault(false)
 
-    /** Translator's launcher intent, or null when it is not the real one. */
-    fun launchIntent(context: Context): Intent? =
-        if (installed(context)) context.packageManager.getLaunchIntentForPackage(PACKAGE) else null
+    /**
+     * The package to bind: the first of Language's installed packages that passes [isOurs] and exports the
+     * service, else null.
+     */
+    private fun target(context: Context): String? =
+        packages().firstOrNull { isOurs(context, it) && serves(context, it) }
 
-    /** Translator's code for [locale]: the language, Traditional Chinese apart; null when its catalogue lacks it. */
+    /** Whether Language is installed, signed with the same key as this app, and exports the translation service. */
+    fun installed(context: Context): Boolean = target(context) != null
+
+    /** Language's launcher intent, or null when it is not ours. */
+    fun launchIntent(context: Context): Intent? =
+        target(context)?.let { context.packageManager.getLaunchIntentForPackage(it) }
+
+    /**
+     * The languages of Language's catalogue (index_v7.json, "languages"; built by its engine/catalog/languages.py
+     * from Firefox's selection): /home/yghouar/Claude Code/APK/YAZ/Language/app/src/main/assets/index_v7.json
+     */
+    val catalogue = setOf(
+        "af", "ar", "az", "be", "bg", "bn", "bs", "ca", "cs", "da", "de", "el", "en", "es", "et", "eu", "fa", "fi",
+        "fr", "gl", "gu", "he", "hi", "hr", "hu", "id", "is", "it", "ja", "kn", "ko", "lt", "lv", "ml", "mr", "ms",
+        "nb", "nl", "pl", "pt", "ro", "ru", "sk", "sl", "sq", "sr", "sv", "ta", "te", "th", "tl", "tr", "ug", "uk",
+        "ur", "vi", "zh", "zh_hant"
+    )
+
+    /** Language's code for [locale]: the language, Traditional Chinese apart; null when its catalogue lacks it. */
     fun codeFor(locale: Locale): String? {
         val language = when (val lang = locale.language) {
             "iw" -> "he" // Java's old codes
@@ -125,8 +155,8 @@ object Translator {
 
         private fun bind(): Boolean {
             if (bound) return true
-            if (!installed(app)) return false
-            bound = app.bindService(Intent(ACTION).setPackage(PACKAGE), connection, Context.BIND_AUTO_CREATE)
+            val pkg = target(app) ?: return false
+            bound = app.bindService(Intent(ACTION).setPackage(pkg), connection, Context.BIND_AUTO_CREATE)
             if (!bound) app.unbindService(connection) // the documentation asks for it even when bindService fails
             return bound
         }

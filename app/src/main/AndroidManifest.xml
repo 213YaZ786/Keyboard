@@ -26,6 +26,8 @@ SPDX-License-Identifier: Apache-2.0 AND GPL-3.0-only
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Dictation: the microphone is read only while the user dictates; asked from DictationPermissionActivity. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- Language's translation service, a signature permission of our apps (Language's manifest). -->
+    <uses-permission android:name="com.yaz.language.permission.TRANSLATE" />
 
     <application android:label="@string/english_ime_name"
             android:name="helium314.keyboard.latin.App"
@@ -189,8 +191,10 @@ SPDX-License-Identifier: Apache-2.0 AND GPL-3.0-only
     </application>
 
     <queries>
-        <!-- Translator, whose service the Translate tool binds (signature checked in core/translate/Translator) -->
-        <package android:name="dev.davidv.translator" />
+        <!-- Our Language app: the Translate tool binds its service, dictation hears through it (signature checked in
+             core/translate/Translator and dictation/Recognizers; https://developer.android.com/training/package-visibility/declaring) -->
+        <package android:name="com.yaz.language" />
+        <package android:name="com.yaz.language.debug" />
 
         <!-- The phone's speech recognizers, for SpeechRecognizer.isOnDeviceRecognitionAvailable and the dictation
              (https://developer.android.com/reference/android/speech/SpeechRecognizer#createSpeechRecognizer(android.content.Context)).

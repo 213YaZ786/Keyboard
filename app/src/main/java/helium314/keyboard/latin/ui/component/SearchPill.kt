@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -23,6 +24,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import helium314.keyboard.latin.ui.icon.AppIcons
@@ -45,6 +47,7 @@ fun SearchPill(
     onClose: (() -> Unit)? = null
 ) {
     val haptics = rememberHaptics()
+    val keyboard = LocalSoftwareKeyboardController.current
     val focus = androidx.compose.runtime.remember { androidx.compose.ui.focus.FocusRequester() }
     if (autoFocus) androidx.compose.runtime.LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
     val pane: @Composable (@Composable () -> Unit) -> Unit = { inner ->
@@ -62,6 +65,10 @@ fun SearchPill(
                     textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
                     cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                    // The Search key: the matches already follow the typing, so it only puts the keyboard away, as
+                    // Google Messages' search does (Compose's KeyboardActions + LocalSoftwareKeyboardController,
+                    // https://developer.android.com/develop/ui/compose/text/user-input#keyboard-actions).
+                    keyboardActions = KeyboardActions(onSearch = { keyboard?.hide() }),
                     modifier = androidx.compose.ui.Modifier.focusRequester(focus),
                     decorationBox = { field ->
                         // The hint stays on one line as the field does (singleLine), cut at the largest font.
