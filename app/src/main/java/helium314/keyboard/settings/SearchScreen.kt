@@ -28,7 +28,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.DropdownMenu
@@ -66,6 +65,7 @@ import helium314.keyboard.latin.ui.component.FloatingPane
 import helium314.keyboard.latin.ui.component.FloatingTop
 import helium314.keyboard.latin.ui.component.SearchPill
 import helium314.keyboard.latin.ui.component.TopActionSize
+import helium314.keyboard.latin.ui.component.segmentedShape
 import helium314.keyboard.latin.ui.component.ZoneSurface
 import helium314.keyboard.latin.ui.icon.AppIcons
 import helium314.keyboard.latin.utils.CloseIcon
@@ -265,7 +265,9 @@ fun <T: Any?> SearchScreen(
                             verticalArrangement = Arrangement.spacedBy(2.dp)
                         ) {
                             itemsIndexed(items) { index, item ->
-                                ZoneSurface(shape = segmentShape(index, items.size), modifier = Modifier.fillMaxWidth()) {
+                                // the row's corners: Modules' segmentedShape (ListItemDefaults.segmentedShapes of Material 3 with
+                                // ShapeDefaults.ExtraLarge 28 dp outside and ExtraSmall 4 dp inside; one row, all four outer)
+                                ZoneSurface(shape = segmentedShape(index, items.size), modifier = Modifier.fillMaxWidth()) {
                                     itemContent(item)
                                 }
                             }
@@ -291,18 +293,6 @@ private fun TitleChip(title: @Composable () -> Unit) {
     }
 }
 
-/**
- * The shape of the row [index] of [count] in a list of rows side by side: its outer corners round, its inner
- * ones small. Material 3's segmented list, androidx.compose.material3 ListItemDefaults.segmentedShapes
- * (https://developer.android.com/reference/kotlin/androidx/compose/material3/ListItemDefaults).
- */
-private fun segmentShape(index: Int, count: Int): RoundedCornerShape {
-    val outer = 24.dp
-    val inner = 6.dp
-    val top = if (index == 0) outer else inner
-    val bottom = if (index == count - 1) outer else inner
-    return RoundedCornerShape(topStart = top, topEnd = top, bottomStart = bottom, bottomEnd = bottom)
-}
 
 /**
  * FloatingTop with a menu pane beside the first action: same row, with room for two round panes on

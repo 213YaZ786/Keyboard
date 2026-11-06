@@ -125,11 +125,19 @@ class GlassKeyDrawable(private val look: GlassLook, private val kind: Kind, cont
         Kind.PANEL -> look.floatTint
     }
 
-    // Pressed: the tint deepened toward the accent (the action key more, it is already the accent).
-    private val pressedTint = when (kind) {
-        Kind.ACTION -> look.accentTint.copy(alpha = min(0.9f, look.accentTint.alpha * 1.8f))
-        Kind.PANEL -> look.floatTint
-        else -> look.accentTint.copy(alpha = min(0.85f, look.accentTint.alpha * 1.6f))
+    // Pressed: KeyboardAction.backgroundColorPressedLiquid of KeyboardKit 9.9.1
+    // https://github.com/KeyboardKit/KeyboardKit/blob/9.9.1/Sources/KeyboardKit/Styling/KeyboardAction+ButtonColor.swift#backgroundColorPressedLiquid
+    // `dark = keyboardDarkButtonBackground`: the system key's tint (look.floatTint, the FUNCTIONAL idle tint);
+    // `if isPrimaryAction { return context.isDark ? dark : .white }`: the action key, white by day (its label, ACTION_KEY_ICON
+    // in Colors, is the key text, dark by day, so it stays readable); `backgroundColorIdle(...).opacity(0.6)`: every other
+    // key, its own idle tint at 60 %. PANEL is not a key: unchanged.
+    private val pressedTint = run {
+        val dark = look.floatTint
+        when (kind) {
+            Kind.ACTION -> if (look.dark) dark else Color.White
+            Kind.PANEL -> look.floatTint
+            else -> normalTint.copy(alpha = normalTint.alpha * 0.6f)
+        }
     }
 
     /**

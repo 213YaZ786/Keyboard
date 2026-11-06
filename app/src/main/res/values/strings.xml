@@ -241,6 +241,7 @@
     <!-- Keyboard: the Network switch, the update mode and the dictionaries downloaded on a tap -->
     <string name="network_title">Network</string>
     <string name="update_mode_title">Updates</string>
+    <string name="update_source_title">Update by itself</string>
     <string name="update_mode_off">Off</string>
     <string name="update_mode_notify">Notify me</string>
     <string name="update_mode_install">Install automatically</string>
@@ -270,6 +271,8 @@
     <!-- Preferences item for enabling swipe deletion -->
     <string name="delete_swipe">Delete swipe</string>
     <!-- Description for "delete_swipe" option. -->
+    <string name="delete_swipe_words">Swipe from Delete erases words</string>
+    <string name="delete_swipe_words_summary">Off: letter by letter</string>
     <string name="delete_swipe_summary">Perform a swipe from the delete key to select and remove bigger portions of text at once</string>
     <!-- Preferences item and dialog title for backup and restore -->
     <string name="backup_restore_title">Backup and restore</string>

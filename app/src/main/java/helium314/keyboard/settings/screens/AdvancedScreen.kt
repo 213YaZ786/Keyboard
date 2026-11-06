@@ -30,6 +30,7 @@ import helium314.keyboard.latin.settings.Defaults
 import helium314.keyboard.latin.settings.Settings
 import helium314.keyboard.latin.utils.checkTimestampFormat
 import helium314.keyboard.latin.utils.prefs
+import helium314.keyboard.latin.ui.component.UpdateSourceRow
 import helium314.keyboard.latin.utils.NextScreenIcon
 import helium314.keyboard.settings.SettingsContainer
 import helium314.keyboard.settings.preferences.ListPreference
@@ -85,6 +86,9 @@ fun AdvancedSettingsScreen(
         Settings.PREF_MORE_POPUP_KEYS,
         Settings.PREF_TIMESTAMP_FORMAT,
         if (KeyboardNetwork.enabled(LocalContext.current)) Settings.PREF_UPDATE_MODE else null, // Keyboard: only with the Network switch on
+        // Keyboard: Modules' UpdateSourceRow beside it, under the same condition. The mode stays shown with Store: in
+        // Install mode the app tells Store it opened and was left, Off or Notify tell it nothing (callsStore)
+        if (KeyboardNetwork.enabled(LocalContext.current)) SettingsWithoutKey.UPDATE_SOURCE else null,
         SettingsWithoutKey.BACKUP_RESTORE,
         if (BuildConfig.DEBUG || prefs.getBoolean(DebugSettings.PREF_SHOW_DEBUG_SETTINGS, Defaults.PREF_SHOW_DEBUG_SETTINGS))
             SettingsWithoutKey.DEBUG_SETTINGS else null,
@@ -295,6 +299,11 @@ fun createAdvancedSettings(context: Context) = listOf(
         ListPreference(setting, items, Defaults.PREF_UPDATE_MODE) { mode ->
             if (mode == UpdateMode.INSTALL.name && !Updates.canInstall(ctx)) Updates.allowInstalls(ctx)
         }
+    },
+    // Keyboard: a keyless row (SettingsWithoutKey, as the rows of createCorrectionSettings), the Modules row
+    // "Update by itself" (UpdateSourceRow: the app or Store updates it), found by search through its title
+    Setting(context, SettingsWithoutKey.UPDATE_SOURCE, R.string.update_source_title) {
+        UpdateSourceRow()
     },
 )
 

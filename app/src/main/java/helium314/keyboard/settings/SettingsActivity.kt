@@ -144,10 +144,11 @@ open class SettingsActivity :ComponentActivity(), SharedPreferences.OnSharedPref
                             SettingsNavHost(onClickBack = { this@SettingsActivity.finish() })
                         }
                         if (showWelcomeWizard) {
-                            WelcomeWizard(close = { showWelcomeWizard = false }, finish = this@SettingsActivity::finish)
+                            // Start closes the guide to the settings
+                            WelcomeWizard(reopened = false, close = { showWelcomeWizard = false })
                         } else if (showGuide) {
-                            // About's "Guide" (as Dialer's, which resets welcomeSeen): the same pages on demand, their end back to the settings.
-                            WelcomeWizard(close = { showGuide = false }, finish = { showGuide = false })
+                            // About's "Guide" (as Dialer's, which resets welcomeSeen): the same tiles on demand, Done back to the settings.
+                            WelcomeWizard(reopened = true, close = { showGuide = false })
                         } else if (crashReports.isNotEmpty()) {
                             val ctx = LocalContext.current
                             ConfirmationDialog(

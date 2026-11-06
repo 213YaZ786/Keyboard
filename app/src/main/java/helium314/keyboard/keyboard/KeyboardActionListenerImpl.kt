@@ -262,8 +262,22 @@ class KeyboardActionListenerImpl(private val latinIME: LatinIME, private val inp
     private var deleteSwipeEnd = 0
     private var deleteSwipeSteps = 0 // never above 0, left is negative
 
+    // Keyboard: the choice between words and letters, "Swipe from Delete erases words" (PREF_DELETE_SWIPE_WORDS, on by
+    // default; HeliBoard's c04a1ee9 has the same choice as a list, Letters or Words). Off: HeliBoard's letters mode.
+    // Source: https://github.com/HeliBorg/HeliBoard/blob/main/app/src/main/java/helium314/keyboard/keyboard/KeyboardActionListenerImpl.kt#onMoveDeletePointer
+    // (and #actualSteps; not ported: the isSwipeWords branch with WordBreakIterator and stepsToCharCount, the words
+    // mode being the FlorisBoard port below)
     override fun onMoveDeletePointer(steps: Int) {
         inputLogic.finishInput()
+        if (!settings.current.mDeleteSwipeWords) {
+            val end = connection.expectedSelectionEnd
+            val actualSteps = actualSteps(steps)
+            val start = connection.expectedSelectionStart + actualSteps
+            if (start > end) return
+            gestureMoveBackHaptics()
+            connection.setSelection(start, end)
+            return
+        }
         val end = connection.expectedSelectionEnd
         val currentStart = connection.expectedSelectionStart
         if (currentStart < 0 || end < currentStart) return
@@ -288,6 +302,15 @@ class KeyboardActionListenerImpl(private val latinIME: LatinIME, private val inp
         if (start == currentStart) return
         gestureMoveBackHaptics()
         connection.setSelection(start, end)
+    }
+
+    // Letters mode, https://github.com/HeliBorg/HeliBoard/blob/main/app/src/main/java/helium314/keyboard/keyboard/KeyboardActionListenerImpl.kt#actualSteps
+    // with the grapheme steps of moveStepsToCharCount (the iterator of HeliBoard's letters mode)
+    private fun actualSteps(steps: Int): Int {
+        val multiplier = 4 // arbitrary but hopefully high enough numbers
+        val text = if (steps > 0) connection.getSelectedText(0) ?: return steps
+        else connection.getTextBeforeCursor(-steps * multiplier, 0) ?: return steps
+        return moveStepsToCharCount(text, steps)
     }
 
     /** Lengths of the next [count] words before [position] (the selection start): reads a few hundred chars,

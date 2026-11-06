@@ -98,6 +98,9 @@ fun TextCorrectionScreen(
             Settings.PREF_ADD_TO_PERSONAL_DICTIONARY else null,
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
             Settings.PREF_SPELLCHECK_SUGGEST else null,
+        // Keyboard: listed only when the swipe is on, as AdvancedScreen hides the items that depend on another
+        // (https://github.com/HeliBorg/HeliBoard/blob/main/app/src/main/java/helium314/keyboard/settings/screens/AdvancedScreen.kt#createAdvancedSettings)
+        if (prefs.getBoolean(Settings.PREF_DELETE_SWIPE, Defaults.PREF_DELETE_SWIPE)) Settings.PREF_DELETE_SWIPE_WORDS else null,
         SettingsWithoutKey.DELETE_LEARNED_WORDS,
     )
     SearchSettingsScreen(
@@ -122,6 +125,11 @@ fun createCorrectionSettings(context: Context) = listOf(
             onClick = { showDialog = true },
         )
         if (showDialog) DeleteLearnedWordsDialog { showDialog = false }
+    },
+    // Keyboard: words or letters for the swipe from Delete (a Setting like the switches of createAdvancedSettings,
+    // https://github.com/HeliBorg/HeliBoard/blob/main/app/src/main/java/helium314/keyboard/settings/screens/AdvancedScreen.kt#createAdvancedSettings)
+    Setting(context, Settings.PREF_DELETE_SWIPE_WORDS, R.string.delete_swipe_words, R.string.delete_swipe_words_summary) {
+        SwitchPreference(it, Defaults.PREF_DELETE_SWIPE_WORDS)
     },
     Setting(context, Settings.PREF_BLOCK_POTENTIALLY_OFFENSIVE,
         R.string.prefs_block_potentially_offensive_title, R.string.prefs_block_potentially_offensive_summary

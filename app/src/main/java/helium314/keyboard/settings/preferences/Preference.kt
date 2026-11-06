@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.LocalTextStyle
@@ -63,7 +62,7 @@ fun PreferenceCategory(
 @Composable
 fun PreferenceSection(title: String?, content: @Composable ColumnScope.() -> Unit) {
     if (title != null) PreferenceCategory(title) else Spacer(Modifier.height(8.dp))
-    ZoneSurface(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+    ZoneSurface(shape = MaterialTheme.shapes.extraLarge, modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
         Column(content = content)
     }
 }

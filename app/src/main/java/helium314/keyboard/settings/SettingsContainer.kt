@@ -70,6 +70,7 @@ private fun createSettings(context: Context) = createAboutSettings(context) + cr
 object SettingsWithoutKey {
     const val EDIT_PERSONAL_DICTIONARY = "edit_personal_dictionary"
     const val DELETE_LEARNED_WORDS = "delete_learned_words" // Keyboard
+    const val UPDATE_SOURCE = "update_source" // Keyboard: Modules' UpdateSourceRow
     const val APP = "app"
     const val GUIDE = "guide"
     const val VERSION = "version"
