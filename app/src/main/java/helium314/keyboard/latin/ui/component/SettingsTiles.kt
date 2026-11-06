@@ -405,9 +405,11 @@ private fun ActionTileView(tile: SettingsActionTile, nameSize: TextUnit, modifie
  * https://android.googlesource.com/platform/frameworks/base/+/refs/heads/main/packages/SystemUI/src/com/android/systemui/qs/tileimpl/QSTileViewImpl.kt
  * Active tiles ([on]) are washed with the accent (ZoneSurface accent). The tap target is the transparent
  * inner area, as Modules' glass note asks. [iconTint] colours the icon (Dialer's SIM protection level).
+ * [stateColor] colours the second line (SetupTiles: an error), [below] draws under it (SetupTiles: a check, a progress);
+ * both are SetupTiles', every other tile leaves them out.
  */
 @Composable
-private fun TileFace(
+internal fun TileFace(
     icon: ImageVector,
     name: String,
     state: String,
@@ -418,7 +420,9 @@ private fun TileFace(
     onLongClick: () -> Unit,
     semantics: SemanticsPropertyReceiver.() -> Unit,
     nameSize: TextUnit,
-    iconTint: Color? = null
+    iconTint: Color? = null,
+    stateColor: Color? = null,
+    below: (@Composable () -> Unit)? = null
 ) {
     // SystemUI's own sizes (res/values/dimens.xml: qs_tile_height 80dp, qs_corner_radius 28dp): a tile is
     // as tall as its content needs, not square, so a section fits on one screen; our icon stands over the
@@ -459,12 +463,13 @@ private fun TileFace(
             Text(
                 state,
                 style = MaterialTheme.typography.labelSmall,
-                color = if (on) LocalContentColor.current else quiet,
+                color = stateColor ?: if (on) LocalContentColor.current else quiet,
                 textAlign = TextAlign.Center,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(top = 2.dp).clearAndSetSemantics {}
             )
+            below?.invoke()
         }
     }
 }

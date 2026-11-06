@@ -15,7 +15,7 @@ import androidx.compose.ui.unit.dp
 
 /**
  * The mark of a post that arrived since the last visit and has not been
- * scrolled past yet: a small dot in the accent, in a corner of the post. It
+ * scrolled past yet: a small dot in the accent, at the end of the author's line. It
  * shrinks away once the post is passed. A border said the same, but glass
  * draws no borders.
  */

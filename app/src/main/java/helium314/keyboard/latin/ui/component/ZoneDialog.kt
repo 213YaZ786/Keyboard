@@ -276,7 +276,7 @@ fun Modifier.dialogGlass(shape: Shape, look: helium314.keyboard.latin.ui.glass.G
  * same glass over the blurred screen as [ZoneAlertDialog], opaque where Android does not blur.
  */
 @Composable
-fun DialogPane(shape: Shape = androidx.compose.foundation.shape.RoundedCornerShape(28.dp), content: @Composable () -> Unit) {
+fun DialogPane(shape: Shape = androidx.compose.material3.ShapeDefaults.ExtraLarge, content: @Composable () -> Unit) {
     val look = LocalGlass.current
     val blur = rememberCrossWindowBlur()
     if (look != null) BlurBehind(blur = blur)

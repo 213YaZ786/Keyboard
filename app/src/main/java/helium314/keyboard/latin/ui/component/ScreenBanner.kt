@@ -116,18 +116,21 @@ fun BannerAction(
     // In glass, a small pane of its own on the banner's glass, the icon in
     // the accent; otherwise filled, with the edge every action carries.
     val glass = LocalGlass.current
-    Surface(
-        onClick = {
-            view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
-            onClick()
-        },
-        shape = CircleShape,
-        color = if (glass == null) container else Color.Transparent,
-        border = if (glass == null) boldBorder() else null,
-        modifier = if (glass == null) Modifier else Modifier.glassZone(CircleShape, glass, lens = 1f)
-    ) {
-        Box(Modifier.size(BannerActionSize), contentAlignment = Alignment.Center) {
-            Icon(icon, contentDescription = label, tint = if (glass == null) tint else MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
+    // In glass, the 48 dp touch target outside the pane (GlassTarget), so the ripple fills the glass.
+    GlassTarget(Modifier) {
+        Surface(
+            onClick = {
+                view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                onClick()
+            },
+            shape = CircleShape,
+            color = if (glass == null) container else Color.Transparent,
+            border = if (glass == null) boldBorder() else null,
+            modifier = if (glass == null) Modifier else Modifier.glassZone(CircleShape, glass, lens = 1f)
+        ) {
+            Box(Modifier.size(BannerActionSize), contentAlignment = Alignment.Center) {
+                Icon(icon, contentDescription = label, tint = if (glass == null) tint else MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
+            }
         }
     }
 }

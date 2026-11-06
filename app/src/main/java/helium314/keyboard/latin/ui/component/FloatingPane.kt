@@ -480,9 +480,10 @@ private class HeaderPadding(private val top: () -> Dp, private val bottom: Dp) :
  * scroll offset over the fade length while under it, then 1
  * (https://android.googlesource.com/platform/frameworks/base/+/refs/heads/main/core/java/android/widget/ScrollView.java).
  * [strength], 0 to 1, is read when drawing; at 0 nothing is erased, so a glow a page draws from
- * its top (HeroGlow) stays whole at rest.
+ * its top (HeroGlow) stays whole at rest. Shared: every list that scrolls under a header or a
+ * panel's top edge fades with it, never a hard clip (the user, 2026-11-01).
  */
-private fun Modifier.softTopEdge(height: () -> Dp, strength: () -> Float): Modifier =
+internal fun Modifier.softTopEdge(height: () -> Dp, strength: () -> Float): Modifier =
     this
         .graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)
         .drawWithContent {

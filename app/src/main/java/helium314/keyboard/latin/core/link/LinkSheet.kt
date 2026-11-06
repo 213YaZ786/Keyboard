@@ -26,7 +26,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
@@ -125,26 +124,32 @@ fun LinkSheet(
                         }
                     },
                     style = MaterialTheme.typography.headlineSmall,
+                    textAlign = TextAlign.Center,
                     overflow = TextOverflow.Ellipsis,
-                    maxLines = 4
+                    maxLines = 4,
+                    modifier = Modifier.fillMaxWidth()
                 )
                 warnings.forEach { warning ->
-                    Row(verticalAlignment = Alignment.Top) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.Top) {
                         Box(
                             Modifier.padding(top = 7.dp).size(10.dp).background(levelColor(warning.level), CircleShape)
                         )
                         Text(
                             warning.label,
                             style = MaterialTheme.typography.bodyMedium,
+                            textAlign = TextAlign.Center,
                             modifier = Modifier.padding(start = 12.dp)
                         )
                     }
                 }
-                ZoneSurface(shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
+                // Inside the pane: Material 3's Large. The address is centred too, as a wrapped
+                // address keeps full lines of one width and only the last one is short.
+                ZoneSurface(shape = androidx.compose.material3.ShapeDefaults.Large, modifier = Modifier.fillMaxWidth()) {
                     SelectionContainer {
                         Text(
                             clean,
                             style = MaterialTheme.typography.bodyMedium,
+                            textAlign = TextAlign.Center,
                             maxLines = 8,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)
@@ -155,7 +160,9 @@ fun LinkSheet(
                     Text(
                         "It leads nowhere else",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
                     )
                 }
                 LinkButtons(

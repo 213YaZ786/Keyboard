@@ -15,16 +15,25 @@
  */
 package helium314.keyboard.latin.ui.component
 
-// Material 3 Expressive's linear wavy progress indicator, ported from androidx material3 (Apache-2.0), which our material3 1.4.0
-// lacks. Trimmed to the linear pieces (the circular ones are left out), the code as it is, renamed so it never clashes with material3:
-// LinearWavyProgressIndicator -> LinearWavyProgress, WavyProgressIndicatorDefaults -> WavyProgressDefaults. Sources:
-// - LinearWavyProgress (both overloads), WavyProgressDefaults, the amplitude animation specs and animateIndeterminateCycle
+// Material 3 Expressive's wavy progress indicators, ported from androidx material3 (Apache-2.0), which our material3 1.4.0
+// lacks. Trimmed to the linear pieces and the determinate circular one, the code as it is, renamed so it never clashes with material3:
+// LinearWavyProgressIndicator -> LinearWavyProgress, CircularWavyProgressIndicator -> CircularWavyProgress,
+// WavyProgressIndicatorDefaults -> WavyProgressDefaults. Sources:
+// - LinearWavyProgress (both overloads), CircularWavyProgress (determinate), WavyProgressDefaults, the amplitude animation specs
+//   and animateIndeterminateCycle
 //   https://github.com/androidx/androidx/blob/androidx-main/compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/WavyProgressIndicator.kt
 // - the drawing (modifier, node, handoff, stop indicator, drawing cache)
 //   https://github.com/androidx/androidx/blob/androidx-main/compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/internal/LinearWavyProgressModifiers.kt
 // - the indeterminate lines' keyframes and timings (linearIndeterminate*AnimationSpec, LinearAnimationDuration, delays, durations)
 //   https://github.com/androidx/androidx/blob/androidx-main/compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/ProgressIndicator.kt
-// - tokens copied as constants: LinearProgressIndicatorTokens (v0_7_0), ProgressIndicatorTokens (v0_4_0) and the MotionTokens used
+// - the circular drawing (modifier, node, handoff, drawing cache, the wavy star and circle shapes)
+//   https://github.com/androidx/androidx/blob/androidx-main/compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/internal/CircularWavyProgressModifiers.kt
+// - the circular path helpers (RoundedPolygon.toPath, Morph.toPath)
+//   https://github.com/androidx/androidx/blob/androidx-main/compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/internal/ShapeUtil.kt
+// - the indeterminate circular keyframes the node still plays when progress is not finite (circularIndeterminate*AnimationSpec, constants)
+//   https://github.com/androidx/androidx/blob/androidx-main/compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/ProgressIndicator.kt
+// - tokens copied as constants: LinearProgressIndicatorTokens (v0_7_0), CircularProgressIndicatorTokens, ProgressIndicatorTokens (v0_4_0) and the MotionTokens used
+//   https://github.com/androidx/androidx/blob/androidx-main/compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/tokens/CircularProgressIndicatorTokens.kt
 //   https://github.com/androidx/androidx/blob/androidx-main/compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/tokens/LinearProgressIndicatorTokens.kt
 //   https://github.com/androidx/androidx/blob/androidx-main/compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/tokens/ProgressIndicatorTokens.kt
 //   https://github.com/androidx/androidx/blob/androidx-main/compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/tokens/MotionTokens.kt
@@ -52,6 +61,7 @@ import androidx.compose.foundation.progressSemantics
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.MotionDurationScale
@@ -59,6 +69,7 @@ import androidx.compose.ui.draw.CacheDrawModifierNode
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.geometry.center
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Matrix
 import androidx.compose.ui.graphics.Path
@@ -67,6 +78,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.node.DelegatingNode
 import androidx.compose.ui.node.ModifierNodeElement
@@ -81,8 +93,18 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.offset
 import androidx.compose.ui.util.fastCoerceIn
+import androidx.compose.ui.util.fastForEach
 import androidx.compose.ui.util.fastRoundToInt
+import androidx.compose.ui.util.lerp
+import androidx.graphics.shapes.CornerRounding
+import androidx.graphics.shapes.Cubic
+import androidx.graphics.shapes.Morph
+import androidx.graphics.shapes.RoundedPolygon
+import androidx.graphics.shapes.circle
+import androidx.graphics.shapes.star
+import kotlin.math.PI
 import kotlin.math.abs
+import kotlin.math.atan2
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sqrt
@@ -91,6 +113,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 /**
@@ -229,7 +252,75 @@ fun LinearWavyProgress(
     )
 }
 
-/** Contains the default values used for wavy progress indicators (the linear ones). */
+/**
+ * Material Design determinate wavy circular progress indicator (Material 3 Expressive).
+ *
+ * By default there is no animation between [progress] values. You can use
+ * [WavyProgressDefaults.ProgressAnimationSpec] as the default recommended [AnimationSpec] when
+ * animating progress. The container is [WavyProgressDefaults.CircularContainerSize] unless the
+ * caller's [modifier] fixes another size first, as the thick sample does.
+ *
+ * @param progress the progress of this progress indicator, where 0.0 represents no progress and 1.0
+ *   represents full progress. Values outside of this range are coerced into the range. Return a
+ *   non-finite value (such as [Float.NaN] or [Float.POSITIVE_INFINITY]) while the progress is
+ *   unknown to display an indeterminate indicator.
+ * @param modifier the [Modifier] to be applied to this progress indicator
+ * @param color the progress indicator color
+ * @param trackColor the indicator's track color, visible when the progress has not reached the area
+ *   of the overall indicator yet
+ * @param stroke a [Stroke] that will be used to draw this indicator
+ * @param trackStroke a [Stroke] that will be used to draw the indicator's track
+ * @param gapSize the gap between the track and the progress parts of the indicator
+ * @param amplitude a lambda that provides an amplitude for the wave path as a function of the
+ *   indicator's progress. 0.0 represents no amplitude, and 1.0 represents a max amplitude.
+ * @param wavelength the length of a wave in this circular indicator. Note that the actual
+ *   wavelength may be different to ensure a continuous wave shape.
+ * @param waveSpeed the speed in which the wave will move when the [amplitude] is greater than zero,
+ *   in dp per second; by default it matches the [wavelength].
+ */
+// Source: CircularWavyProgressIndicator (determinate), WavyProgressIndicator.kt
+// https://github.com/androidx/androidx/blob/androidx-main/compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/WavyProgressIndicator.kt
+@Composable
+fun CircularWavyProgress(
+    progress: () -> Float,
+    modifier: Modifier = Modifier,
+    color: Color = WavyProgressDefaults.indicatorColor,
+    trackColor: Color = WavyProgressDefaults.trackColor,
+    stroke: Stroke = WavyProgressDefaults.circularIndicatorStroke,
+    trackStroke: Stroke = WavyProgressDefaults.circularTrackStroke,
+    gapSize: Dp = WavyProgressDefaults.CircularIndicatorTrackGapSize,
+    amplitude: (progress: Float) -> Float = WavyProgressDefaults.indicatorAmplitude,
+    wavelength: Dp = WavyProgressDefaults.CircularWavelength,
+    waveSpeed: Dp = wavelength, // Match to 1 wavelength per second
+) {
+    Spacer(
+        modifier =
+            modifier
+                .size(WavyProgressDefaults.CircularContainerSize)
+                .circularWavyProgressIndicator(
+                    progress = progress,
+                    color = color,
+                    trackColor = trackColor,
+                    stroke = stroke,
+                    trackStroke = trackStroke,
+                    gapSize = gapSize,
+                    amplitude = amplitude,
+                    wavelength = wavelength,
+                    waveSpeed = waveSpeed,
+                )
+                .semantics(mergeDescendants = true) {
+                    val currentProgress = progress()
+                    progressBarRangeInfo =
+                        if (!currentProgress.isFinite()) {
+                            ProgressBarRangeInfo.Indeterminate
+                        } else {
+                            ProgressBarRangeInfo(currentProgress.fastCoerceIn(0f, 1f), 0f..1f)
+                        }
+                }
+    )
+}
+
+/** Contains the default values used for wavy progress indicators (the linear and circular ones). */
 // Source: WavyProgressIndicatorDefaults, WavyProgressIndicator.kt; the colours are ProgressIndicatorTokens.ActiveIndicatorColor
 // (Primary) and TrackColor (SecondaryContainer), the sizes LinearProgressIndicatorTokens
 // https://github.com/androidx/androidx/blob/androidx-main/compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/WavyProgressIndicator.kt
@@ -267,6 +358,36 @@ object WavyProgressDefaults {
                 width = with(LocalDensity.current) { LinearTrackThickness.toPx() },
                 cap = StrokeCap.Round,
             )
+
+    /** A default circular progress indicator active indicator [Stroke]. */
+    val circularIndicatorStroke: Stroke
+        @Composable
+        get() =
+            Stroke(
+                width = with(LocalDensity.current) { CircularActiveThickness.toPx() },
+                cap = StrokeCap.Round,
+            )
+
+    /** A default circular progress indicator track [Stroke]. */
+    val circularTrackStroke: Stroke
+        @Composable
+        get() =
+            Stroke(
+                width = with(LocalDensity.current) { CircularTrackThickness.toPx() },
+                cap = StrokeCap.Round,
+            )
+
+    /** A default circular progress indicator container size. */
+    val CircularContainerSize: Dp = CircularWaveSize
+
+    /** A default wavelength of a circular progress indicator when it's in a wavy form. */
+    val CircularWavelength: Dp = CircularActiveWaveWavelength
+
+    /**
+     * A default gap size that appears in between the active indicator and the track at the circular
+     * progress indicator.
+     */
+    val CircularIndicatorTrackGapSize: Dp = CircularTrackActiveSpace
 
     /** A default wavelength of a determinate linear progress indicator when it's in a wavy form. */
     val LinearDeterminateWavelength: Dp = LinearActiveWaveWavelength
@@ -310,9 +431,20 @@ private val LinearTrackActiveSpace = 4.0.dp
 private val LinearTrackThickness = 4.0.dp
 private val LinearWaveHeight = 10.0.dp
 
+// CircularProgressIndicatorTokens, copied as constants
+// https://github.com/androidx/androidx/blob/androidx-main/compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/tokens/CircularProgressIndicatorTokens.kt
+private val CircularActiveThickness = 4.0.dp
+private val CircularActiveWaveWavelength = 15.0.dp
+private val CircularTrackActiveSpace = 4.0.dp
+private val CircularTrackThickness = 4.0.dp
+private val CircularWaveSize = 48.0.dp
+
 // MotionTokens, copied as constants
 // https://github.com/androidx/androidx/blob/androidx-main/compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/tokens/MotionTokens.kt
+private const val MotionDurationMedium2 = 300
 private const val MotionDurationLong2 = 500
+private const val MotionDurationLong4 = 600
+private val MotionEasingEmphasizedDecelerate = CubicBezierEasing(0.05f, 0.7f, 0.1f, 1.0f)
 private val MotionEasingLinear = CubicBezierEasing(0.0f, 0.0f, 1.0f, 1.0f)
 private val MotionEasingStandard = CubicBezierEasing(0.2f, 0.0f, 0.0f, 1.0f)
 private val MotionEasingEmphasizedAccelerate = CubicBezierEasing(0.3f, 0.0f, 0.8f, 0.15f)
@@ -1446,3 +1578,1264 @@ private class LinearProgressDrawingCache {
 
 // Minimum animation duration to ensure we don't overwhelm the CPU.
 private const val MinAnimationDuration = 50
+
+// Indeterminate circular indicator transition specs, played by the circular node while progress is not finite
+// Source: ProgressIndicator.kt (circularIndeterminateRotationAnimationSpec, circularIndeterminateProgressAnimationSpec, constants)
+// https://github.com/androidx/androidx/blob/androidx-main/compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/ProgressIndicator.kt
+
+// The indeterminate circular indicator easing constants for its motion
+private val CircularProgressEasing = MotionEasingStandard
+private const val CircularIndeterminateMinProgress = 0.1f
+private const val CircularIndeterminateMaxProgress = 0.87f
+
+private const val CircularAnimationProgressDuration = 6000
+private const val CircularAnimationAdditionalRotationDelay = 1500
+private const val CircularAnimationAdditionalRotationDuration = 300
+private const val CircularAdditionalRotationDegreesTarget = 360f
+private const val CircularGlobalRotationDegreesTarget = 1080f
+
+/**
+ * An animation spec for indeterminate circular progress indicators that infinitely rotates a 360
+ * degrees.
+ */
+private val circularIndeterminateRotationAnimationSpec
+    get() =
+        infiniteRepeatable(
+            animation =
+                keyframes {
+                    durationMillis = CircularAnimationProgressDuration // 6000ms
+                    90f at
+                        CircularAnimationAdditionalRotationDuration using
+                        MotionEasingEmphasizedDecelerate // 300ms
+                    90f at CircularAnimationAdditionalRotationDelay // hold till 1500ms
+                    180f at
+                        CircularAnimationAdditionalRotationDuration +
+                            CircularAnimationAdditionalRotationDelay // 1800ms
+                    180f at CircularAnimationAdditionalRotationDelay * 2 // hold till 3000ms
+                    270f at
+                        CircularAnimationAdditionalRotationDuration +
+                            CircularAnimationAdditionalRotationDelay * 2 // 3300ms
+                    270f at CircularAnimationAdditionalRotationDelay * 3 // hold till 4500ms
+                    360f at
+                        CircularAnimationAdditionalRotationDuration +
+                            CircularAnimationAdditionalRotationDelay * 3 // 4800ms
+                    360f at CircularAnimationProgressDuration // hold till 6000ms
+                }
+        )
+
+/** An animation spec for indeterminate circular progress indicators progress motion. */
+private val circularIndeterminateProgressAnimationSpec
+    get() =
+        infiniteRepeatable(
+            animation =
+                keyframes {
+                    durationMillis = CircularAnimationProgressDuration // 6000ms
+                    CircularIndeterminateMaxProgress at
+                        CircularAnimationProgressDuration / 2 using
+                        CircularProgressEasing // 3000ms
+                    CircularIndeterminateMinProgress at CircularAnimationProgressDuration
+                }
+        )
+
+/**
+ * A [Modifier] that draws a wavy circular progress indicator.
+ *
+ * Note: Apply a semantics modifiers (e.g., `Modifier.semantics { ... }` or custom
+ * `Modifier.progressSemantics()`) separately.
+ *
+ * @param progress Lambda returning the current progress (0.0 to 1.0), or a non-finite value for an
+ *   indeterminate indicator.
+ * @param color The color of the progress indicator wave.
+ * @param trackColor The color of the track background.
+ * @param stroke The [Stroke] style for the progress wave.
+ * @param trackStroke The [Stroke] style for the track.
+ * @param gapSize The gap between the track and the progress wave.
+ * @param amplitude Lambda providing the wave amplitude (0.0 to 1.0) based on progress.
+ * @param wavelength The preferred wavelength of the wave.
+ * @param waveSpeed The speed of the wave's motion (Dp per second).
+ */
+// Source: Modifier.circularWavyProgressIndicator, internal/CircularWavyProgressModifiers.kt
+// https://github.com/androidx/androidx/blob/androidx-main/compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/internal/CircularWavyProgressModifiers.kt
+private fun Modifier.circularWavyProgressIndicator(
+    progress: () -> Float,
+    color: Color,
+    trackColor: Color,
+    stroke: Stroke,
+    trackStroke: Stroke,
+    gapSize: Dp,
+    amplitude: (progress: Float) -> Float,
+    wavelength: Dp,
+    waveSpeed: Dp,
+): Modifier =
+    this.then(
+        CircularWavyProgressElement(
+            progress = progress,
+            color = color,
+            trackColor = trackColor,
+            stroke = stroke,
+            trackStroke = trackStroke,
+            gapSize = gapSize,
+            amplitude = amplitude,
+            wavelength = wavelength,
+            waveSpeed = waveSpeed,
+        )
+    )
+
+// Source: CircularWavyProgressElement, internal/CircularWavyProgressModifiers.kt
+// https://github.com/androidx/androidx/blob/androidx-main/compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/internal/CircularWavyProgressModifiers.kt
+@Suppress("ModifierNodeInspectableProperties")
+private class CircularWavyProgressElement(
+    val progress: () -> Float,
+    val color: Color,
+    val trackColor: Color,
+    val stroke: Stroke,
+    val trackStroke: Stroke,
+    val gapSize: Dp,
+    val amplitude: (progress: Float) -> Float,
+    val wavelength: Dp,
+    val waveSpeed: Dp,
+) : ModifierNodeElement<CircularWavyProgressNode>() {
+
+    override fun create(): CircularWavyProgressNode =
+        CircularWavyProgressNode(
+            progress = progress,
+            amplitude = amplitude,
+            colorParameter = color,
+            trackColorParameter = trackColor,
+            strokeParameter = stroke,
+            trackStrokeParameter = trackStroke,
+            gapSizeParameter = gapSize,
+            wavelengthParameter = wavelength,
+            waveSpeedParameter = waveSpeed,
+        )
+
+    override fun update(node: CircularWavyProgressNode) {
+        node.color = color
+        node.trackColor = trackColor
+        node.stroke = stroke
+        node.trackStroke = trackStroke
+        node.gapSize = gapSize
+        node.wavelength = wavelength
+        node.waveSpeed = waveSpeed
+        if (node.progress !== progress || node.amplitude !== amplitude) {
+            node.progress = progress
+            node.amplitude = amplitude
+            node.invalidateDrawCache()
+        }
+    }
+
+    override fun InspectorInfo.inspectableProperties() {
+        name = "circularWavyProgressIndicator"
+        properties["color"] = color
+        properties["trackColor"] = trackColor
+        properties["stroke"] = stroke
+        properties["trackStroke"] = trackStroke
+        properties["gapSize"] = gapSize
+        properties["wavelength"] = wavelength
+        properties["waveSpeed"] = waveSpeed
+        // Excluding the amplitude and progress lambdas
+    }
+
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is CircularWavyProgressElement) return false
+
+        if (progress !== other.progress) return false
+        if (amplitude !== other.amplitude) return false
+        if (color != other.color) return false
+        if (trackColor != other.trackColor) return false
+        if (stroke != other.stroke) return false
+        if (trackStroke != other.trackStroke) return false
+        if (gapSize != other.gapSize) return false
+        if (wavelength != other.wavelength) return false
+        if (waveSpeed != other.waveSpeed) return false
+        return true
+    }
+
+    override fun hashCode(): Int {
+        var result = progress.hashCode()
+        result = 31 * result + amplitude.hashCode()
+        result = 31 * result + color.hashCode()
+        result = 31 * result + trackColor.hashCode()
+        result = 31 * result + stroke.hashCode()
+        result = 31 * result + trackStroke.hashCode()
+        result = 31 * result + gapSize.hashCode()
+        result = 31 * result + wavelength.hashCode()
+        result = 31 * result + waveSpeed.hashCode()
+        return result
+    }
+}
+
+// Source: CircularWavyProgressNode, internal/CircularWavyProgressModifiers.kt
+// https://github.com/androidx/androidx/blob/androidx-main/compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/internal/CircularWavyProgressModifiers.kt
+private class CircularWavyProgressNode(
+    var progress: () -> Float,
+    var amplitude: (progress: Float) -> Float,
+    colorParameter: Color,
+    trackColorParameter: Color,
+    strokeParameter: Stroke,
+    trackStrokeParameter: Stroke,
+    gapSizeParameter: Dp,
+    wavelengthParameter: Dp,
+    waveSpeedParameter: Dp,
+) : DelegatingNode() {
+
+    var color: Color = colorParameter
+        set(value) {
+            if (field != value) {
+                field = value
+                cacheDrawNode.invalidateDraw()
+            }
+        }
+
+    var trackColor: Color = trackColorParameter
+        set(value) {
+            if (field != value) {
+                field = value
+                cacheDrawNode.invalidateDraw()
+            }
+        }
+
+    var stroke: Stroke = strokeParameter
+        set(value) {
+            if (field != value) {
+                field = value
+                invalidateDrawCache()
+            }
+        }
+
+    var trackStroke: Stroke = trackStrokeParameter
+        set(value) {
+            if (field != value) {
+                field = value
+                invalidateDrawCache()
+            }
+        }
+
+    var gapSize: Dp = gapSizeParameter
+        set(value) {
+            if (field != value) {
+                field = value
+                invalidateDrawCache()
+            }
+        }
+
+    var wavelength: Dp = wavelengthParameter
+        set(value) {
+            if (field != value) {
+                field = value
+                // Wavelength affects the offset animation
+                startOffsetAnimation()
+            }
+        }
+
+    var waveSpeed: Dp = waveSpeedParameter
+        set(value) {
+            if (field != value) {
+                field = value
+                // Speed affects the offset animation
+                startOffsetAnimation()
+            }
+        }
+
+    private var indeterminate = false
+    private var indeterminateJob: Job? = null
+    private var cyclePlayTimeMillis = 0f
+    private var handoffStartSweep = 0f
+    private var handoffStartRotation = 0f
+    private var handoffFraction = 1f
+
+    private val circularShapes = CircularShapes()
+    private val progressDrawingCache = CircularProgressDrawingCache()
+    private val additionalRotation =
+        circularIndeterminateRotationAnimationSpec.vectorize(Float.VectorConverter)
+    private val sweep = circularIndeterminateProgressAnimationSpec.vectorize(Float.VectorConverter)
+
+    // Amplitude animation
+    private val amplitudeState = mutableFloatStateOf(0f)
+    private var amplitudeAnimatable: Animatable<Float, AnimationVector1D>? = null
+    private var amplitudeAnimationJob: Job? = null
+    private var currentTargetAmplitude = -1f
+
+    // Offset animation
+    private val waveOffsetState = mutableFloatStateOf(0f)
+    private var offsetAnimatable: Animatable<Float, AnimationVector1D>? = null
+    private var offsetAnimationJob: Job? = null
+
+    // A vertex count used to calculate the speed of the wave offset animation. The animation will
+    // only run when this number is greater than zero.
+    private var vertexCountForCurrentAnimation = -1
+
+    override fun onAttach() {
+        if (!progress().isFinite()) {
+            startIndeterminateAnimation()
+        }
+        // The draw cache outlives a detach, so rebuild it to restart what onDetach() reset. The
+        // rebuild resolves the circularShapes.currentVertexCount and triggers the
+        // startOffsetAnimation() to start the animation at the right speed.
+        invalidateDrawCache()
+    }
+
+    override fun onDetach() {
+        amplitudeAnimatable = null
+        currentTargetAmplitude = -1f
+        vertexCountForCurrentAnimation = -1
+        indeterminateJob = null
+        indeterminate = false
+        handoffFraction = 1f
+    }
+
+    fun invalidateDrawCache() {
+        cacheDrawNode.invalidateDrawCache()
+    }
+
+    /** A function that returns a track [Path] for a given progress. */
+    private fun trackPathProvider(
+        amplitude: Float,
+        wavelength: Float,
+        strokeWidth: Float,
+        size: Size,
+        path: Path,
+    ): Path? = circularShapes.getTrackPath(path = path)
+
+    /** A function that returns a progress [Path] for a given progress. */
+    private fun progressPathProvider(
+        amplitude: Float,
+        wavelength: Float,
+        strokeWidth: Float,
+        size: Size,
+        supportMotion: Boolean,
+        path: Path,
+    ): Path =
+        circularShapes.getProgressPath(
+            amplitude = amplitude,
+            path = path,
+            repeatPath = supportMotion,
+        )
+
+    /**
+     * Starts the wave offset animation.
+     *
+     * The animation will only start if the amplitude is greater than zero and the
+     * [vertexCountForCurrentAnimation], the [waveSpeed], and the [wavelength] are greater than
+     * zero.
+     */
+    private fun startOffsetAnimation() {
+        // Cancel previous job if running
+        stopOffsetAnimation()
+
+        // Don't animate if not attached or not drawing a wave (e.g. zero amplitude).
+        if (
+            !isAttached ||
+                !coroutineScope.isActive ||
+                (amplitudeState.floatValue == 0f && currentTargetAmplitude <= 0f)
+        ) {
+            return
+        }
+
+        // Start the animation only if we have a valid vertex count and positive waveSpeed and
+        // wavelength.
+        if (waveSpeed > 0.dp && wavelength > 0.dp && vertexCountForCurrentAnimation > 0) {
+            // Use the current vertex count from shapes if needed for duration precision.
+            val durationMillis =
+                ((wavelength / waveSpeed) * 1000 * vertexCountForCurrentAnimation)
+                    .fastRoundToInt()
+                    .coerceAtLeast(MinAnimationDuration)
+
+            // Re-create animatable to ensure it picks up the latest offset state
+            val startOffset = waveOffsetState.floatValue
+            offsetAnimatable = Animatable(startOffset)
+            offsetAnimationJob = coroutineScope.launch {
+                val anim = offsetAnimatable ?: return@launch // Safety check
+                // Update bounds relative to the current offset
+                anim.updateBounds(startOffset, startOffset + 1f)
+                anim.animateTo(
+                    targetValue = startOffset + 1f,
+                    animationSpec =
+                        infiniteRepeatable(
+                            animation = tween(durationMillis, easing = LinearEasing),
+                            repeatMode = RepeatMode.Restart,
+                        ),
+                ) {
+                    // Update the state on each frame
+                    waveOffsetState.floatValue = value % 1f
+                }
+            }
+        } else {
+            // No speed or wavelength, snap offset to 0
+            waveOffsetState.floatValue = 0f
+        }
+    }
+
+    private fun stopOffsetAnimation() {
+        offsetAnimationJob?.cancel()
+        offsetAnimationJob = null
+        offsetAnimatable = null
+    }
+
+    private fun updateAmplitudeAnimation(targetAmplitude: Float) {
+        val currentAmplitudeAnimatable =
+            amplitudeAnimatable
+                ?: Animatable(initialValue = targetAmplitude).also {
+                    amplitudeAnimatable = it
+                    amplitudeState.floatValue = targetAmplitude
+                    currentTargetAmplitude = targetAmplitude
+                }
+
+        if (!isAttached || currentTargetAmplitude == targetAmplitude) return
+        currentTargetAmplitude = targetAmplitude
+        amplitudeAnimationJob?.cancel()
+        amplitudeAnimationJob = coroutineScope.launch {
+            currentAmplitudeAnimatable.animateTo(
+                targetValue = targetAmplitude,
+                animationSpec =
+                    if (currentAmplitudeAnimatable.value < targetAmplitude) {
+                        IncreasingAmplitudeAnimationSpec
+                    } else {
+                        DecreasingAmplitudeAnimationSpec
+                    },
+            ) {
+                amplitudeState.floatValue = value
+            }
+
+            // Check if we need to stop the animation if the target amplitude is 0
+            // at the end of the animation.
+            if (targetAmplitude == 0f) {
+                stopOffsetAnimation()
+            }
+        }
+    }
+
+    private fun determinateProgress(): Float {
+        val currentProgress = progress()
+        return if (!currentProgress.isFinite()) 0f else currentProgress.fastCoerceIn(0f, 1f)
+    }
+
+    private fun targetAmplitude(): Float {
+        val value = amplitude(if (indeterminate) Float.NaN else determinateProgress())
+        return if (value.isNaN()) 1f else value.fastCoerceIn(0f, 1f)
+    }
+
+    private fun startIndeterminateAnimation() {
+        indeterminate = true
+        cyclePlayTimeMillis = 0f
+        handoffFraction = 1f
+        indeterminateJob?.cancel()
+        indeterminateJob = coroutineScope.launch {
+            AnimationState(0f).animateIndeterminateCycle(
+                cycleDurationMillis = CircularAnimationProgressDuration,
+                isIndeterminate = { !progress().isFinite() },
+            ) {
+                cyclePlayTimeMillis = value % CircularAnimationProgressDuration
+                cacheDrawNode.invalidateDraw()
+            }
+
+            handoffStartSweep = indeterminateSweep()
+            val currentRotation = indeterminateRotation() % 360f
+            handoffStartRotation = if (currentRotation == 0f) 360f else currentRotation
+            val remainingRotationFraction = (360f - handoffStartRotation) / 360f
+            indeterminate = false
+            cyclePlayTimeMillis = 0f
+            handoffFraction = 0f
+            cacheDrawNode.invalidateDrawCache()
+            Animatable(0f).animateTo(
+                targetValue = 1f,
+                animationSpec =
+                    tween(
+                        durationMillis =
+                            lerp(
+                                    MinHandoffDurationMillis,
+                                    MaxHandoffDurationMillis,
+                                    remainingRotationFraction,
+                                )
+                                .fastRoundToInt(),
+                        easing = MotionEasingEmphasizedDecelerate,
+                    ),
+            ) {
+                handoffFraction = value
+                cacheDrawNode.invalidateDraw()
+            }
+        }
+    }
+
+    private fun indeterminateSweep(): Float =
+        sweep.valueAt(cyclePlayTimeMillis, MinProgressVector, MinProgressVector)
+
+    private fun indeterminateRotation(): Float =
+        CircularGlobalRotationDegreesTarget * cyclePlayTimeMillis /
+            CircularAnimationProgressDuration +
+            additionalRotation.valueAt(cyclePlayTimeMillis, ZeroVector, AdditionalRotationTarget) +
+            CircularIndeterminateBaseRotation
+
+    private val cacheDrawNode =
+        delegate(
+            CacheDrawModifierNode {
+                val currentProgress = progress()
+                if (!currentProgress.isFinite() && !indeterminate) {
+                    startIndeterminateAnimation()
+                }
+
+                val currentGapPx = gapSize.toPx()
+                val currentWavelengthPx = wavelength.toPx()
+                val enableMotion = waveSpeed > 0.dp
+
+                val targetAmplitude = targetAmplitude()
+                updateAmplitudeAnimation(targetAmplitude)
+
+                // Pass stroke width for potentially calculating polygon radius accurately. A Morph
+                // is required whenever the amplitude is, or animates through, a value between 0
+                // and 1.
+                circularShapes.update(
+                    size = size,
+                    wavelength = currentWavelengthPx,
+                    strokeWidth = stroke.width,
+                    requiresMorph =
+                        amplitudeAnimationJob != null ||
+                            (targetAmplitude > 0f && targetAmplitude < 1f),
+                )
+
+                // Update the vertexCountForCurrentAnimation after the circularShapes.update().
+                if (vertexCountForCurrentAnimation != circularShapes.currentVertexCount.intValue) {
+                    vertexCountForCurrentAnimation =
+                        circularShapes.currentVertexCount.intValue.coerceAtLeast(
+                            MinCircularVertexCount
+                        )
+                }
+
+                // Start the offset animation when the amplitude changes to a positive number. The
+                // animation will end when the amplitudeAnimatable finishes and reached
+                // zero amplitude again.
+                if (
+                    targetAmplitude > 0 &&
+                        (offsetAnimationJob == null || offsetAnimationJob?.isCompleted == true)
+                ) {
+                    startOffsetAnimation()
+                }
+
+                onDrawWithContent {
+                    // Read from the state here and update the CircularProgressDrawingCache inside
+                    // the onDrawWithContent to avoid voiding the cache at this
+                    // CacheDrawModifierNode.
+                    val animatedAmplitudeValue = amplitudeState.floatValue
+                    val endProgress: Float
+                    val rotation: Float
+                    if (indeterminate) {
+                        endProgress = indeterminateSweep()
+                        rotation = indeterminateRotation()
+                    } else if (handoffFraction < 1f) {
+                        endProgress =
+                            lerp(handoffStartSweep, determinateProgress(), handoffFraction)
+                        rotation = lerp(handoffStartRotation, 360f, handoffFraction) % 360f
+                    } else {
+                        endProgress = determinateProgress()
+                        rotation = 0f
+                    }
+
+                    // Update the drawing cache
+                    progressDrawingCache.updatePaths(
+                        size = size,
+                        progressPathProvider = ::progressPathProvider,
+                        trackPathProvider = ::trackPathProvider,
+                        enableProgressMotion = enableMotion,
+                        startProgress = 0f,
+                        endProgress = endProgress,
+                        amplitude = animatedAmplitudeValue,
+                        waveOffset =
+                            if (animatedAmplitudeValue > 0f && enableMotion) {
+                                waveOffsetState.floatValue
+                            } else {
+                                0f
+                            },
+                        wavelength = currentWavelengthPx,
+                        gapSize = currentGapPx,
+                        stroke = stroke,
+                        trackStroke = trackStroke,
+                    )
+
+                    if (rotation == 0f) {
+                        drawCircularIndicator(
+                            color = color,
+                            trackColor = trackColor,
+                            stroke = stroke,
+                            trackStroke = trackStroke,
+                            drawingCache = progressDrawingCache,
+                        )
+                    } else {
+                        withTransform(transformBlock = { rotate(degrees = rotation) }) {
+                            drawCircularIndicator(
+                                color = color,
+                                trackColor = trackColor,
+                                stroke = stroke,
+                                trackStroke = trackStroke,
+                                drawingCache = progressDrawingCache,
+                            )
+                        }
+                    }
+                }
+            }
+        )
+}
+
+private const val CircularIndeterminateBaseRotation = 90f
+private val MinHandoffDurationMillis = MotionDurationMedium2.toFloat()
+private val MaxHandoffDurationMillis = MotionDurationLong4.toFloat()
+
+private val AdditionalRotationTarget = AnimationVector1D(CircularAdditionalRotationDegreesTarget)
+private val MinProgressVector = AnimationVector1D(CircularIndeterminateMinProgress)
+
+// Keyframes truncate the play time to whole milliseconds, so round away the float error first.
+// Source: valueAt, internal/CircularWavyProgressModifiers.kt
+// https://github.com/androidx/androidx/blob/androidx-main/compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/internal/CircularWavyProgressModifiers.kt
+private fun VectorizedAnimationSpec<AnimationVector1D>.valueAt(
+    playTimeMillis: Float,
+    initialValue: AnimationVector1D,
+    targetValue: AnimationVector1D,
+): Float =
+    getValueFromNanos(
+            playTimeMillis.fastRoundToInt() * 1_000_000L,
+            initialValue,
+            targetValue,
+            ZeroVector,
+        )
+        .value
+
+/** Draws the track and the progress of a circular progress indicator. */
+// Source: drawCircularIndicator, internal/CircularWavyProgressModifiers.kt
+// https://github.com/androidx/androidx/blob/androidx-main/compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/internal/CircularWavyProgressModifiers.kt
+private fun DrawScope.drawCircularIndicator(
+    color: Color,
+    trackColor: Color,
+    stroke: Stroke,
+    trackStroke: Stroke,
+    drawingCache: CircularProgressDrawingCache,
+) {
+    // Draw the track
+    if (trackColor != Color.Transparent && trackColor != Color.Unspecified) {
+        drawPath(path = drawingCache.trackPathToDraw, color = trackColor, style = trackStroke)
+    }
+
+    // Draw the progress
+    if (color != Color.Transparent && color != Color.Unspecified) {
+        drawPath(path = drawingCache.progressPathToDraw, color = color, style = stroke)
+    }
+}
+
+/**
+ * A drawing cache of [Path]s and [PathMeasure] to be used when drawing circular progress
+ * indicators.
+ */
+// Source: CircularProgressDrawingCache, internal/CircularWavyProgressModifiers.kt
+// https://github.com/androidx/androidx/blob/androidx-main/compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/internal/CircularWavyProgressModifiers.kt
+private class CircularProgressDrawingCache {
+    private var currentAmplitude = -1f
+    private var currentWavelength = -1f
+    private var currentSize: Size = Size.Unspecified
+
+    /** Zero to one value that represents the progress start position. */
+    private var currentStartProgress = 0f
+
+    /** Zero to one value that represents the progress end position. */
+    private var currentEndProgress = 0f
+    private var currentIndicatorTrackGapSize = 0f
+    private var currentWaveOffset = -1f
+    private var currentStroke = Stroke()
+    private var currentTrackStroke = currentStroke
+
+    private var progressPathLength = 0f
+    private var trackPathLength = 0f
+    private var currentProgressMotionEnabled = false
+
+    // Reusable Matrices for processing paths
+    private val scaleMatrix = Matrix()
+    private val transformMatrix = Matrix()
+
+    /**
+     * A [Path] that represents the progress indicator when it's in a complete state. A drawing path
+     * can be computed from it and cached in this class with the use of [progressPathMeasure].
+     */
+    val fullProgressPath: Path = Path()
+
+    /**
+     * A [Path] that represents the progress indicator's track when it's in a complete state. A
+     * drawing path can be computed from it and cached in this class with the use of
+     * [trackPathMeasure].
+     */
+    val fullTrackPath: Path = Path()
+
+    /** a [Path] that represents the current progress and will be used to draw it. */
+    val progressPathToDraw: Path = Path()
+
+    /** A [Path] that represents the track and will be used to draw it */
+    val trackPathToDraw: Path = Path()
+
+    /** A [PathMeasure] that will be used when computing a segment of a progress to be drawn */
+    val progressPathMeasure: PathMeasure = PathMeasure()
+
+    /** A [PathMeasure] that will be used when computing a segment of a track to be drawn */
+    val trackPathMeasure: PathMeasure = PathMeasure()
+
+    /** The current stroke Cap width. */
+    var currentStrokeCapWidth = 0f
+
+    /**
+     * Creates or updates the progress and track paths, and caches them to avoid redundant updates
+     * before updating the draw paths according to the progress.
+     *
+     * @param size the dimensions of the current drawing environment that this path is updated for
+     * @param progressPathProvider a function that returns a progress [Path] for a given amplitude
+     *   and other parameters that may affect the shape. The function is provided with a [Path]
+     *   object to avoid having to create a new [Path] object.
+     * @param trackPathProvider a function that returns an optional trackPath [Path] for a given
+     *   amplitude and other parameters that may affect the shape. The function is provided with a
+     *   [Path] object to avoid having to create a new [Path] object.
+     * @param enableProgressMotion indicates if a progress motion should be enabled for the provided
+     *   progress by offsetting the wave's drawing. When enabled, the calls to the
+     *   [progressPathProvider] will be made with a `supportMotion = true`, and the generated [Path]
+     *   will be repeated to allow drawing it while shifting the start and stop points and rotating
+     *   it to simulate a motion.
+     * @param startProgress a fractional start progress value between 0.0 to 1.0
+     * @param endProgress a fractional start progress value between 0.0 to 1.0
+     * @param amplitude the amplitude of a wave in pixels. 0.0 represents no amplitude, and 1.0
+     *   represents an amplitude that will take the full height of the progress indicator.
+     * @param waveOffset the offset that the progress indicator will be created at. This value will
+     *   only bee applied to the progress path in case [enableProgressMotion] is true.
+     * @param wavelength the length of a wave in the rendered circular shape. This actual length may
+     *   end up differently to ensure a continuous wave shape.
+     * @param gapSize the gap size in pixels between the progress indicator and the track. Note that
+     *   the gap will be taken out of the track path and not the progress path.
+     * @param stroke the [Stroke] that will be used to plot the paths
+     * @param trackStroke a [Stroke] that will be used to draw the indicator's track. By default,
+     *   the track's stroke matches the provided [stroke], so use this parameter to specify a
+     *   different stroke if required.
+     */
+    fun updatePaths(
+        size: Size,
+        progressPathProvider:
+            (
+                amplitude: Float,
+                wavelength: Float,
+                strokeWidth: Float,
+                size: Size,
+                supportsMotion: Boolean,
+                path: Path,
+            ) -> Path,
+        trackPathProvider:
+            (
+                amplitude: Float,
+                wavelength: Float,
+                strokeWidth: Float,
+                size: Size,
+                path: Path,
+            ) -> Path?,
+        enableProgressMotion: Boolean,
+        @FloatRange(from = 0.0, to = 1.0) startProgress: Float,
+        @FloatRange(from = 0.0, to = 1.0) endProgress: Float,
+        @FloatRange(from = 0.0, to = 1.0) amplitude: Float,
+        @FloatRange(from = 0.0, to = 1.0) waveOffset: Float,
+        @FloatRange(from = 0.0, fromInclusive = false) wavelength: Float,
+        @FloatRange(from = 0.0) gapSize: Float,
+        stroke: Stroke,
+        trackStroke: Stroke,
+    ) {
+        val pathsUpdates =
+            updateFullPaths(
+                size = size,
+                progressPathProvider = progressPathProvider,
+                trackPathProvider = trackPathProvider,
+                enableProgressMotion = enableProgressMotion,
+                amplitude = amplitude,
+                wavelength = wavelength,
+                gapSize = gapSize,
+                stroke = stroke,
+                trackStroke = trackStroke,
+            )
+        updateDrawPaths(
+            forceUpdate = pathsUpdates,
+            startProgress = startProgress,
+            endProgress = endProgress,
+            waveOffset = waveOffset,
+        )
+    }
+
+    /**
+     * Updates the progress and track paths, and caches them to avoid redundant updates.
+     *
+     * Call this function before calling [updateDrawPaths], which will cut segments of the full
+     * paths for drawing using the internal [progressPathMeasure] and [trackPathMeasure] that this
+     * function updates.
+     *
+     * @return true if the full paths were updated, or false otherwise
+     * @see updateDrawPaths
+     * @see updatePaths
+     */
+    private fun updateFullPaths(
+        size: Size,
+        progressPathProvider:
+            (
+                amplitude: Float,
+                wavelength: Float,
+                strokeWidth: Float,
+                size: Size,
+                supportsMotion: Boolean,
+                path: Path,
+            ) -> Path,
+        trackPathProvider:
+            (
+                amplitude: Float,
+                wavelength: Float,
+                strokeWidth: Float,
+                size: Size,
+                path: Path,
+            ) -> Path?,
+        enableProgressMotion: Boolean,
+        @FloatRange(from = 0.0, to = 1.0) amplitude: Float,
+        @FloatRange(from = 0.0, fromInclusive = false) wavelength: Float,
+        @FloatRange(from = 0.0) gapSize: Float,
+        stroke: Stroke,
+        trackStroke: Stroke,
+    ): Boolean {
+        if (
+            currentSize == size &&
+                currentAmplitude == amplitude &&
+                currentWavelength == wavelength &&
+                currentStroke == stroke &&
+                currentTrackStroke == trackStroke &&
+                currentIndicatorTrackGapSize == gapSize &&
+                currentProgressMotionEnabled == enableProgressMotion
+        ) {
+            // No update required
+            return false
+        }
+
+        val height = size.height
+        val width = size.width
+
+        // Update the Stroke cap width to take into consideration when drawing the Path.
+        currentStrokeCapWidth =
+            if (
+                (stroke.cap == StrokeCap.Butt && trackStroke.cap == StrokeCap.Butt) ||
+                    height > width
+            ) {
+                0f
+            } else {
+                max(stroke.width / 2, trackStroke.width / 2)
+            }
+
+        scaleMatrix.reset()
+        scaleMatrix.apply { scale(x = width - stroke.width, y = height - stroke.width) }
+
+        fullProgressPath.rewind()
+
+        // Note that we pass in the enableProgressMotion when generating the Path. This may
+        // generate a path that is double in length to support offsetting the drawing, so we make
+        // sure to adjust for it when storing the progressPathLength.
+        progressPathProvider(
+            amplitude,
+            wavelength,
+            stroke.width,
+            size,
+            enableProgressMotion,
+            fullProgressPath,
+        )
+        processPath(fullProgressPath, size, scaleMatrix)
+        progressPathMeasure.setPath(path = fullProgressPath, forceClosed = true)
+        progressPathLength =
+            if (enableProgressMotion) {
+                progressPathMeasure.length / 2
+            } else {
+                progressPathMeasure.length
+            }
+
+        fullTrackPath.rewind()
+        val trackPathForAmplitude =
+            trackPathProvider(amplitude, wavelength, stroke.width, size, fullTrackPath)
+        if (trackPathForAmplitude != null) {
+            processPath(fullTrackPath, size, scaleMatrix)
+            trackPathMeasure.setPath(path = fullTrackPath, forceClosed = true)
+            trackPathLength = trackPathMeasure.length
+        } else {
+            trackPathLength = 0f
+        }
+
+        // Cache the full path attributes
+        currentSize = size
+        currentAmplitude = amplitude
+        currentWavelength = wavelength
+        currentStroke = stroke
+        currentTrackStroke = trackStroke
+        currentIndicatorTrackGapSize = gapSize
+        currentProgressMotionEnabled = enableProgressMotion
+
+        return true
+    }
+
+    /** Process a given path by scaling it and then centering it inside a given size. */
+    private fun processPath(path: Path, size: Size, scaleMatrix: Matrix) {
+        path.transform(scaleMatrix)
+        val progressPathBounds = path.getBounds()
+        // Translate the path to align its center with the available size center.
+        path.translate(size.center - progressPathBounds.center)
+    }
+
+    /**
+     * Updates and caches the draw paths by to the progress and wave offset.
+     *
+     * It's important to call this function only _after_ a call for [updateFullPaths] was made.
+     *
+     * @param forceUpdate for an update to the drawing paths. This flag will be set to true when the
+     *   [updateFullPaths] returns true to indicate that the base paths were updated.
+     * @param startProgress a fractional start progress value between 0.0 to 1.0
+     * @param endProgress a fractional start progress value between 0.0 to 1.0
+     * @param waveOffset the offset that the progress indicator will be rendered at
+     * @see updateFullPaths
+     * @see updatePaths
+     */
+    private fun updateDrawPaths(
+        forceUpdate: Boolean,
+        @FloatRange(from = 0.0, to = 1.0) startProgress: Float,
+        @FloatRange(from = 0.0, to = 1.0) endProgress: Float,
+        @FloatRange(from = 0.0, to = 1.0) waveOffset: Float,
+    ) {
+        require(currentSize != Size.Unspecified) {
+            "updateDrawPaths was called before updateFullPaths"
+        }
+        if (
+            !forceUpdate &&
+                currentStartProgress == startProgress &&
+                currentEndProgress == endProgress &&
+                currentWaveOffset == waveOffset
+        ) {
+            // No update required
+            return
+        }
+
+        trackPathToDraw.rewind()
+        progressPathToDraw.rewind()
+
+        val pStart = startProgress * progressPathLength
+        val pStop = endProgress * progressPathLength
+
+        val trackGapSize = min(pStop, currentIndicatorTrackGapSize)
+        val horizontalInsets = min(pStop, currentStrokeCapWidth)
+        val trackSpacing = horizontalInsets * 2 + trackGapSize
+
+        // Handle offsetting the path when motion is enabled. We assume that the provided path when
+        // motion is enabled was repeated to allow us to call getSegment with offsets and then
+        // rotate the progressPathToDraw in order to create a shifted path as the progress moves.
+        if (currentProgressMotionEnabled) {
+            val coercedWaveOffset = waveOffset.fastCoerceIn(0f, 1f)
+            val startStopShift = coercedWaveOffset * progressPathLength
+
+            progressPathMeasure.getSegment(
+                startDistance = pStart + startStopShift,
+                stopDistance = pStop + startStopShift,
+                destination = progressPathToDraw,
+            )
+
+            val offsetAngle = coercedWaveOffset * 360 % 360
+            if (offsetAngle != 0f) {
+                val fullProgressBounds = fullProgressPath.getBounds()
+                // Rotate the progress path to adjust for the shift.
+                progressPathToDraw.translate(
+                    Offset(-fullProgressBounds.center.x, -fullProgressBounds.center.y)
+                )
+                transformMatrix.reset()
+                progressPathToDraw.transform(
+                    transformMatrix.apply { rotateZ(degrees = -offsetAngle) }
+                )
+                // Translate the path to align its center with the available size center.
+                progressPathToDraw.translate(
+                    Offset(fullProgressBounds.center.x, fullProgressBounds.center.y)
+                )
+            }
+        } else {
+            // No motion, so just grab the segment for the start and stop.
+            progressPathMeasure.getSegment(
+                startDistance = pStart,
+                stopDistance = pStop,
+                destination = progressPathToDraw,
+            )
+        }
+        if (trackPathLength > 0) {
+            val tStart = endProgress * trackPathLength + trackSpacing
+            val tStop = trackPathLength - trackSpacing
+            trackPathMeasure.getSegment(
+                startDistance = tStart,
+                stopDistance = tStop,
+                destination = trackPathToDraw,
+            )
+        }
+
+        // Cache
+        currentStartProgress = startProgress
+        currentEndProgress = endProgress
+        currentWaveOffset = waveOffset
+    }
+}
+
+/**
+ * A class that returns and caches the [RoundedPolygon]s and the [Morph] that are displayed by
+ * circular progress indicators.
+ */
+// Source: CircularShapes, internal/CircularWavyProgressModifiers.kt
+// https://github.com/androidx/androidx/blob/androidx-main/compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/internal/CircularWavyProgressModifiers.kt
+private class CircularShapes {
+    private var currentSize: Size? = null
+    private var currentWavelength: Float = -1f
+
+    /** A normalized [RoundedPolygon] for the circular indicator track. */
+    private var trackPolygon: RoundedPolygon? = null
+
+    /** A normalized [RoundedPolygon] for the circular indicator progress. */
+    private var activeIndicatorPolygon: RoundedPolygon? = null
+
+    /**
+     * A [Morph] for the circular indicator progress track. This morph will transition from a circle
+     * to a wavy star shape.
+     *
+     * Note that the [RoundedPolygon]s that this [Morph] is constructed with are normalized, which
+     * allows us to process the generated paths more efficiently by just scaling them to the right
+     * size.
+     */
+    private var activeIndicatorMorph: Morph? = null
+
+    /** Holds the current vertex count as a state. */
+    val currentVertexCount = mutableIntStateOf(-1)
+
+    /**
+     * Updates the shapes according to the size of the circular loader and its wave's wavelength and
+     * strokeWidth.
+     *
+     * In case the given parameters are different from the current ones, the shapes will be updated.
+     *
+     * @param size the dimensions of the current drawing environment that the shape are updated for
+     * @param wavelength the length of a wave in the rendered circular shape in pixels. This actual
+     *   length may end up differently to ensure a continuous wave shape.
+     * @param strokeWidth the stroke's width in pixels
+     * @param requiresMorph indicate that a [Morph] should be created for the active indicator if it
+     *   was not already. The flag is useful to effectively only ask for the creation of the [Morph]
+     *   when needed, for example, when an amplitude is set for the first time to a value that is
+     *   between 0 and 1.
+     */
+    fun update(
+        size: Size,
+        @FloatRange(from = 0.0, fromInclusive = false) wavelength: Float,
+        @FloatRange(from = 0.0, fromInclusive = false) strokeWidth: Float,
+        requiresMorph: Boolean,
+    ) {
+        require(wavelength > 0f) { "Wavelength should be greater than zero" }
+        if (size == currentSize && wavelength == currentWavelength) {
+            if (requiresMorph && activeIndicatorMorph == null) {
+                // This is the first time a requiredMorph is set, so we need to create a new Morph.
+                // At this point, the trackPolygon and activeIndicatorPolygon are already set.
+                activeIndicatorMorph = Morph(start = trackPolygon!!, end = activeIndicatorPolygon!!)
+            }
+            return
+        }
+        // Compute the number of edges as a factor of the circle size that the morph will be
+        // rendered in and its proposed wavelength (2πr / wavelength), where the radius takes into
+        // account the stroke's width.
+        val r = size.minDimension / 2 - strokeWidth / 2
+        val numVertices = max(MinCircularVertexCount, (2 * PI * r / wavelength).fastRoundToInt())
+
+        if (numVertices != currentVertexCount.intValue) {
+            // Note that we match the vertices number at the track's polygon. This will result in a
+            // smoother morphing between the active indicator and the track.
+            trackPolygon = RoundedPolygon.circle(numVertices = numVertices).normalized()
+            activeIndicatorPolygon =
+                RoundedPolygon.star(
+                        numVerticesPerRadius = numVertices,
+                        innerRadius = 0.75f,
+                        rounding = CornerRounding(radius = 0.35f, smoothing = 0.4f),
+                        innerRounding = CornerRounding(radius = 0.5f),
+                    )
+                    .normalized()
+            if (requiresMorph) {
+                activeIndicatorMorph = Morph(start = trackPolygon!!, end = activeIndicatorPolygon!!)
+            }
+        }
+
+        currentSize = size
+        currentWavelength = wavelength
+        currentVertexCount.intValue = numVertices
+    }
+
+    /** Returns the path for the track polygon. */
+    fun getTrackPath(path: Path): Path {
+        trackPolygon?.toPath(path = path)
+        return path
+    }
+
+    /**
+     * Returns the path for the active indicator polygon (i.e. the progress indication path). In
+     * case a [Morph] was previously created at the [update], the [Morph] will be used to generate
+     * the [Path]. Otherwise, the active indicator polygon will be returned when the amplitude is 1,
+     * and the track polygon otherwise.
+     */
+    fun getProgressPath(
+        @FloatRange(from = 0.0, to = 1.0) amplitude: Float,
+        path: Path,
+        repeatPath: Boolean,
+        rotationPivotX: Float = 0.5f,
+        rotationPivotY: Float = 0.5f,
+    ): Path {
+        if (activeIndicatorMorph != null) {
+            activeIndicatorMorph!!.toPath(
+                progress = amplitude,
+                path = path,
+                repeatPath = repeatPath,
+                // The RoundedPolygon used in the Morph were normalized (i.e. moves to
+                // (0.5, 0.5)).
+                rotationPivotX = rotationPivotX,
+                rotationPivotY = rotationPivotY,
+            )
+        } else {
+            // In case there is no Morph (i.e. it was never created at the update call because a
+            // requiresMorph was never true), we return the active indicator polygon in case the
+            // amplitude is 1. Otherwise, we return the track polygon.
+            if (amplitude == 1f && activeIndicatorPolygon != null) {
+                activeIndicatorPolygon!!.toPath(path = path, repeatPath = repeatPath)
+            } else {
+                trackPolygon?.toPath(path = path, repeatPath = repeatPath)
+            }
+        }
+        return path
+    }
+}
+
+private const val MinCircularVertexCount = 5
+
+/**
+ * Gets a [Path] representation for a [RoundedPolygon] shape. Note that there is some rounding
+ * happening (to the nearest thousandth), to work around rendering artifacts introduced by some
+ * points being just slightly off from each other (far less than a pixel).
+ *
+ * @param path a [Path] object which, if supplied, will avoid the function having to create a new
+ *   [Path] object
+ * @param startAngle an angle (in degrees) to rotate the [Path] to start drawing from. The rotation
+ *   pivot is set to be the polygon's centerX and centerY coordinates.
+ * @param repeatPath whether or not to repeat the [Path] twice before closing it, so the caller can
+ *   draw parts of the path while offsetting the start and stop positions.
+ * @param closePath whether or not to close the created [Path]
+ */
+// Source: RoundedPolygon.toPath, internal/ShapeUtil.kt
+// https://github.com/androidx/androidx/blob/androidx-main/compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/internal/ShapeUtil.kt
+private fun RoundedPolygon.toPath(
+    path: Path = Path(),
+    startAngle: Int = 270,
+    repeatPath: Boolean = false,
+    closePath: Boolean = true,
+): Path {
+    pathFromCubics(
+        path = path,
+        startAngle = startAngle,
+        repeatPath = repeatPath,
+        closePath = closePath,
+        cubics = cubics,
+        rotationPivotX = centerX,
+        rotationPivotY = centerY,
+    )
+    return path
+}
+
+/**
+ * Returns a [Path] for a [Morph].
+ *
+ * @param progress the [Morph]'s progress
+ * @param path a [Path] to rewind and set with the new path data
+ * @param startAngle an angle (in degrees) to rotate the [Path] to start drawing from
+ * @param repeatPath whether or not to repeat the [Path] twice before closing it
+ * @param closePath whether or not to close the created [Path]
+ * @param rotationPivotX the rotation pivot on the X axis; for normalized polygons it is 0.5
+ * @param rotationPivotY the rotation pivot on the Y axis; for normalized polygons it is 0.5
+ */
+// Source: Morph.toPath, internal/ShapeUtil.kt
+// https://github.com/androidx/androidx/blob/androidx-main/compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/internal/ShapeUtil.kt
+private fun Morph.toPath(
+    progress: Float,
+    path: Path = Path(),
+    startAngle: Int = 270, // 12 O'clock
+    repeatPath: Boolean = false,
+    closePath: Boolean = true,
+    rotationPivotX: Float = 0f,
+    rotationPivotY: Float = 0f,
+): Path {
+    pathFromCubics(
+        path = path,
+        startAngle = startAngle,
+        repeatPath = repeatPath,
+        closePath = closePath,
+        cubics = asCubics(progress),
+        rotationPivotX = rotationPivotX,
+        rotationPivotY = rotationPivotY,
+    )
+    return path
+}
+
+// Source: pathFromCubics, internal/ShapeUtil.kt
+// https://github.com/androidx/androidx/blob/androidx-main/compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/internal/ShapeUtil.kt
+private fun pathFromCubics(
+    path: Path,
+    startAngle: Int,
+    repeatPath: Boolean,
+    closePath: Boolean,
+    cubics: List<Cubic>,
+    rotationPivotX: Float,
+    rotationPivotY: Float,
+) {
+    var first = true
+    var firstCubic: Cubic? = null
+    path.rewind()
+    cubics.fastForEach {
+        if (first) {
+            path.moveTo(it.anchor0X, it.anchor0Y)
+            if (startAngle != 0) {
+                firstCubic = it
+            }
+            first = false
+        }
+        path.cubicTo(
+            it.control0X,
+            it.control0Y,
+            it.control1X,
+            it.control1Y,
+            it.anchor1X,
+            it.anchor1Y,
+        )
+    }
+    if (repeatPath) {
+        var firstInRepeat = true
+        cubics.fastForEach {
+            if (firstInRepeat) {
+                path.lineTo(it.anchor0X, it.anchor0Y)
+                firstInRepeat = false
+            }
+            path.cubicTo(
+                it.control0X,
+                it.control0Y,
+                it.control1X,
+                it.control1Y,
+                it.anchor1X,
+                it.anchor1Y,
+            )
+        }
+    }
+
+    if (closePath) path.close()
+
+    if (startAngle != 0 && firstCubic != null) {
+        val angleToFirstCubic =
+            radiansToDegrees(
+                atan2(
+                    y = cubics[0].anchor0Y - rotationPivotY,
+                    x = cubics[0].anchor0X - rotationPivotX,
+                )
+            )
+        // Rotate the Path to to start from the given angle.
+        path.transform(Matrix().apply { rotateZ(-angleToFirstCubic + startAngle) })
+    }
+}
+
+private fun radiansToDegrees(radians: Float): Float {
+    return (radians * 180.0 / PI).toFloat()
+}
