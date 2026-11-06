@@ -10,12 +10,15 @@ import helium314.keyboard.latin.ClipboardHistoryEntry
 import helium314.keyboard.latin.core.security.MediaCheck
 import helium314.keyboard.latin.core.security.SafeImages
 import helium314.keyboard.latin.database.ClipboardDao
+import helium314.keyboard.latin.utils.ExecutorUtils
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -33,6 +36,17 @@ import kotlinx.coroutines.withContext
  */
 object ClipThumbnails {
     private const val CACHE_BYTES = 8 * 1024 * 1024
+
+    /**
+     * @param name Executor's name.
+     * @return the executor used to run background tasks, as a coroutine dispatcher, fetched at each use (killTasks
+     * replaces the executor)
+     * https://github.com/HeliBorg/HeliBoard/blob/main/app/src/main/java/helium314/keyboard/latin/utils/ExecutorUtils.java#getBackgroundExecutor
+     */
+    private fun getBackgroundExecutor(name: String): CoroutineDispatcher = when (name) {
+        ExecutorUtils.KEYBOARD, ExecutorUtils.SPELLING -> ExecutorUtils.getBackgroundExecutor(name).asCoroutineDispatcher()
+        else -> throw IllegalArgumentException("Invalid executor: " + name)
+    }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
@@ -58,14 +72,19 @@ object ClipThumbnails {
     fun load(context: Context, entry: ClipboardHistoryEntry, side: Int, onDone: (Bitmap?) -> Unit): Job {
         val app = context.applicationContext
         return scope.launch {
+            // only a file whose bytes are not a picture (MediaCheck) is remembered as a file; a decode that failed
+            // (decoder not bound, killed) leaves it unmarked, so the next attempt tries again
+            if (withContext(getBackgroundExecutor(ExecutorUtils.KEYBOARD)) { entry.mediaKind(app) } != MediaCheck.Kind.IMAGE) {
+                entry.filename?.let { notPictures.add(it) }
+                onDone(null)
+                return@launch
+            }
             val bitmap = withContext(Dispatchers.IO) {
-                if (entry.mediaKind(app) != MediaCheck.Kind.IMAGE) null
-                else runCatching {
+                runCatching {
                     File(ClipboardDao.clipFilesDir, entry.filename!!).inputStream().use { SafeImages.decode(app, it, side) }
                 }.getOrNull()
             }
             if (bitmap != null) cache.put(key(entry, side), bitmap)
-            else entry.filename?.let { notPictures.add(it) }
             onDone(bitmap)
         }
     }

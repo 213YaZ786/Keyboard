@@ -198,6 +198,25 @@ class DictionaryRepoTest {
         }
     }
 
+    // The header reader (BinaryDictionaryUtils.getHeader) needs the native library, so only the comparison of what
+    // the header says with what was asked is tested here, on the header's strings. The values are those of
+    // HeliBoard's checkDict (header.mLocaleString, header.mIdString.substringBefore(":")):
+    // https://github.com/HeliBorg/HeliBoard/blob/main/app/src/main/java/helium314/keyboard/settings/dialogs/NewDictionaryDialog.kt#checkDict
+    @Test
+    fun aDictionaryMustBeTheOneAskedFor() {
+        val main = RepoDictionary("dictionaries/", "main_pt_br")
+        assertTrue(DictionaryRepo.isRequested(main, "pt_BR", "main:pt_br"))
+        assertFalse(DictionaryRepo.isRequested(main, "pt_PT", "main:pt_pt"))
+        assertFalse(DictionaryRepo.isRequested(main, "pt_BR", "emoji:pt_br"))
+        val emoji = RepoDictionary("emoji_cldr_signal_dictionaries/", "emoji_es_419")
+        assertTrue(DictionaryRepo.isRequested(emoji, "es_419", "emoji:es_419"))
+        assertFalse(DictionaryRepo.isRequested(emoji, "es_419", "main:es_419"))
+        assertFalse(DictionaryRepo.isRequested(emoji, "fr", "emoji:fr"))
+        val experimental = RepoDictionary("dictionaries/", "main_en__experimental")
+        assertTrue(DictionaryRepo.isRequested(experimental, "en", "main:en"))
+        assertFalse(DictionaryRepo.isRequested(experimental, "fr", "main:fr"))
+    }
+
     @Test
     fun onlyAKnownHashIsAccepted() {
         val known = setOf(abc)

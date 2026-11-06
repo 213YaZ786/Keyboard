@@ -5,4 +5,9 @@
         <receiver android:name="helium314.keyboard.latin.eggs.EggClockReceiver"
             android:exported="true" android:permission="android.permission.DUMP" />
     </application>
+
+    <!-- The debug Store is a separate package, invisible without its own line (core/update/StoreLink.kt) -->
+    <queries>
+        <package android:name="com.yaz.store.debug" />
+    </queries>
 </manifest>

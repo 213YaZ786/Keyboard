@@ -15,6 +15,7 @@ import helium314.keyboard.latin.settings.Settings
 import helium314.keyboard.latin.core.security.MediaCheck
 import androidx.core.view.inputmethod.InputContentInfoCompat
 import helium314.keyboard.latin.database.ClipboardDao
+import helium314.keyboard.latin.utils.ExecutorUtils
 import java.io.File
 
 class ClipboardHistoryEntry(
@@ -67,6 +68,19 @@ class ClipboardHistoryEntry(
     // decoded in the isolated decoder (keyboard/clipboard/ClipThumbnails)
     @SuppressLint("SetTextI18n")
     fun setFileDescription(imageView: ImageView, textView: TextView) {
+        // Keyboard: the file's first bytes (MediaCheck) are read on ExecutorUtils' background executor, as HeliBoard runs
+        // its background work (getBackgroundExecutor(KEYBOARD).execute), and the result is posted back to the view; a view
+        // reused for another entry meanwhile is left alone
+        // https://github.com/HeliBorg/HeliBoard/blob/main/app/src/main/java/helium314/keyboard/latin/utils/ExecutorUtils.java#getBackgroundExecutor
+        if (realKind == null && filename != null) {
+            imageView.tag = id
+            val context = imageView.context.applicationContext
+            ExecutorUtils.getBackgroundExecutor(ExecutorUtils.KEYBOARD).execute {
+                mediaKind(context)
+                imageView.post { if (imageView.tag == id) setFileDescription(imageView, textView) }
+            }
+            return
+        }
         val mimeTypes = safeMimeTypes(imageView.context)
         if (mimeTypes == null || filename == null) return // should never happen
         val description = if (text.isNullOrBlank()) ""

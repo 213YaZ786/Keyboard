@@ -28,6 +28,9 @@ SPDX-License-Identifier: Apache-2.0 AND GPL-3.0-only
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <!-- Language's translation service, a signature permission of our apps (Language's manifest). -->
     <uses-permission android:name="com.yaz.language.permission.TRANSLATE" />
+    <!-- Store's door, a signature permission of our apps (core/update/StoreLink.kt): the app tells Store when it opens
+         and when the user leaves it; Store updates the app. -->
+    <uses-permission android:name="com.yaz.store.permission.DOOR" />
 
     <application android:label="@string/english_ime_name"
             android:name="helium314.keyboard.latin.App"
@@ -191,6 +194,9 @@ SPDX-License-Identifier: Apache-2.0 AND GPL-3.0-only
     </application>
 
     <queries>
+        <!-- Store, which updates our apps (core/update/StoreLink.kt; its debug package is queried in src/debug) -->
+        <package android:name="com.yaz.store" />
+
         <!-- Our Language app: the Translate tool binds its service, dictation hears through it (signature checked in
              core/translate/Translator and dictation/Recognizers; https://developer.android.com/training/package-visibility/declaring) -->
         <package android:name="com.yaz.language" />

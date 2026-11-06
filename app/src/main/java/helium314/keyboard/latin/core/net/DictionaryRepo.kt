@@ -2,6 +2,8 @@
 package helium314.keyboard.latin.core.net
 
 import android.content.Context
+import helium314.keyboard.latin.common.LocaleUtils.constructLocale
+import helium314.keyboard.latin.utils.DictionaryInfoUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
@@ -76,6 +78,30 @@ object DictionaryRepo {
     fun accepts(sha256: String, known: Set<String>): Boolean = sha256.lowercase() in known
 
     /**
+     * Whether a file whose header says [localeString] (DictionaryHeader.mLocaleString) and [idString] (mIdString,
+     * "main:fr") is the one [entry] asked for: the same locale and, for main and emoji, the same type. The hash lists
+     * hold bare hashes, so a valid but different dictionary would pass the hash check alone.
+     * Ported from NewDictionaryDialog.checkDict, which reads the header (locale = header.mLocaleString.constructLocale())
+     * and takes the type as header.mIdString.substringBefore(":"),
+     * https://github.com/HeliBorg/HeliBoard/blob/main/app/src/main/java/helium314/keyboard/settings/dialogs/NewDictionaryDialog.kt#checkDict
+     * The other files of the repo (symbols_*, addon_*) have no known header type: only their locale is compared.
+     */
+    fun isRequested(entry: RepoDictionary, localeString: String, idString: String): Boolean {
+        val type = entry.name.substringBefore("_")
+        val askedLocale = entry.name.substringAfter("_").removeSuffix("__experimental").constructLocale()
+        if (localeString.constructLocale() != askedLocale) return false
+        return type !in CHECKED_TYPES || idString.substringBefore(":") == type
+    }
+
+    private val CHECKED_TYPES = setOf("main", "emoji")
+
+    /** The header of [file] as checkDict reads it (getDictionaryFileHeaderOrNull); no header, no match. */
+    private fun headerMatches(entry: RepoDictionary, file: File): Boolean {
+        val header = DictionaryInfoUtils.getDictionaryFileHeaderOrNull(file) ?: return false
+        return isRequested(entry, header.mLocaleString, header.mIdString)
+    }
+
+    /**
      * Copies [input] to [out] for at most [max] bytes, returns the SHA-256 (lower-case hex) of what was copied; one
      * byte more throws TOO_LARGE. [onChunk] gets the running total, [cancelled] is polled so a cancelled coroutine stops.
      */
@@ -117,6 +143,7 @@ object DictionaryRepo {
                         }
                     }
                     if (!accepts(hash, known)) throw DownloadException(DownloadFailure.REFUSED)
+                    if (!headerMatches(entry, into)) throw DownloadException(DownloadFailure.REFUSED)
                     kept = true
                     hash
                 } finally {
