@@ -47,6 +47,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import helium314.keyboard.latin.R
 import helium314.keyboard.latin.SystemBroadcastReceiver
 import helium314.keyboard.latin.ui.component.BoldButton
+import helium314.keyboard.latin.ui.component.LoadingMark
 import helium314.keyboard.latin.ui.component.SetupTile
 import helium314.keyboard.latin.ui.component.SetupTileDialog
 import helium314.keyboard.latin.ui.component.SetupTileGrid
@@ -166,7 +167,7 @@ fun WelcomeWizard(reopened: Boolean, close: () -> Unit) {
  * from WelcomeScreen. The title is "Welcome to Keyboard" (setup_welcome_title with the app's name), in the accent.
  * Ported from WelcomeContent of
  * https://github.com/213YaZ786/Language/blob/main/app/src/main/java/com/yaz/language/feature/welcome/WelcomeScreen.kt#WelcomeContent
- * not ported: LoadingMark (Keyboard's draws nothing while not running, the app's logo is the user's to validate).
+ * The icon at the top is Keyboard's LoadingMark, the keycap pressed and let go (running; the user, 2026-11-07).
  */
 @Composable
 internal fun WelcomeContent(tiles: List<SetupTile>, reopened: Boolean, onStart: () -> Unit, onExplain: (SetupTile) -> Unit = {}) {
@@ -182,6 +183,8 @@ internal fun WelcomeContent(tiles: List<SetupTile>, reopened: Boolean, onStart: 
         ) {
             Spacer(Modifier.windowInsetsTopHeight(WindowInsets.statusBars))
             Spacer(Modifier.height(40.dp))
+            LoadingMark(size = 120.dp)
+            Spacer(Modifier.height(20.dp))
             // Every title in the accent (the user, 2026-10-31), as Modules' SettingsSectionTitle.
             Text(
                 stringResource(R.string.setup_welcome_title, appName),

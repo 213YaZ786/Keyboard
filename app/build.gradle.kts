@@ -13,8 +13,8 @@ android {
         applicationId = "com.yaz.keyboard"
         minSdk = 31
         targetSdk = 37
-        versionCode = 10
-        versionName = "0.1.9"
+        versionCode = 11
+        versionName = "0.1.10"
         ndk {
             abiFilters.clear()
             abiFilters.addAll(listOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64"))
