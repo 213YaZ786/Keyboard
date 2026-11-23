@@ -2,8 +2,8 @@ import com.android.build.api.variant.ApplicationVariant
 
 plugins {
     id("com.android.application")
-    kotlin("plugin.serialization") version "2.4.0"
-    kotlin("plugin.compose") version "2.4.0"
+    kotlin("plugin.serialization") version "2.4.21"
+    kotlin("plugin.compose") version "2.4.21"
 }
 
 android {
@@ -139,34 +139,34 @@ dependencies {
     implementation("androidx.autofill:autofill:1.3.0")
     implementation("androidx.viewpager2:viewpager2:1.1.0")
     implementation("androidx.lifecycle:lifecycle-process:2.9.4") // the update kit's ProcessLifecycleOwner, Modules' catalogue version
-    implementation("androidx.fragment:fragment:1.8.9") // registerForActivityResult needs Fragment 1.3+ (lint InvalidFragmentVersionForActivityResult)
+    implementation("androidx.fragment:fragment:1.9.1") // registerForActivityResult needs Fragment 1.3+ (lint InvalidFragmentVersionForActivityResult)
 
     // kotlin
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0")
-    implementation("com.github.bumptech.glide:gifdecoder:5.0.9") // run only inside the isolated DecoderService (safemedia kit), Modules' catalogue version
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.13.0")
+    implementation("com.github.bumptech.glide:gifdecoder:5.0.10") // run only inside the isolated DecoderService (safemedia kit), Modules' catalogue version
 
     // compose
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
     // versions of Modules' catalogue (shared/base/root/gradle/libs.versions.toml), minSdk 31
-    implementation(platform("androidx.compose:compose-bom:2026.09.00"))
+    implementation(platform("androidx.compose:compose-bom:2026.11.01"))
     implementation("androidx.compose.material3:material3")
     implementation("androidx.graphics:graphics-shapes:1.1.0") // Modules' EmptyZone and SunnyShape
     implementation("androidx.compose.ui:ui-tooling-preview")
     debugImplementation("androidx.compose.ui:ui-tooling")
     "debugNoMinifyImplementation"("androidx.compose.ui:ui-tooling")
-    implementation("androidx.navigation:navigation-compose:2.9.8")
+    implementation("androidx.navigation:navigation-compose:2.10.2")
     implementation("sh.calvin.reorderable:reorderable:3.1.0") // for easier re-ordering
-    implementation("com.github.skydoves:colorpicker-compose:1.1.3") // for user-defined colors, newer requires minSdk 23
+    implementation("com.github.skydoves:colorpicker-compose:1.3.0") // for user-defined colors, newer requires minSdk 23
     // Easter eggs (point 21): Konfetti's View version (ISC, https://github.com/DanielMartinus/Konfetti), 2.0.5 of November 2024:
     // later versions are too recent. Reads nothing, sends nothing; its core module comes with it.
-    implementation("nl.dionsegijn:konfetti-xml:2.0.5")
+    implementation("nl.dionsegijn:konfetti-xml:2.2.0")
 
     // test
     testImplementation(kotlin("test"))
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit")
-    testImplementation("org.mockito:mockito-core:5.23.0")
-    testImplementation("org.robolectric:robolectric:4.16.1")
+    testImplementation("org.mockito:mockito-core:5.24.0")
+    testImplementation("org.robolectric:robolectric:4.18.1")
     testImplementation("androidx.test:runner:1.7.0")
     testImplementation("androidx.test:core:1.7.0")
 }
